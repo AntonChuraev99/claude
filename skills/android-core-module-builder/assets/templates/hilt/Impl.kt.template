@@ -1,0 +1,14 @@
+package com.example.{{MODULE_PACKAGE}}.impl
+
+import com.example.{{MODULE_PACKAGE}}.api.{{INTERFACE_NAME}}
+{{IMPL_IMPORTS}}
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+internal class {{INTERFACE_NAME}}Impl @Inject constructor(
+{{CONSTRUCTOR_PARAMS}}
+) : {{INTERFACE_NAME}} {
+
+{{IMPL_METHODS}}
+}

@@ -1,0 +1,5 @@
+package {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.impl
+
+import {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.api.{{INTERFACE_NAME}}
+
+actual fun create{{INTERFACE_NAME}}(): {{INTERFACE_NAME}} = Ios{{INTERFACE_NAME}}()

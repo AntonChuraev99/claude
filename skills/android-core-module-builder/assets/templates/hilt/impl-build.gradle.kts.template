@@ -1,0 +1,14 @@
+plugins {
+    alias(libs.plugins.myproject.android.library)
+    alias(libs.plugins.myproject.android.hilt)
+{{IMPL_EXTRA_PLUGINS}}
+}
+
+android {
+    namespace = "com.example.{{MODULE_PACKAGE}}.impl"
+}
+
+dependencies {
+    implementation(projects.core.{{MODULE_PROJECT_PATH}}.api)
+{{IMPL_DEPENDENCIES}}
+}

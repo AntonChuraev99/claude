@@ -1,0 +1,108 @@
+# ============================================================================
+#  WHITELIST .gitignore
+#
+#  Strategy: ignore EVERYTHING by default, then re-include ONLY the files
+#  meant for publication. This makes leaks structurally impossible — secrets
+#  (.credentials.json, real settings.json, projects/, history.jsonl, logs,
+#  agent-memory, stats, plugins) are never tracked because they are simply
+#  not on the allow-list below.
+#
+#  When adding a new file to the repo you MUST add an explicit `!` rule here,
+#  otherwise git will not see it. That friction is intentional.
+# ============================================================================
+
+# --- 1. Ignore everything ---------------------------------------------------
+*
+
+# --- 2. Repo meta -----------------------------------------------------------
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/LICENSE
+!/CLAUDE.md
+!/settings.example.json
+
+# --- 3. Hook & status-line scripts (referenced from settings.example.json) --
+!/notify.ps1
+!/statusline.sh
+!/graphify-pretool.ps1
+!/session-docs-digest.ps1
+!/doc-writer-update-reminder.ps1
+!/toast-action.ps1
+!/toast-action-launcher.vbs
+
+# --- 4. Subagents -----------------------------------------------------------
+!/agents/
+!/agents/**
+
+# --- 5. Slash commands ------------------------------------------------------
+!/commands/
+!/commands/**
+
+# --- 6. Output style --------------------------------------------------------
+!/output-styles/
+!/output-styles/**
+
+# --- 7. Reference docs ------------------------------------------------------
+!/references/
+!/references/**
+
+# --- Anti-leak hook TEMPLATE (the live hook in .git/hooks/ is never tracked) -
+!/hooks/
+!/hooks/**
+
+# --- 8. Toast icons (used by notify.ps1) ------------------------------------
+!/assets/
+!/assets/events/
+!/assets/events/*.png
+
+# --- 9. Config templates: only *.example.* (never *.local.*) -----------------
+!/config/
+!/config/*.example.md
+
+# --- 11. Authored skills (each whitelisted; installed/3rd-party stay ignored)-
+!/skills/
+!/skills/ab-test-dashboard/
+!/skills/ab-test-dashboard/**
+!/skills/amplitude-slack-payload/
+!/skills/amplitude-slack-payload/**
+!/skills/cloudflare-deploy-slack-notify/
+!/skills/cloudflare-deploy-slack-notify/**
+!/skills/commit/
+!/skills/commit/**
+!/skills/end-session/
+!/skills/end-session/**
+!/skills/git-commit-conventions/
+!/skills/git-commit-conventions/**
+!/skills/git-worktree-env/
+!/skills/git-worktree-env/**
+!/skills/gitlab-release-slack-ci/
+!/skills/gitlab-release-slack-ci/**
+!/skills/gradle-deps-update/
+!/skills/gradle-deps-update/**
+!/skills/jira-task-writer/
+!/skills/jira-task-writer/**
+!/skills/stop-slop-ru/
+!/skills/stop-slop-ru/**
+!/skills/test-firebase-function/
+!/skills/test-firebase-function/**
+!/skills/turnstile-spin/
+!/skills/turnstile-spin/**
+!/skills/android-core-module-builder/
+!/skills/android-core-module-builder/**
+!/skills/android-feature-module-builder/
+!/skills/android-feature-module-builder/**
+
+# --- 12. Re-exclude junk inside otherwise-allowed skills ---------------------
+/skills/jira-task-writer/evals/
+
+# --- 13. Belt-and-suspenders: hard-deny known sensitive files ----------------
+#  (already ignored by `*`, repeated here so a careless `!` rule above can
+#   never accidentally expose them)
+.credentials.json
+.claude.json
+settings.json
+settings.local.json
+config/*.local.md
+*.log
+*.jsonl

@@ -1,0 +1,20 @@
+package com.example.{{MODULE_PACKAGE}}.impl.di
+
+import com.example.{{MODULE_PACKAGE}}.api.{{INTERFACE_NAME}}
+import com.example.{{MODULE_PACKAGE}}.impl.{{INTERFACE_NAME}}Impl
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+internal abstract class {{MODULE_CLASS}}Module {
+
+    @Binds
+    @Singleton
+    internal abstract fun bind{{INTERFACE_NAME}}(
+        impl: {{INTERFACE_NAME}}Impl,
+    ): {{INTERFACE_NAME}}
+}

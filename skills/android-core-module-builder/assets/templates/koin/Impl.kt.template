@@ -1,0 +1,11 @@
+package {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.impl
+
+import {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.api.{{INTERFACE_NAME}}
+{{IMPL_IMPORTS}}
+
+class {{INTERFACE_NAME}}Impl(
+{{CONSTRUCTOR_PARAMS}}
+) : {{INTERFACE_NAME}} {
+
+{{IMPL_METHODS}}
+}

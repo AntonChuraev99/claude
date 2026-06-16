@@ -1,0 +1,17 @@
+package com.example.{{FEATURE_PACKAGE}}.ui.screens.{{SCREEN_FOLDER}}
+
+import androidx.compose.runtime.Immutable
+
+internal sealed interface {{SCREEN_CLASS}}UiState {
+
+    data object Loading : {{SCREEN_CLASS}}UiState
+
+    data class Error(val exception: Throwable) : {{SCREEN_CLASS}}UiState
+
+    @Immutable
+    data class Success(
+        // Add state fields here. Use ImmutableList for collections:
+        // val items: ImmutableList<Item>,
+        val title: String,
+    ) : {{SCREEN_CLASS}}UiState
+}

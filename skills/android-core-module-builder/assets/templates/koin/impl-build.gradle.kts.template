@@ -1,0 +1,50 @@
+plugins {
+    alias(libs.plugins.kotlinMultiplatform)
+    alias(libs.plugins.androidLibrary)
+{{IMPL_EXTRA_PLUGINS}}
+}
+
+kotlin {
+    androidTarget {
+        compilations.all {
+            kotlinOptions {
+                jvmTarget = "11"
+            }
+        }
+    }
+
+    listOf(
+        iosArm64(),
+        iosSimulatorArm64(),
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "{{FRAMEWORK_BASE_NAME}}Impl"
+            isStatic = true
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(projects.core.{{MODULE_PROJECT_PATH}}.api)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.bundles.koin.library)
+{{IMPL_COMMON_DEPENDENCIES}}
+        }
+
+        androidMain.dependencies {
+{{IMPL_ANDROID_DEPENDENCIES}}
+        }
+
+        iosMain.dependencies {
+{{IMPL_IOS_DEPENDENCIES}}
+        }
+    }
+}
+
+android {
+    namespace = "{{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.impl"
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
+    defaultConfig {
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+}

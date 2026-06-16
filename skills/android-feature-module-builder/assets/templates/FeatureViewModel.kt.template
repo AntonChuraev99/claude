@@ -1,0 +1,28 @@
+package com.example.{{FEATURE_PACKAGE}}.ui.screens.{{SCREEN_FOLDER}}
+
+import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.stateIn
+import javax.inject.Inject
+
+@HiltViewModel
+internal class {{SCREEN_CLASS}}ViewModel @Inject constructor(
+    // Inject repositories and use cases here:
+    // private val repository: SomeRepository,
+) : ViewModel() {
+
+    val uiState: StateFlow<{{SCREEN_CLASS}}UiState> = flow {
+        emit({{SCREEN_CLASS}}UiState.Loading)
+        // Load data from repository and map to Success state:
+        // val result = repository.getData()
+        // emit({{SCREEN_CLASS}}UiState.Success(title = result.title))
+        emit({{SCREEN_CLASS}}UiState.Success(title = ""))
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        {{SCREEN_CLASS}}UiState.Loading,
+    )
+}

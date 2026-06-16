@@ -1,0 +1,363 @@
+{
+  "env": {
+    "CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY_HERE"
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Read",
+      "WebFetch",
+      "WebSearch",
+      "Skill(commit)",
+      "mcp__plugin_compound-engineering_context7__resolve-library-id",
+      "mcp__plugin_compound-engineering_context7__query-docs",
+      "mcp__mobile__device_list",
+      "mcp__mobile__device_set",
+      "mcp__mobile__device_get_target",
+      "mcp__mobile__device_set_target",
+      "mcp__mobile__screen_capture",
+      "mcp__mobile__screen_annotate",
+      "mcp__mobile__app_launch",
+      "mcp__mobile__app_stop",
+      "mcp__mobile__app_install",
+      "mcp__mobile__app_list",
+      "mcp__mobile__input_tap",
+      "mcp__mobile__input_swipe",
+      "mcp__mobile__input_text",
+      "mcp__mobile__input_key",
+      "mcp__mobile__input_double_tap",
+      "mcp__mobile__input_long_press",
+      "mcp__mobile__ui_tree",
+      "mcp__mobile__ui_find",
+      "mcp__mobile__ui_find_tap",
+      "mcp__mobile__ui_tap_text",
+      "mcp__mobile__ui_analyze",
+      "mcp__mobile__ui_assert_visible",
+      "mcp__mobile__ui_assert_gone",
+      "mcp__mobile__ui_wait",
+      "mcp__mobile__system_shell",
+      "mcp__mobile__system_wait",
+      "mcp__mobile__system_clear_logs",
+      "mcp__mobile__system_logs",
+      "mcp__mobile__system_info",
+      "mcp__mobile__system_activity",
+      "mcp__mobile__system_open_url",
+      "mcp__mobile__system_webview",
+      "mcp__mobile__permission_grant",
+      "mcp__mobile__permission_revoke",
+      "mcp__mobile__permission_reset",
+      "mcp__mobile__file_pull",
+      "mcp__mobile__file_push",
+      "mcp__mobile__flow_run",
+      "mcp__mobile__flow_batch",
+      "mcp__mobile__browser_open",
+      "mcp__mobile__browser_navigate",
+      "mcp__mobile__browser_click",
+      "mcp__mobile__browser_fill",
+      "mcp__mobile__browser_fill_form",
+      "mcp__mobile__browser_close",
+      "mcp__mobile__browser_evaluate",
+      "mcp__mobile__browser_screenshot",
+      "mcp__mobile__browser_snapshot",
+      "mcp__mobile__browser_list_sessions",
+      "mcp__mobile__browser_clear_session",
+      "mcp__mobile__browser_wait_for_selector",
+      "mcp__mobile__browser_press_key",
+      "mcp__mobile__clipboard_copy",
+      "mcp__mobile__clipboard_get",
+      "mcp__mobile__clipboard_get_android",
+      "mcp__mobile__clipboard_paste",
+      "mcp__mobile__clipboard_select",
+      "mcp__mobile__clipboard_set",
+      "mcp__mobile__store_upload",
+      "mcp__mobile__store_set_notes",
+      "mcp__mobile__store_submit",
+      "mcp__mobile__store_get_releases",
+      "mcp__mobile__store_discard",
+      "mcp__mobile__store_promote",
+      "mcp__mobile__store_halt_rollout",
+      "mcp__mobile__huawei_upload",
+      "mcp__mobile__huawei_set_notes",
+      "mcp__mobile__huawei_submit",
+      "mcp__mobile__huawei_get_releases",
+      "mcp__mobile__rustore_upload",
+      "mcp__mobile__rustore_set_notes",
+      "mcp__mobile__rustore_submit",
+      "mcp__mobile__rustore_get_versions",
+      "mcp__mobile__rustore_discard",
+      "mcp__mobile__desktop_focus",
+      "mcp__mobile__desktop_launch",
+      "mcp__mobile__desktop_monitors",
+      "mcp__mobile__desktop_performance",
+      "mcp__mobile__desktop_resize",
+      "mcp__mobile__desktop_stop",
+      "mcp__mobile__desktop_windows",
+      "mcp__plugin_figma_figma__add_code_connect_map",
+      "mcp__plugin_figma_figma__create_design_system_rules",
+      "mcp__plugin_figma_figma__create_new_file",
+      "mcp__plugin_figma_figma__generate_diagram",
+      "mcp__plugin_figma_figma__generate_figma_design",
+      "mcp__plugin_figma_figma__get_code_connect_map",
+      "mcp__plugin_figma_figma__get_code_connect_suggestions",
+      "mcp__plugin_figma_figma__get_context_for_code_connect",
+      "mcp__plugin_figma_figma__get_design_context",
+      "mcp__plugin_figma_figma__get_figjam",
+      "mcp__plugin_figma_figma__get_metadata",
+      "mcp__plugin_figma_figma__get_screenshot",
+      "mcp__plugin_figma_figma__get_variable_defs",
+      "mcp__plugin_figma_figma__search_design_system",
+      "mcp__plugin_figma_figma__send_code_connect_mappings",
+      "mcp__plugin_figma_figma__use_figma",
+      "mcp__plugin_figma_figma__whoami",
+      "mcp__plugin_firebase_firebase__apphosting_fetch_logs",
+      "mcp__plugin_firebase_firebase__apphosting_list_backends",
+      "mcp__plugin_firebase_firebase__auth_get_users",
+      "mcp__plugin_firebase_firebase__auth_set_sms_region_policy",
+      "mcp__plugin_firebase_firebase__auth_update_user",
+      "mcp__plugin_firebase_firebase__crashlytics_batch_get_events",
+      "mcp__plugin_firebase_firebase__crashlytics_create_note",
+      "mcp__plugin_firebase_firebase__crashlytics_delete_note",
+      "mcp__plugin_firebase_firebase__crashlytics_get_issue",
+      "mcp__plugin_firebase_firebase__crashlytics_get_report",
+      "mcp__plugin_firebase_firebase__crashlytics_list_events",
+      "mcp__plugin_firebase_firebase__crashlytics_list_notes",
+      "mcp__plugin_firebase_firebase__crashlytics_update_issue",
+      "mcp__plugin_firebase_firebase__dataconnect_build",
+      "mcp__plugin_firebase_firebase__dataconnect_execute",
+      "mcp__plugin_firebase_firebase__dataconnect_list_services",
+      "mcp__plugin_firebase_firebase__developerknowledge_get_documents",
+      "mcp__plugin_firebase_firebase__developerknowledge_search_documents",
+      "mcp__plugin_firebase_firebase__firebase_create_android_sha",
+      "mcp__plugin_firebase_firebase__firebase_create_app",
+      "mcp__plugin_firebase_firebase__firebase_create_project",
+      "mcp__plugin_firebase_firebase__firebase_get_environment",
+      "mcp__plugin_firebase_firebase__firebase_get_project",
+      "mcp__plugin_firebase_firebase__firebase_get_sdk_config",
+      "mcp__plugin_firebase_firebase__firebase_get_security_rules",
+      "mcp__plugin_firebase_firebase__firebase_init",
+      "mcp__plugin_firebase_firebase__firebase_list_apps",
+      "mcp__plugin_firebase_firebase__firebase_list_projects",
+      "mcp__plugin_firebase_firebase__firebase_login",
+      "mcp__plugin_firebase_firebase__firebase_logout",
+      "mcp__plugin_firebase_firebase__firebase_read_resources",
+      "mcp__plugin_firebase_firebase__firebase_update_environment",
+      "mcp__plugin_firebase_firebase__firebase_validate_security_rules",
+      "mcp__plugin_firebase_firebase__firestore_add_document",
+      "mcp__plugin_firebase_firebase__firestore_create_database",
+      "mcp__plugin_firebase_firebase__firestore_create_index",
+      "mcp__plugin_firebase_firebase__firestore_delete_database",
+      "mcp__plugin_firebase_firebase__firestore_delete_document",
+      "mcp__plugin_firebase_firebase__firestore_delete_index",
+      "mcp__plugin_firebase_firebase__firestore_get_database",
+      "mcp__plugin_firebase_firebase__firestore_get_document",
+      "mcp__plugin_firebase_firebase__firestore_get_index",
+      "mcp__plugin_firebase_firebase__firestore_list_collections",
+      "mcp__plugin_firebase_firebase__firestore_list_databases",
+      "mcp__plugin_firebase_firebase__firestore_list_documents",
+      "mcp__plugin_firebase_firebase__firestore_list_indexes",
+      "mcp__plugin_firebase_firebase__firestore_query_collection",
+      "mcp__plugin_firebase_firebase__firestore_update_database",
+      "mcp__plugin_firebase_firebase__firestore_update_document",
+      "mcp__plugin_firebase_firebase__functions_get_logs",
+      "mcp__plugin_firebase_firebase__functions_list_functions",
+      "mcp__plugin_firebase_firebase__messaging_send_message",
+      "mcp__plugin_firebase_firebase__realtimedatabase_get_data",
+      "mcp__plugin_firebase_firebase__realtimedatabase_set_data",
+      "mcp__plugin_firebase_firebase__remoteconfig_get_template",
+      "mcp__plugin_firebase_firebase__remoteconfig_update_template",
+      "mcp__plugin_firebase_firebase__storage_get_object_download_url",
+      "mcp__revenuecat__get-app",
+      "mcp__revenuecat__get-chart-data",
+      "mcp__revenuecat__get-chart-options-schema",
+      "mcp__revenuecat__get-customer",
+      "mcp__revenuecat__get-entitlement",
+      "mcp__revenuecat__get-experiment",
+      "mcp__revenuecat__get-experiment-results",
+      "mcp__revenuecat__get-offering",
+      "mcp__revenuecat__get-overview-metrics",
+      "mcp__revenuecat__get-product",
+      "mcp__revenuecat__get-product-store-state",
+      "mcp__revenuecat__get-product-store-state-operation",
+      "mcp__revenuecat__get-products-from-entitlement",
+      "mcp__revenuecat__get-subscription",
+      "mcp__revenuecat__get-virtual-currency",
+      "mcp__revenuecat__get-webhook-integration",
+      "mcp__revenuecat__list-app-public-api-keys",
+      "mcp__revenuecat__list-apps",
+      "mcp__revenuecat__list-audit-logs",
+      "mcp__revenuecat__list-collaborators",
+      "mcp__revenuecat__list-entitlements",
+      "mcp__revenuecat__list-experiments",
+      "mcp__revenuecat__list-offerings",
+      "mcp__revenuecat__list-packages",
+      "mcp__revenuecat__list-product-prices",
+      "mcp__revenuecat__list-products",
+      "mcp__revenuecat__list-purchases",
+      "mcp__revenuecat__list-subscriptions",
+      "mcp__revenuecat__list-virtual-currencies",
+      "mcp__revenuecat__list-virtual-currencies-balances",
+      "mcp__revenuecat__list-webhook-integrations",
+      "mcp__claude_ai_Slack__slack_read_channel",
+      "mcp__claude_ai_Slack__slack_read_thread",
+      "mcp__claude_ai_Slack__slack_read_canvas",
+      "mcp__claude_ai_Slack__slack_read_user_profile",
+      "mcp__claude_ai_Slack__slack_search_channels",
+      "mcp__claude_ai_Slack__slack_search_public",
+      "mcp__claude_ai_Slack__slack_search_public_and_private",
+      "mcp__claude_ai_Slack__slack_search_users",
+      "mcp__pencil",
+      "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\stats\\**)",
+      "Write(C:\\Users\\YOUR_USERNAME\\.claude\\stats\\**)",
+      "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\improvements\\**)",
+      "Write(C:\\Users\\YOUR_USERNAME\\.claude\\improvements\\**)",
+      "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\projects\\**\\memory\\**)",
+      "Write(C:\\Users\\YOUR_USERNAME\\.claude\\projects\\**\\memory\\**)",
+      "Edit(**\\docs\\active\\**)",
+      "Write(**\\docs\\active\\**)",
+      "Edit(**\\docs\\todos\\**)",
+      "Write(**\\docs\\todos\\**)",
+      "Edit(**\\docs\\reports\\**)",
+      "Write(**\\docs\\reports\\**)",
+      "Edit(**\\docs\\solutions\\**)",
+      "Write(**\\docs\\solutions\\**)",
+      "Edit(**\\docs\\decisions\\**)",
+      "Write(**\\docs\\decisions\\**)",
+      "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\agents\\**)",
+      "Write(C:\\Users\\YOUR_USERNAME\\.claude\\agents\\**)",
+      "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\skills\\**)",
+      "Write(C:\\Users\\YOUR_USERNAME\\.claude\\skills\\**)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\session-docs-digest.ps1\"",
+            "timeout": 30,
+            "statusMessage": "Собираю дайджест docs/active + docs/todos…"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\notify.ps1\" -EventType Stop"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\notify.ps1\" -EventType Notification"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\graphify-pretool.ps1\""
+          }
+        ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\graphify-pretool.ps1\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\doc-writer-update-reminder.ps1\""
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /c/Users/YOUR_USERNAME/.claude/statusline.sh"
+  },
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true,
+    "compound-engineering@every-marketplace": true,
+    "mcp-apps@mcp-apps": true,
+    "voltagent-lang@voltagent-subagents": false,
+    "voltagent-core-dev@voltagent-subagents": false,
+    "voltagent-qa-sec@voltagent-subagents": false,
+    "skill-creator@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "firebase@firebase": true,
+    "frontend-design@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": true,
+    "amplitude@claude-plugins-official": true,
+    "warp@claude-code-warp": true,
+    "lazyweb@lazyweb": true,
+    "RevenueCat@RevenueCat": true,
+    "context7@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "firebase": {
+      "source": {
+        "source": "github",
+        "repo": "firebase/firebase-tools"
+      }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    },
+    "lazyweb": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/aboul3ata/lazyweb-skill.git"
+      }
+    },
+    "RevenueCat": {
+      "source": {
+        "source": "github",
+        "repo": "RevenueCat/ai-toolkit"
+      }
+    }
+  },
+  "outputStyle": "Anti-Slop RU",
+  "language": "Русский",
+  "effortLevel": "xhigh",
+  "showClearContextOnPlanAccept": true,
+  "autoUpdatesChannel": "latest",
+  "skipDangerousModePermissionPrompt": true,
+  "theme": "dark-daltonized",
+  "preferredNotifChannel": "auto",
+  "remoteControlAtStartup": true,
+  "inputNeededNotifEnabled": false,
+  "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true
+}

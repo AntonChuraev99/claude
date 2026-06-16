@@ -1,0 +1,18 @@
+plugins {
+    alias(libs.plugins.myproject.android.feature)
+    alias(libs.plugins.myproject.android.library.compose)
+}
+
+android {
+    namespace = "com.example.{{FEATURE_PACKAGE}}"
+}
+
+dependencies {
+    // Add only dependencies beyond what myproject.android.feature provides.
+    // The convention plugin already includes: Hilt, core:common, core:models,
+    // core:ui, core:designsystem, Navigation, Compose dependencies.
+
+    // Example: implementation(projects.core.data)
+    // Example: implementation(projects.core.analytic)
+    // Example: implementation(libs.some.library)
+}

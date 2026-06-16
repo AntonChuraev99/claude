@@ -1,0 +1,10 @@
+package com.example.{{MODULE_PACKAGE}}.api.model
+
+import androidx.compose.runtime.Immutable
+
+@Immutable
+sealed interface {{STATE_NAME}} {
+    data object Idle : {{STATE_NAME}}
+
+{{STATE_SUBTYPES}}
+}

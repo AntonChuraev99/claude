@@ -1,0 +1,13 @@
+# Normalize line endings so the repo is consistent across OSes.
+# Text files are stored with LF in the repository.
+* text=auto eol=lf
+
+# Shell scripts MUST be LF — CRLF breaks the bash shebang and execution.
+*.sh   text eol=lf
+
+# Windows-only scripts: keep CRLF in the working tree.
+*.ps1  text eol=crlf
+*.vbs  text eol=crlf
+
+# Binary assets — never touch.
+*.png  binary

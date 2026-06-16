@@ -1,0 +1,214 @@
+# GitLab CI: автоматический GitLab Release + Slack-нотификация на push annotated тэга.
+#
+# Шаблон из скилла gitlab-release-slack-ci. Для merge в существующий .gitlab-ci.yml
+# нужно перенести stages и оба job'а (release:create, notify:release), сохранив существующие.
+#
+# Pre-requisites (one-time setup):
+# 1. Slack Incoming Webhook URL — создаётся в https://api.slack.com/apps
+# 2. GitLab CI/CD variable SLACK_WEBHOOK_URL — masked + protected, scope: All
+# 3. GitLab Protected tags — pattern `v*`, allowed-to-create: Maintainers
+#
+# Trigger: push annotated тэга вида vX.Y.Z (regex настраивается в rules ниже).
+# Result: GitLab Release object + Slack-сообщение в канал, привязанный к webhook.
+
+stages:
+  - release
+  - notify
+
+# Создаёт GitLab Release объект из tag annotation.
+# release-cli — официальная GitLab CLI для управления Releases, использует CI_JOB_TOKEN.
+#
+# ⚠️ ВАЖНО про description: НЕ передавать `$CI_COMMIT_TAG_MESSAGE` напрямую в
+# `description:` — release-cli прогоняет это значение через shell eval, и любые
+# shell-метасимволы в release notes (`${var}`, backticks, вложенные скобки `(...)`,
+# двойные кавычки внутри fenced code) ломают job с `/bin/sh: syntax error`.
+# Безопасный путь: записать notes в файл через `printf '%s' "$CI_COMMIT_TAG_MESSAGE"`
+# в `script:` (printf экранирование не требует, shell не делает recursive expansion
+# на значениях переменных), потом передать в `description: ./release_notes.md` —
+# release-cli читает файл через API без eval.
+#
+# Чтобы release notes реально содержали markdown-заголовки (#/##/###),
+# annotated tag должен быть создан через `git tag -a -F notes.md` или с
+# `--cleanup=verbatim`. Default `git tag -a -m "..."` режет строки начинающиеся
+# с `#` (default core.commentChar) — заголовки пропадут. См. SKILL.md → "Writing
+# release notes" для деталей и правильных команд.
+release:create:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  script:
+    - echo "Creating GitLab Release for $CI_COMMIT_TAG"
+    - printf '%s' "$CI_COMMIT_TAG_MESSAGE" > release_notes.md
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    name: '$CI_COMMIT_TAG'
+    description: ./release_notes.md
+
+# Шлёт Slack-уведомление после успешного создания Release.
+# Зависит от release:create через needs — если Release не создался, notify не запускается.
+#
+# Форматирование release notes:
+# - markdown → Slack mrkdwn transform (Slack не знает # ## **bold** — нужен свой синтаксис)
+#   - # H1     → 🔶 *H1* с пустой строкой выше
+#   - ## H2    → ▎ *H2* с пустой строкой выше (▎ рендерится как левая «цитата»-полоса)
+#   - ### H3   → ▸ *H3*
+#   - **bold** → *bold* (Slack mrkdwn = одна звёздочка)
+#   - - item   → • item
+#   - - **Title.** description → • *Title.*\n   description (title-on-own-line)
+# - CR убираются (`tr -d '\r'`) — иначе Windows-tagged annotations раздувают размер 2x
+# - Section text Slack-лимит 3000 chars → notes truncate до 2700 (запас).
+# - Slack возвращает HTTP 200 + body "ok" при успехе. На превышении лимита блока возвращает
+#   HTTP 400 + body "invalid_blocks". curl без проверки body — false positive success
+#   (job зелёный, в канал ничего не пришло). Скрипт проверяет body == "ok".
+notify:release:
+  stage: notify
+  image: alpine:latest
+  needs: ['release:create']
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  before_script:
+    - apk add --no-cache curl jq gawk
+  script:
+    - |
+      set -eu
+
+      if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+        echo "SLACK_WEBHOOK_URL is not set — skipping Slack notification."
+        echo "Check: Settings → CI/CD → Variables, and that the tag matches Protected tags pattern."
+        exit 0
+      fi
+
+      RAW_NOTES="${CI_COMMIT_TAG_MESSAGE:-}"
+      if [ -z "$RAW_NOTES" ]; then
+        RAW_NOTES="(no release notes — annotate the tag with git tag -a -F notes.md or via GitLab UI)"
+      fi
+
+      # markdown → Slack mrkdwn + CR strip
+      RELEASE_NOTES=$(printf '%s' "$RAW_NOTES" | tr -d '\r' | awk '
+      {
+        line = $0
+        if (line ~ /^# /) {
+          sub(/^# /, "", line)
+          if (NR > 1) print ""
+          print "🔶 *" line "*"
+          next
+        }
+        if (line ~ /^## /) {
+          sub(/^## /, "", line)
+          print ""
+          print "▎ *" line "*"
+          next
+        }
+        if (line ~ /^### /) {
+          sub(/^### /, "", line)
+          print "▸ *" line "*"
+          next
+        }
+        if (match(line, /^- \*\*[^*]+\*\* /)) {
+          gsub(/^- \*\*/, "• *", line)
+          sub(/\*\* /, "*\n   ", line)
+          gsub(/\*\*/, "*", line)
+          print line
+          next
+        }
+        if (line ~ /^- /) {
+          sub(/^- /, "• ", line)
+          gsub(/\*\*/, "*", line)
+          print line
+          next
+        }
+        if (line ~ /^  - /) {
+          sub(/^  - /, "    ◦ ", line)
+          gsub(/\*\*/, "*", line)
+          print line
+          next
+        }
+        gsub(/\*\*/, "*", line)
+        print line
+      }')
+
+      COMMIT_URL="${CI_PROJECT_URL}/-/commit/${CI_COMMIT_SHA}"
+      RELEASE_URL="${CI_PROJECT_URL}/-/releases/${CI_COMMIT_TAG}"
+
+      jq -n \
+        --arg project "$CI_PROJECT_NAME" \
+        --arg tag "$CI_COMMIT_TAG" \
+        --arg release_url "$RELEASE_URL" \
+        --arg author "$GITLAB_USER_NAME" \
+        --arg notes "$RELEASE_NOTES" \
+        --arg commit_url "$COMMIT_URL" \
+        --arg short_sha "$CI_COMMIT_SHORT_SHA" \
+        --arg pipeline_url "$CI_PIPELINE_URL" \
+        --arg pipeline_id "$CI_PIPELINE_ID" \
+        '{
+          attachments: [{
+            color: "#36C5F0",
+            blocks: [
+              { type: "header",
+                text: { type: "plain_text", text: ("🚀 " + $project + " " + $tag), emoji: true } },
+              { type: "section",
+                fields: [
+                  { type: "mrkdwn", text: ("📦 *Release*\n<" + $release_url + "|" + $tag + ">") },
+                  { type: "mrkdwn", text: ("👤 *Author*\n" + $author) }
+                ] },
+              { type: "divider" },
+              { type: "section",
+                text: { type: "mrkdwn",
+                        text: ("📝 *Release notes*\n\n" +
+                               (if ($notes | length) > 2700
+                                then ($notes[:2700] + "\n\n_…truncated, see full notes in GitLab Release_")
+                                else $notes end)) } },
+              { type: "divider" },
+              { type: "context",
+                elements: [
+                  { type: "mrkdwn",
+                    text: ("🔖 <" + $commit_url + "|Commit " + $short_sha + ">  ·  ⚙ <" + $pipeline_url + "|Pipeline #" + $pipeline_id + ">") }
+                ] }
+            ]
+          }]
+        }' > /tmp/slack_payload.json
+
+      RESPONSE=$(curl -sS -w '\nHTTP_STATUS:%{http_code}' -X POST \
+        -H 'Content-Type: application/json' \
+        --data-binary @/tmp/slack_payload.json \
+        "$SLACK_WEBHOOK_URL")
+
+      STATUS=$(echo "$RESPONSE" | grep -oE 'HTTP_STATUS:[0-9]+' | cut -d: -f2)
+      BODY=$(echo "$RESPONSE" | sed -e 's/HTTP_STATUS:[0-9]*$//' | tr -d '\n')
+
+      echo "Slack HTTP $STATUS, body: $BODY"
+
+      if [ "$STATUS" = "200" ] && [ "$BODY" = "ok" ]; then
+        echo "Slack notification sent successfully."
+      else
+        echo "Slack notification FAILED. Common causes:"
+        echo "  invalid_blocks       — notes exceed 3000-char section limit, or malformed payload"
+        echo "  invalid_token        — webhook URL is wrong or revoked"
+        echo "  channel_is_archived  — channel attached to webhook is archived"
+        echo "  no_service           — Slack app/webhook was disabled"
+        exit 1
+      fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tweaks (раскомментируй и измени по необходимости):
+#
+# Pre-release тэги (v1.2.3-rc1, v1.2.3-beta):
+#   rules:
+#     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+(-[a-z0-9.]+)?$/'
+#
+# Self-hosted GitLab < 15.5 (нет CI_COMMIT_TAG_MESSAGE):
+#   before_script:
+#     - apk add --no-cache curl jq git
+#   script:
+#     - |
+#       RELEASE_NOTES="$(git tag -l --format='%(contents:body)' "$CI_COMMIT_TAG")"
+#       # ... остальное как есть
+#
+# Несколько каналов (для разных аудиторий):
+#   - дублируй notify:release как notify:release-engineering, notify:release-public
+#   - каждый со своей переменной SLACK_WEBHOOK_URL_ENG, SLACK_WEBHOOK_URL_PUBLIC
+#
+# Add pre-release marker в заголовок (если pre-release):
+#   - В jq добавить условие: if ($tag | contains("-")) then "🧪 Pre-release: " else "🚀 " end
+# ─────────────────────────────────────────────────────────────────────────────

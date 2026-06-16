@@ -1,0 +1,25 @@
+package com.example.{{FEATURE_PACKAGE}}
+
+import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.composable
+import com.example.navigationconstants.NavigationConstants
+import com.example.{{FEATURE_PACKAGE}}.ui.screens.{{SCREEN_FOLDER}}.{{SCREEN_CLASS}}Route
+
+fun NavHostController.navigateTo{{FEATURE_CLASS}}() =
+    navigate({{NAV_ROUTE_CONST}}.route)
+
+fun NavGraphBuilder.{{FEATURE_PACKAGE}}Graph(
+    appNavController: NavController,
+    // Add navigation callbacks as needed:
+    // onNavigateToSomething: () -> Unit,
+) {
+    composable(
+        route = {{NAV_ROUTE_CONST}}.route,
+    ) {
+        {{SCREEN_CLASS}}Route(
+            onBackPressed = appNavController::popBackStack,
+        )
+    }
+}

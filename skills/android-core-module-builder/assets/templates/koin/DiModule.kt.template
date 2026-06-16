@@ -1,0 +1,9 @@
+package {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.impl.di
+
+import {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.api.{{INTERFACE_NAME}}
+import {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.impl.{{INTERFACE_NAME}}Impl
+import org.koin.dsl.module
+
+val {{MODULE_CAMEL}}Module = module {
+    single<{{INTERFACE_NAME}}> { {{INTERFACE_NAME}}Impl({{KOIN_GET_PARAMS}}) }
+}

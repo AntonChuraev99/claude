@@ -1,0 +1,8 @@
+package {{APP_PACKAGE}}.core.{{MODULE_PACKAGE}}.api
+
+{{INTERFACE_IMPORTS}}
+
+interface {{INTERFACE_NAME}} {
+
+{{INTERFACE_METHODS}}
+}

@@ -1,0 +1,23 @@
+package com.example.{{FEATURE_PACKAGE}}.ui.screens.{{SCREEN_FOLDER}}
+
+import androidx.compose.runtime.Composable
+import com.example.designsystem.component.containers.AppScaffold
+import com.example.designsystem.component.topBar.AppTopBar
+
+@Composable
+internal fun {{SCREEN_CLASS}}Content(
+    state: {{SCREEN_CLASS}}UiState.Success,
+    onBackPressed: () -> Unit,
+) {
+    AppScaffold(
+        topBar = {
+            AppTopBar(
+                onBackPressed = onBackPressed,
+                title = "{{SCREEN_CLASS}}",
+            )
+        },
+    ) {
+        // Pure UI for Success state.
+        // Add layout and components here.
+    }
+}

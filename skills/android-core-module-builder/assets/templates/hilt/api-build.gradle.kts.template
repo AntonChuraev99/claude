@@ -1,0 +1,14 @@
+plugins {
+    alias(libs.plugins.myproject.android.library)
+}
+
+android {
+    namespace = "com.example.{{MODULE_PACKAGE}}.api"
+}
+
+dependencies {
+    // Add only dependencies needed for the public contract.
+    // Keep api module lightweight — no heavy libraries.
+    // Common dependencies: coroutines, core:models
+{{API_DEPENDENCIES}}
+}
