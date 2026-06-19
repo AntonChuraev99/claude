@@ -26,7 +26,7 @@ try {
         'kotlin-expert',
         'react-ui-expert',
         'nextjs-expert',
-        'mobile-design-expert',
+        'design-expert',
         'wasmjs-expert',
         'security-kotlin'
     )

@@ -111,11 +111,11 @@ description: Финальная проверка перед завершение
 
 Поверхностная проверка результатов специалистов (2-3 сигнала; не код-ревью):
 
-- **`@android-expert`** — Compose/ViewModel/Navigation созданы, нет TODO, импорты корректны.
+- **`@android-expert`** — Compose/ViewModel/Navigation созданы, нет TODO, импорты корректны; Material 3 токены (нет `Color(0xFF...)`), design-system обёртки.
 - **`@kmp-expert`** — `commonMain` без Android-импортов, `expect`/`actual` спарены, без заглушек Route/Screen.
 - **`@react-ui-expert`** — компонент создан, type-check, Tailwind вместо inline.
 - **`@nextjs-expert`** — API route корректный тип + авторизация.
-- **`@mobile-design-expert`** — Material 3 токены (нет `Color(0xFF...)`), Scaffold/Navigation.
+- **`@design-expert`** — отдал `DESIGN_SPEC` (описание дизайна, не прод-код); платформа + метод (native/claude-design) проставлены.
 - **`@kotlin-expert`** — Flow/runCatching/Duration, нет блокирующих вызовов в корутинах.
 - **`@wasmjs-expert`** — `init.js`/`index.html`/wasmJs стабы синхронны, нет `js("...")` в commonMain.
 - **`@doc-writer`** — активный документ есть, COMPLETE выдал `STATS_ROW`/`INDEX_ROW`.

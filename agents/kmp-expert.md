@@ -484,7 +484,7 @@ Files NOT touched (out of scope):
 - *.gradle.kts вне feature/<name>/impl/build.gradle.kts
 ```
 
-**Why:** прецедент AI Chat attachments 2026-05-19 — scope "только domain + Room + parser", фактически залит полный UI; следующая фаза @mobile-design-expert написал спеку поверх готового кода. STATUS с явным `Files NOT touched` сразу показал бы расхождение.
+**Why:** прецедент AI Chat attachments 2026-05-19 — scope "только domain + Room + parser", фактически залит полный UI; следующая фаза @design-expert написал спеку поверх готового кода. STATUS с явным `Files NOT touched` сразу показал бы расхождение.
 
 ## DI smoke-test gate — installDebug на новых get<T>()
 

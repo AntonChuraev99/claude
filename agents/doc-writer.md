@@ -77,7 +77,7 @@ color: orange
 
 ### Фаза UPDATE — после каждой итерации агента
 
-Вызывается после возврата результата от **specialist-агента** (android-expert, kmp-expert, kotlin-expert, react-ui-expert, nextjs-expert, mobile-design-expert, wasmjs-expert, test-expert). Это и есть «семантически значимая итерация» для подсчёта.
+Вызывается после возврата результата от **specialist-агента** (android-expert, kmp-expert, kotlin-expert, react-ui-expert, nextjs-expert, design-expert, wasmjs-expert, test-expert). Это и есть «семантически значимая итерация» для подсчёта.
 
 **НЕ итерации (не вызывать UPDATE на них):** `/commit`, `/end-session`, `/install-emulator`, `/install-device`, `@knowledge-scout`, `@doc-writer` (INIT/COMPLETE — те же фазы doc-writer), проверки `git status`, чтение файлов, отчёты. Эти действия — служебные, они не двигают GOAL задачи.
 

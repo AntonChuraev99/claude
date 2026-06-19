@@ -27,7 +27,7 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 ### Subagents (`agents/`)
 
 `android-expert`, `kmp-expert`, `kotlin-expert`, `nextjs-expert`, `react-ui-expert`,
-`wasmjs-expert`, `mobile-design-expert`, `test-expert`, `doc-writer`, `knowledge-scout`,
+`wasmjs-expert`, `design-expert`, `test-expert`, `doc-writer`, `knowledge-scout`,
 `best-practices-scout`. Domain specialists plus two "scout" agents that read docs / the
 web on the main agent's behalf to keep its context clean.
 
