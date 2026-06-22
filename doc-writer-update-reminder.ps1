@@ -21,7 +21,8 @@ try {
 
     # Список специалистов, для которых нужен UPDATE
     $specialists = @(
-        'android-expert',
+        'compose-feature-expert',
+        'android-platform-expert',
         'kmp-expert',
         'kotlin-expert',
         'react-ui-expert',

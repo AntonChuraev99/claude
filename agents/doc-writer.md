@@ -77,7 +77,7 @@ color: orange
 
 ### Фаза UPDATE — после каждой итерации агента
 
-Вызывается после возврата результата от **specialist-агента** (android-expert, kmp-expert, kotlin-expert, react-ui-expert, nextjs-expert, design-expert, wasmjs-expert, test-expert). Это и есть «семантически значимая итерация» для подсчёта.
+Вызывается после возврата результата от **specialist-агента** (compose-feature-expert, android-platform-expert, kmp-expert, kotlin-expert, react-ui-expert, nextjs-expert, design-expert, wasmjs-expert, test-expert). Это и есть «семантически значимая итерация» для подсчёта.
 
 **НЕ итерации (не вызывать UPDATE на них):** `/commit`, `/end-session`, `/install-emulator`, `/install-device`, `@knowledge-scout`, `@doc-writer` (INIT/COMPLETE — те же фазы doc-writer), проверки `git status`, чтение файлов, отчёты. Эти действия — служебные, они не двигают GOAL задачи.
 
@@ -142,7 +142,7 @@ INIT может быть пропущен по разным причинам —
 
 **Шаг 3 — Напиши постоянную документацию** (если тип подходит):
 
-> **ВАЖНО:** YAML frontmatter обязателен — по нему специалисты (`android-expert`, `kmp-expert`, `wasmjs-expert` и др.) делают Grep при старте задачи. Без `keywords` файл не найдётся. Keywords должны быть максимально конкретны: имена API, компонентов, ошибок, технологий — то что реально введёт агент при поиске.
+> **ВАЖНО:** YAML frontmatter обязателен — по нему специалисты (`compose-feature-expert`, `android-platform-expert`, `kmp-expert`, `wasmjs-expert` и др.) делают Grep при старте задачи. Без `keywords` файл не найдётся. Keywords должны быть максимально конкретны: имена API, компонентов, ошибок, технологий — то что реально введёт агент при поиске.
 
 ```markdown
 ---
@@ -223,7 +223,7 @@ INDEX_ROW: | <YYYY-MM-DD> | <category> | <kw1>, <kw2>, <kw3> | [<title>](<path-f
 
 **Шаг 4 — Предложения по улучшению агентов:**
 
-Прочитай `~/.claude/agents/android-expert.md` и `~/.claude/agents/kmp-expert.md`.
+Прочитай `~/.claude/agents/compose-feature-expert.md`, `~/.claude/agents/android-platform-expert.md` и `~/.claude/agents/kmp-expert.md`.
 Сопоставь с тем что было найдено в ходе задачи:
 - Паттерн которого нет в агенте, но он встретился
 - Антипаттерн который агент не предупреждает
@@ -234,7 +234,7 @@ INDEX_ROW: | <YYYY-MM-DD> | <category> | <kw1>, <kw2>, <kw3> | [<title>](<path-f
 ```markdown
 ## Предложения по улучшению агентов
 
-### android-expert
+### compose-feature-expert / android-platform-expert
 - [ ] Добавить в раздел X: <конкретный паттерн/правило>
 
 ### kmp-expert

@@ -1,6 +1,6 @@
 ---
 name: kmp-expert
-description: Use for KMP (Kotlin Multiplatform) architecture tasks — migrating code to commonMain, defining expect/actual declarations, Koin DI multiplatform setup, determining what belongs in commonMain vs androidMain/wasmJsMain, KMP-compatible replacements for Android-only APIs. IMPORTANT: does NOT write androidMain implementation — describes what's needed, main Claude delegates that part to android-expert.
+description: Use for KMP (Kotlin Multiplatform) architecture tasks — migrating code to commonMain, defining expect/actual declarations, Koin DI multiplatform setup, determining what belongs in commonMain vs androidMain/wasmJsMain, KMP-compatible replacements for Android-only APIs. IMPORTANT: does NOT write androidMain implementation — describes what's needed, main Claude delegates that part to android-platform-expert (androidMain) / compose-feature-expert (commonMain UI).
 tools: Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
 model: opus
 memory: user
@@ -395,7 +395,7 @@ androidMain NEEDS:
 - actual class X: описание реализации
 - Android DI module с binding Y
 - Platform-specific setup Z
-→ Делегируй android-expert для реализации
+→ Делегируй android-platform-expert для реализации
 ```
 
 ## wasmJs специфика
@@ -479,7 +479,7 @@ Emoji-tofu на wasmJs всплыл в 2 проектах — паттерн п�
 STATUS: DONE
 
 Files NOT touched (out of scope):
-- Compose UI components (Phase 3 territory: @android-expert)
+- Compose UI components (Phase 3 territory: @compose-feature-expert)
 - AndroidManifest.xml
 - *.gradle.kts вне feature/<name>/impl/build.gradle.kts
 ```

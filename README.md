@@ -15,7 +15,7 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 | Path | What it is |
 |------|------------|
 | `CLAUDE.md` | The global system prompt — task classification, a Prompt Contract, delegation rules tuned for Opus 4.x, git/commit policy, documentation workflow. The core of the setup. |
-| `agents/` | 11 specialist subagents (see below). |
+| `agents/` | 12 specialist subagents (see below). |
 | `skills/` | 15 authored skills (see below). |
 | `commands/` | 6 slash commands. |
 | `output-styles/anti-slop-ru.md` | An output style that strips "AI slop" tells from Russian prose. |
@@ -26,10 +26,11 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 
 ### Subagents (`agents/`)
 
-`android-expert`, `kmp-expert`, `kotlin-expert`, `nextjs-expert`, `react-ui-expert`,
-`wasmjs-expert`, `design-expert`, `test-expert`, `doc-writer`, `knowledge-scout`,
-`best-practices-scout`. Domain specialists plus two "scout" agents that read docs / the
-web on the main agent's behalf to keep its context clean.
+`compose-feature-expert`, `android-platform-expert`, `kmp-expert`, `kotlin-expert`,
+`nextjs-expert`, `react-ui-expert`, `wasmjs-expert`, `design-expert`, `test-expert`,
+`doc-writer`, `knowledge-scout`, `best-practices-scout`. Domain specialists plus two
+"scout" agents that read docs / the web on the main agent's behalf to keep its context
+clean.
 
 ### Skills (`skills/`)
 
@@ -48,7 +49,7 @@ web on the main agent's behalf to keep its context clean.
 .claude/
 ├── CLAUDE.md                  # global system prompt
 ├── settings.example.json      # → copy to settings.json
-├── agents/                    # 11 subagents
+├── agents/                    # 12 subagents
 ├── skills/                    # 15 authored skills
 ├── commands/                  # 6 slash commands
 ├── output-styles/

@@ -34,7 +34,7 @@ color: pink
 2. Тест **не пишешь** (или пишешь только скелет с пустыми телами + комментариями-кейсами, если это ускорит передачу).
 3. Верни `TEST_SPEC` (формат ниже) главному.
 
-> **Почему через главного, а не напрямую.** Субагент НЕ может вызвать другого субагента — цепочку оркеструет главный агент. Ты возвращаешь handoff главному; главный передаёт его доменному специалисту (`@android-expert` / `@kotlin-expert` / `@kmp-expert` / `@wasmjs-expert`), который пишет код теста по твоей спецификации, либо — в баг-фикс WRITE — фикс под твой красный репро-тест (до зелёного). Твой handoff обязан быть самодостаточным: специалист пишет по нему без доступа к твоему контексту.
+> **Почему через главного, а не напрямую.** Субагент НЕ может вызвать другого субагента — цепочку оркеструет главный агент. Ты возвращаешь handoff главному; главный передаёт его доменному специалисту (`@compose-feature-expert` / `@android-platform-expert` / `@kotlin-expert` / `@kmp-expert` / `@wasmjs-expert`), который пишет код теста по твоей спецификации, либо — в баг-фикс WRITE — фикс под твой красный репро-тест (до зелёного). Твой handoff обязан быть самодостаточным: специалист пишет по нему без доступа к твоему контексту.
 
 ## Workflow специалиста
 
@@ -189,7 +189,7 @@ TEST_SPEC
 mode: SPEC
 scenario: bug-repro | coverage
 target: <что тестируем>
-handoff_to: <@android-expert | @kotlin-expert | @kmp-expert | @wasmjs-expert — кому писать код теста>
+handoff_to: <@compose-feature-expert | @android-platform-expert | @kotlin-expert | @kmp-expert | @wasmjs-expert — кому писать код теста>
 test_type: unit-common | unit-android | screenshot | instrumented | web-e2e
 location: <точный путь файла + sourceSet>
 test_name(s): <methodName_condition_expectedResult, по одному на кейс>

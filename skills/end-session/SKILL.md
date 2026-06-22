@@ -111,7 +111,8 @@ description: Финальная проверка перед завершение
 
 Поверхностная проверка результатов специалистов (2-3 сигнала; не код-ревью):
 
-- **`@android-expert`** — Compose/ViewModel/Navigation созданы, нет TODO, импорты корректны; Material 3 токены (нет `Color(0xFF...)`), design-system обёртки.
+- **`@compose-feature-expert`** — Compose/ViewModel/UiState/Navigation созданы, нет TODO, импорты корректны; Material 3 токены (нет `Color(0xFF...)`), design-system обёртки.
+- **`@android-platform-expert`** — androidMain: Hilt/Room driver/Media3/Resources; нет утечки в commonMain; installDebug smoke на новых DI-биндингах через интерфейс.
 - **`@kmp-expert`** — `commonMain` без Android-импортов, `expect`/`actual` спарены, без заглушек Route/Screen.
 - **`@react-ui-expert`** — компонент создан, type-check, Tailwind вместо inline.
 - **`@nextjs-expert`** — API route корректный тип + авторизация.
