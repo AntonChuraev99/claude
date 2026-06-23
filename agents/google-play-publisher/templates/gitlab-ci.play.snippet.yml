@@ -1,0 +1,90 @@
+# =============================================================================
+# Шаблон GitLab CI для сборки и публикации Android AAB в Google Play.
+# Скопируй нужные jobs в .gitlab-ci.yml проекта и подставь <PLACEHOLDERS>.
+# Публикация — официальным play_publish.py (Play Developer API v3), без GPP/Fastlane.
+#
+# Предпосылки:
+#   1. Скрипты скопированы в репозиторий проекта: ci/play/play_publish.py + requirements.txt
+#      (CI-раннер НЕ видит ~/.claude — скрипт должен жить в репо проекта).
+#   2. GitLab CI/CD Variables (Settings → CI/CD → Variables), все Protected:
+#        UPLOAD_KEYSTORE_BASE64   — base64 от upload-keystore .jks   (Masked)
+#        KEYSTORE_STORE_PASSWORD  — пароль хранилища                  (Masked)
+#        KEYSTORE_KEY_ALIAS       — alias ключа                       (Masked)
+#        KEYSTORE_KEY_PASSWORD    — пароль ключа                      (Masked)
+#        PLAY_SERVICE_ACCOUNT_JSON — содержимое service-account JSON  (File-type ИЛИ обычная;
+#                                    многострочный JSON Masked не поддерживает)
+#      Альтернатива бинарям — GitLab Secure Files (keystore .jks, до 5MB):
+#        glab securefile download --all   (НЕ устаревший download-secure-files)
+# =============================================================================
+
+stages: [build, publish]
+
+variables:
+  GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+
+# JDK 17 + Android SDK. Образ должен иметь cmdline-tools и compileSdk проекта (напр. 36).
+# Готовый community-образ (api-34+) или самосборный на eclipse-temurin:17-jdk + sdkmanager.
+# AGP 9 требует JDK 17 и compileSdk 35+.
+default:
+  image: <ANDROID_CI_IMAGE>      # напр. mobiledevops/android-sdk-image:34.0.0 или свой
+  tags: [docker]
+  cache:
+    key: "$CI_COMMIT_REF_SLUG"
+    paths: [.gradle/caches, .gradle/wrapper]
+
+build_aab:
+  stage: build
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "<RELEASE_BRANCH>"'   # напр. "android" — НЕ триггерить на web-ветках
+  script:
+    - set +x                                          # не печатать секреты в лог
+    - echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$CI_PROJECT_DIR/upload.jks"
+    # KMP: Android-приложение в :androidApp (НЕ :app). Иначе — свой модуль/таск.
+    - ./gradlew :<APP_MODULE>:bundleRelease
+        -PMYAPP_UPLOAD_STORE_FILE="$CI_PROJECT_DIR/upload.jks"
+        -PMYAPP_UPLOAD_STORE_PASSWORD="$KEYSTORE_STORE_PASSWORD"
+        -PMYAPP_UPLOAD_KEY_ALIAS="$KEYSTORE_KEY_ALIAS"
+        -PMYAPP_UPLOAD_KEY_PASSWORD="$KEYSTORE_KEY_PASSWORD"
+  artifacts:
+    paths:
+      - <APP_MODULE>/build/outputs/bundle/release/*.aab
+      # для деобфускации Crashlytics/Play также пробрось mapping.txt:
+      - <APP_MODULE>/build/outputs/mapping/release/mapping.txt
+    expire_in: 1 week
+
+.publish_base: &publish_base
+  stage: publish
+  before_script:
+    - pip install -r ci/play/requirements.txt
+  # PLAY_SERVICE_ACCOUNT_JSON читается скриптом из env автоматически.
+
+publish_internal:
+  <<: *publish_base
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "<RELEASE_BRANCH>"'
+  script:
+    - python ci/play/play_publish.py
+        --package <APPLICATION_ID>
+        --track internal
+        --aab <APP_MODULE>/build/outputs/bundle/release/*.aab
+        --mapping <APP_MODULE>/build/outputs/mapping/release/mapping.txt
+        --release-notes "@release-notes.txt"
+
+# Прод — ТОЛЬКО вручную (защитный гейт): запускается кнопкой в GitLab, не автоматически.
+publish_production:
+  <<: *publish_base
+  when: manual
+  allow_failure: false
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "<RELEASE_BRANCH>"'
+  script:
+    # staged rollout 10%: --status inProgress --user-fraction 0.1
+    - python ci/play/play_publish.py
+        --package <APPLICATION_ID>
+        --track production
+        --status inProgress --user-fraction 0.1
+        --aab <APP_MODULE>/build/outputs/bundle/release/*.aab
+        --mapping <APP_MODULE>/build/outputs/mapping/release/mapping.txt
+        --release-notes "@release-notes.txt"
