@@ -1,0 +1,51 @@
+# android-release — release/build-only traps. Debug build hides them; they crash
+# only in release (resource shrinker) or render wrong only on a running APK.
+
+- id: getidentifier-by-name
+  mode: static
+  severity: high
+  stack: [android, kmp]
+  globs: ["**/*.kt", "**/*.java"]
+  detect:
+    type: grep
+    has: 'getIdentifier\('
+  message: "getIdentifier() возвращает 0 после resource-обфускации (isShrinkResources) -> release-only краш; debug проходит."
+  fix: "ссылаться на ресурс через сгенерированный R-class / Res, не по строковому имени. Видео-raw -> RawResourceDataSource по R.raw.*"
+  source: "improvements/2026-05-05-resource-getidentifier-anti-pattern.md"
+
+- id: android-resource-uri-by-name
+  mode: static
+  severity: high
+  stack: [android]
+  globs: ["**/*.kt", "**/*.java"]
+  detect:
+    type: grep
+    has: 'android\.resource://[^"]*/[A-Za-z_]'
+  message: "строковый android.resource://pkg/type/<name> ломается в release (имя ресурса переименовано шринкером)."
+  fix: "собирать URI из числового resId (R.raw.x), а не из строкового имени ресурса."
+  source: "improvements/2026-05-11-android-expert-non-fatal-cleanup.md"
+
+- id: bare-positional-placeholder
+  mode: static
+  severity: high
+  stack: [android, kmp]
+  globs:
+    ["**/composeResources/**/strings*.xml", "**/res/**/strings*.xml", "**/values*/strings*.xml"]
+  detect:
+    type: grep
+    has: '%[dsf]'
+    unless: '%\d+\$[dsf]'
+  message: "Compose Resources не подставляет bare %d/%s/%f -> на APK рендерится литерал '%d'; lint/build/tests молчат."
+  fix: "позиционная форма: %1$d, %2$s. Любой плейсхолдер -> %<N>$<тип>."
+  source: "improvements/2026-05-15-compose-resources-positional-placeholders.md"
+
+- id: svg-in-composeresources
+  mode: static
+  severity: high
+  stack: [kmp, android]
+  globs: ["**/commonMain/**/composeResources/**/*.svg", "**/androidMain/**/*.svg"]
+  detect:
+    type: glob
+  message: ".svg в composeResources крашит Android (AAPT не парсит SVG); web рендерит через Skiko -> сборка обманчиво зелёная."
+  fix: "конвертировать в Vector Drawable XML (imageVector / .xml drawable)."
+  source: "improvements/2026-05-11-android-expert-crashfix-rules.md"

@@ -51,6 +51,10 @@
 !/hooks/
 !/hooks/**
 
+# --- 7a. Bug-pattern review system (rule registry + L1 runner + hook) --------
+!/review-rules/
+!/review-rules/**
+
 # --- 8. Toast icons (used by notify.ps1) ------------------------------------
 !/assets/
 !/assets/events/
@@ -95,6 +99,7 @@
 
 # --- 12. Re-exclude junk inside otherwise-allowed skills ---------------------
 /skills/jira-task-writer/evals/
+/review-rules/__pycache__/
 
 # --- 13. Belt-and-suspenders: hard-deny known sensitive files ----------------
 #  (already ignored by `*`, repeated here so a careless `!` rule above can

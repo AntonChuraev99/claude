@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Bug-pattern L1 static gate — reference copy.
+#
+# Install into a PROJECT repo (not ~/.claude) so it lints that project's staged
+# diff against the global rule registry:
+#     python ~/.claude/review-rules/run.py --install-hook /path/to/project
+# (or copy this file to <project>/.git/hooks/pre-commit and chmod +x).
+#
+# Blocks the commit on a HIGH static finding. runtime/process rules don't block.
+RUNNER="$HOME/.claude/review-rules/run.py"
+[ -f "$RUNNER" ] || { echo "review-rules: runner not found at $RUNNER (skipping)"; exit 0; }
+python "$RUNNER" --staged || {
+  echo ""
+  echo "Commit blocked by review-rules (HIGH static finding). Fix, or bypass once with:"
+  echo "    git commit --no-verify   (NOT recommended)"
+  exit 1
+}
+exit 0

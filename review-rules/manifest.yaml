@@ -1,0 +1,53 @@
+# Bug-pattern review registry — manifest
+#
+# Index of areas + the policy the L1 runner, L2 reviewer agent and L3 process
+# gate share. Each *.yaml sibling file holds the rules for one area. Rules are
+# seeded from real recurring-bug post-mortems (improvements/ + agent-memory
+# pitfall catalogs); every new recurring/multi-iteration bug appends one rule
+# (the compounding loop — see README.md).
+
+version: 1
+
+# Severity policy
+#   high   — static HIGH blocks a commit (pre-commit) and fails the /end-session gate.
+#   medium — reported, never blocks; fix before shipping.
+#   low    — informational.
+# Mode
+#   static  — deterministic detector (grep/glob). Catchable with no LLM. Can block.
+#   runtime — red-flag only; needs a real run / real device / real window to confirm.
+#             Surfaced as WARN, never blocks. Verified by the L2 agent / a real run.
+#   process — no code detector. A diff-condition + a question the L3 gate must answer
+#             before "done" (e.g. "did this diff silently remove a user function?").
+
+areas:
+  - id: android-release      # режим A — release/build-only, debug-green deception
+    stacks: [android, kmp]
+  - id: insets-spacing       # боль #1 (system bars) + #3 (padding) — edge-to-edge, insets
+    stacks: [android, kmp, compose]
+  - id: wasmjs-web           # Compose<->DOM, video, HiDPI, ESM — prod-only web failures
+    stacks: [wasmjs, web]
+  - id: kmp-parity           # cross-platform drift, commonMain leaks, silent param loss
+    stacks: [kmp]
+  - id: backend-deploy       # боль #4 — wrong region, deploy-skew, config wipe
+    stacks: [firebase, gcp, cloudflare, nextjs]
+  - id: process-gate         # боль #5 — agent behavior: silent feature removal, blind patch
+    stacks: [any]
+
+# Rule schema (one list item per rule, in each area file):
+#   id:        kebab-case unique id
+#   area:      defaults to the file stem
+#   pain:      optional — which named user pain this guards (1..5)
+#   mode:      static | runtime | process
+#   severity:  high | medium | low
+#   stack:     optional list of stack tags (documentation / optional --stack filter)
+#   globs:     path globs (**, *, ?, {a,b}); a rule runs only on matching changed files
+#   detect:    static/runtime only —
+#                type: grep | glob
+#                has:    per-line positive regex (grep)
+#                unless: per-line negative regex — skip the line if it also matches (grep)
+#                lacks:  file-level negative regex — skip the whole file if it matches (grep)
+#   trigger:   process only — prose condition on the diff/session that arms the question
+#   question:  process only — what the main agent must answer before "done"
+#   message:   one-line explanation of the bug class
+#   fix:       the correct pattern
+#   source:    incident this rule was distilled from (improvements/* or pitfall catalog)

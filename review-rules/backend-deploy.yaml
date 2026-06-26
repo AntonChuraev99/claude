@@ -1,0 +1,52 @@
+# backend-deploy — боль #4 (задеплоили не в тот регион) + смежные deploy-классы.
+# Один и тот же симптом (404 text/plain / CORS-fail) маскирует три корня:
+# wrong-region, deploy-skew (код в репо != на проде), стёртый конфиг.
+
+- id: firebase-functions-region
+  pain: 4
+  mode: static
+  severity: high
+  stack: [firebase, wasmjs, nextjs]
+  globs: ["**/init.js", "**/*[Ff]unctions*.kt", "**/firebase*.{js,ts}", "**/*[Ff]unctions*.{js,ts}"]
+  detect:
+    type: grep
+    has: 'getFunctions\('
+    lacks: '(FUNCTIONS_REGION|getFunctions\([^)]*,\s*["''][a-z]+-[a-z]+\d)'
+  message: "getFunctions() без явного региона -> клиент бьёт в дефолтный us-central1; если функция в europe-west* -> 404/CORS. Боль #4 маскируется под deploy-skew."
+  fix: "регион из ОДНОЙ env-константы (FUNCTIONS_REGION). Assert совпадения на 3 концах: клиентский URL, setGlobalOptions({region}) в коде функции, --region в deploy."
+  source: "improvements/2026-05-08-firebase-deploy-reminders.md + project-memory gcloud-deploy region note"
+
+- id: deploy-set-flags-wipe-config
+  mode: static
+  severity: high
+  stack: [gcp, firebase]
+  globs: ["**/deploy*.sh", "**/*deploy*.sh", "**/.gitlab-ci.yml", "**/cloudbuild.{yaml,yml}"]
+  detect:
+    type: grep
+    has: '--set-(env-vars|secrets)\b'
+  message: "--set-env-vars / --set-secrets имеют replace-семантику: на redeploy затирают существующие секреты/env (/secrets/sa-key.json, GEMINI_API_KEY) -> 'работало вчера, сломалось сегодня'."
+  fix: "использовать --update-env-vars / --update-secrets (merge-семантика) при инкрементальном деплое."
+  source: "agent-memory/doc-writer/cross-service-deployment-patterns.md Pattern 2"
+
+- id: cloud-functions-deploy-skew
+  mode: runtime
+  severity: medium
+  stack: [firebase, gcp]
+  globs:
+    ["**/firebase-functions/**/*.py", "**/functions/**/*.{py,js,ts}", "**/main.py", "**/index.{js,ts}"]
+  detect:
+    type: glob
+  message: "тронут код Cloud Functions: git merge != deploy. Running revision может быть старше мерджа -> клиент бьёт в старый код (CORS/404)."
+  fix: "после правки: задеплоить ЯВНО + smoke `curl -i -X OPTIONS <client-URL> -H 'Origin: ...'` (ждать 204 + ACAO). Сверить revision/updateTime новее коммита."
+  source: "improvements/2026-05-08-firebase-deploy-reminders.md + cross-service-deployment-patterns.md Pattern 1"
+
+- id: wrangler-account-and-workers-dev
+  mode: runtime
+  severity: medium
+  stack: [cloudflare]
+  globs: ["**/wrangler.{toml,jsonc,json}"]
+  detect:
+    type: glob
+  message: "правка wrangler-конфига: деплой может уйти не в тот CF-аккаунт; добавление routes молча выключает workers_dev (legacy *.workers.dev URL умирает)."
+  fix: "перед деплоем `wrangler whoami` == ожидаемый аккаунт; явный \"workers_dev\": true, если legacy URL ещё нужен."
+  source: "project-memory cloudflare-deploy-accounts-and-workers-dev-default"

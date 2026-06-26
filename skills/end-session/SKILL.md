@@ -19,7 +19,7 @@ description: Финальная проверка перед завершение
 
 ## Workflow
 
-5 шагов **последовательно**, статус (`✅`/`⚠️`/`❌`) после каждой проверки, финальный отчёт в конце: Step 1 — Session Snapshot; Step 2 — Definition of Done Checks (9 пунктов gate); Step 3 — Sub-agent Sanity Check; Step 4 — Recommendations Pull; Step 5 — Final Report.
+5 шагов **последовательно**, статус (`✅`/`⚠️`/`❌`) после каждой проверки, финальный отчёт в конце: Step 1 — Session Snapshot; Step 2 — Definition of Done Checks (10 пунктов gate); Step 3 — Sub-agent Sanity Check; Step 4 — Recommendations Pull; Step 5 — Final Report.
 
 ---
 
@@ -33,7 +33,7 @@ description: Финальная проверка перед завершение
 
 ## Step 2 — Definition of Done Checks
 
-9 пунктов CLAUDE.md → «Definition of Done». Прогоняй по порядку, статус одной строкой.
+9 пунктов CLAUDE.md → «Definition of Done» + п. 2.10 (bug-pattern review). Прогоняй по порядку, статус одной строкой.
 
 ### 2.1 Validation
 
@@ -104,6 +104,18 @@ description: Финальная проверка перед завершение
 5. `/commit` уже был в сессии со своим scan → `✅ verified by /commit at <sha>`.
 
 Полные Bash-команды, exclude-патcerns, шаблон `docs/todos/<...>.md`, опции `AskUserQuestion` → `references/deferred-work-scan.md`.
+
+### 2.10 Bug-pattern review (L1 static + L2 reviewer + L3 process gate)
+
+Сверка diff с реестром повторяющихся багов `~/.claude/review-rules/` — система против «тех же багов каждую сессию» (system bar не покрашен, анимация, отступы, регион деплоя, субагент выпилил фичу). Источник — `~/.claude/review-rules/README.md`.
+
+- **L1 (всегда, дёшево, без LLM):** `python ~/.claude/review-rules/run.py --base <START_SHA>` (нет START_SHA → без флага = рабочее дерево). `static` HIGH → **❌ blocker** (как pre-commit): выровнять до закрытия gate, auto-commit 5.1.1 **не запускать**. `runtime` WARN → в отчёт.
+- **L2 (Standard+ ИЛИ если L1 дал находки):** `Agent(subagent_type="bug-pattern-reviewer", run_in_background=false)` с base ref в брифе. Возвращает BLOCKERS / RUNTIME RED-FLAGS (confidence) / PROCESS GATE ARMED / NEW_RULE_CANDIDATE. Trivial×Low без находок L1 → L2 пропустить (`✅ skipped (trivial)`).
+- **L3 process-gate (всегда, дёшево):** пройти armed process-вопросы (из L2 либо прочитать `process-gate.yaml` сам): молча ли удалена user-facing функция? тронут деплой → регион/аккаунт/smoke сверены? субагент в scope, не коммитил? баг невоспроизведён, а патчишь? Любой неотвеченный armed-вопрос severity high → `⚠️` в отчёт (боль #5 — не отгружать молчком; при потере функции — `AskUserQuestion` ДО завершения).
+- **Компаундинг (опц.):** L2 вернул NEW_RULE_CANDIDATE для recurring-бага без правила → допиши строку в нужный area-файл (README → «Компаундинг»). Не блокирует.
+- **Hook setup (self-config):** `python ~/.claude/review-rules/run.py --check-hook`. SessionStart обычно уже поставил pre-commit автоматически; `NOT installed` → подсветить `⚠️` + строку `--ensure-hook`; `foreign` (чужой pre-commit) → подсветить + дать строку для ручной вставки (auto не клобберит чужой hook).
+
+Статус: `✅ clean` / `❌ N static HIGH` / `⚠️ N runtime + M process armed` / `⚠️ pre-commit not set`.
 
 ---
 
@@ -231,7 +243,7 @@ description: Финальная проверка перед завершение
 
 ### 5.2 Final Report
 
-Табличка `END SESSION GATE` со всеми пунктами 2.1–2.9 + 3 + 4 + 5.1 + статусами, завершить `VERDICT: <READY|READY WITH WARNINGS|NOT READY>`. После — обязательно секция Recommendations (5.2.1).
+Табличка `END SESSION GATE` со всеми пунктами 2.1–2.10 + 3 + 4 + 5.1 + статусами, завершить `VERDICT: <READY|READY WITH WARNINGS|NOT READY>`. После — обязательно секция Recommendations (5.2.1).
 
 Маркеры: `4 Recommendations` → `✅ N queued (H/M/L)`. `5.1 Commit`: `✅` / `✅ auto` (SHA в ответ) / `⚠️ deferred` / `❌ uncommitted`.
 

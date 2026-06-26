@@ -1,0 +1,43 @@
+# process-gate — боль #5 и смежное поведение агента. Не код-паттерны: каждое
+# правило = условие на diff/сессию (trigger) + вопрос, на который главный обязан
+# ответить ПЕРЕД "готово". Эти правила L1-runner пропускает; их читают L3-гейт в
+# /end-session и агент bug-pattern-reviewer. Эти инварианты дублируют прозу из
+# CLAUDE.md, но как явный triggered-чеклист, привязанный к конкретному diff.
+
+- id: anti-regression-no-silent-removal
+  pain: 5
+  mode: process
+  severity: high
+  trigger: "diff удаляет user-facing элемент / отключает существующую функцию (скролл, состояние, ввод, навигация, кнопка) ЛИБО правит shared commonMain ради одной платформы; ИЛИ субагент уперся в технический блокер и 'решил сам' упростить."
+  question: "Сохранены ли ВСЕ существующие функции тронутых компонентов? Если решение требует убрать функцию — вынес ли развилку через AskUserQuestion ДО реализации (что теряем / альтернатива), а не пометкой 'trade-off' постфактум? Технический блокер = сигнал диагностировать корень, не резать фичу."
+  message: "молчаливое выпиливание фичи под видом 'trade-off' бьёт по доверию сильнее, чем нечинёный баг (прецеденты: LazyColumn->Column убрал скролл; гостевые nav-кнопки удалены при невозможности скомпилить width-порог)."
+  fix: "diff с потерей функции -> STOP -> AskUserQuestion (что теряем / сохраняющая альтернатива) ДО отгрузки."
+  source: "CLAUDE.md анти-регрессия + project-memory feedback_no_silent_feature_removal + widget-trampoline precedent"
+
+- id: repro-test-on-unreproduced-bug
+  mode: process
+  severity: high
+  trigger: "баг-фикс, симптом НЕ воспроизведён локально, и пользователь >=1 раз сказал 'не помогло'."
+  question: "Предложил ли репро-тест/harness через реальный production-путь (реальная среда, реальный DPR/девайс, не headless/мок) вместо ещё одного слепого патча? Порог — ПЕРВОЕ-второе 'не помогло', не 3 fail-loop'а."
+  message: "слепые патчи поверх невоспроизведённого бага жгут итерации и доверие (прецедент web top-banner: ~4 слепых фикса, headless+dpr=1 не воспроизводили клип)."
+  fix: "после первого 'не помогло' при невоспроизведении -> AskUserQuestion: (а) написать failing-репро через прод-путь; (б) доступ/данные для локального репро; (в) выбрать гипотезу слоя."
+  source: "improvements/2026-06-25 (deprecated alias) + CLAUDE.md stuck-fix circuit breaker"
+
+- id: subagent-scope-and-no-commit
+  mode: process
+  severity: high
+  trigger: "в сессии работал субагент-специалист."
+  question: "`git diff --name-only` подтверждает, что субагент НЕ коммитил и НЕ вышел за scope (doc-writer — только docs/memory/stats; код-эксперт — только свои файлы)? Не выпилил ли что-то молча?"
+  message: "субагенты ловятся на: самовольный git commit; doc-writer правит .kt; тихое удаление функции при упоре в блокер."
+  fix: "после каждого субагента — аудит diff главным; субагент никогда не git add/commit; out-of-scope правки откатить."
+  source: "project-memory feedback_subagents_no_commit + feedback_docwriter_scope_violation"
+
+- id: deploy-verified-region-account-smoke
+  pain: 4
+  mode: process
+  severity: high
+  trigger: "diff тронул деплой (Cloud Functions/Run, wrangler, firebase deploy, регион функции)."
+  question: "Регион и аккаунт сверены из единой константы? Сделан ли post-deploy smoke (`curl -X OPTIONS` против ФАКТИЧЕСКОГО клиентского URL -> 204 + ACAO)? Revision новее последнего коммита?"
+  message: "wrong-region и deploy-skew дают одинаковый симптом (404 text/plain / CORS) и не локализуются без явной сверки региона и smoke."
+  fix: "pre-deploy assert региона на 3 концах; post-deploy curl-OPTIONS smoke; gcloud ... describe --format='value(updateTime,state)' позже коммита."
+  source: "backend-deploy/firebase-functions-region + cross-service-deployment-patterns.md"

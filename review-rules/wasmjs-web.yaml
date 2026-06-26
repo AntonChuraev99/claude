@@ -1,0 +1,39 @@
+# wasmjs-web — Compose<->DOM interop, video, HiDPI. Prod-only failures: work at
+# DPR=1 on desktop dev, break on real mobile / retina / production ESM.
+
+- id: toPx-into-css-px
+  pain: 3
+  mode: static
+  severity: high
+  stack: [wasmjs, web]
+  globs: ["**/wasmJsMain/**/*.kt", "**/*.wasmJs.kt", "**/wasmJs/**/*.kt"]
+  detect:
+    type: grep
+    has: 'toPx\(\)[^"}]*\}?px"'
+  message: "dp.toPx() в строку CSS px -> x2/x3 на HiDPI (48dp -> 432px, контейнер становится кругом). CSS px device-independent, браузер сам масштабирует."
+  fix: "в CSS-строку класть dp.value (число dp), не toPx()."
+  source: "agent-memory/kmp-expert/feedback_compose_to_web_css_interop_rule.md"
+
+- id: external-var-top-level-esm
+  mode: static
+  severity: high
+  stack: [wasmjs]
+  globs: ["**/wasmJsMain/**/*.kt", "**/*.wasmJs.kt", "**/wasmJs/**/*.kt"]
+  detect:
+    type: grep
+    has: '^\s*(private |internal |public )?external var '
+  message: "top-level `external var` компилится в bare-name assign -> prod wasmJs падает ReferenceError на старте композиции; dev-сборка прощает (dev/prod asymmetry)."
+  fix: "не top-level external var; объявлять через js()-expression / обёртку с присваиванием полю объекта."
+  source: "improvements/2026-05-20-wasmjs-external-var-esm-pitfall.md"
+
+- id: composeover-video-sizing
+  mode: runtime
+  severity: medium
+  stack: [wasmjs]
+  globs: ["**/*.kt"]
+  detect:
+    type: grep
+    has: 'ComposeOverVideoContent\('
+  message: "overlay поверх HTML5 video: fillMaxSize блокирует клики host-слоем; wrapContent/wrapContentHeight -> nested ComposeViewport меряет 0 -> overlay невидим."
+  fix: "размер overlay: heightIn(min,max) + if(visible)-гейт, не fillMaxSize и не wrapContent*. Проверить кликабельность и видимость на вебе."
+  source: "project-memory feedback_composeover_video_sizing + agent-memory reference_android_runtime_pitfalls §R9"

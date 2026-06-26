@@ -1,0 +1,27 @@
+# kmp-parity — cross-platform drift and silent loss across an abstraction boundary.
+# These compile green and pass tests; only dashboards / a second platform reveal the loss.
+
+- id: android-type-in-commonmain
+  mode: static
+  severity: high
+  stack: [kmp]
+  globs: ["**/commonMain/**/*.kt"]
+  detect:
+    type: grep
+    has: '^import (android\.(app|content|net|graphics|widget)\.|java\.io\.(File|InputStream|OutputStream))'
+  message: "Android/JVM-тип в commonMain (Activity/Context/Uri/File/stream) -> не компилится на wasmJs; web-сборка может обмануть, если файл не затронут там."
+  fix: "expect/actual или нейтральный тип: PurchaseContext (actual=Activity), ByteArray вместо File/stream, expect-обёртка над платформенным API."
+  source: "agent-memory/kmp-expert feedback_purchase_context_pattern + feedback_file_bytearray_migration"
+
+- id: hardcoded-analytics-param
+  pain: 5
+  mode: runtime
+  severity: medium
+  stack: [kmp]
+  globs: ["**/*.kt"]
+  detect:
+    type: grep
+    has: 'Param\(\s*"[^"]+"\s*,\s*(true|false)\s*\)'
+  message: "захардкоженный boolean в аналитике (Param(\"x\", false)) -> при KMP-абстракции реальный callback-параметр (userCancelled / errorMessage) мог потеряться молча; компилится, тесты зелёные, видно только на дашборде."
+  fix: "проверить, что каждый callback-параметр доходит до потребителя типизированно; не хардкодить аналитику; не терять поведенческую ветку (web-billing fallback на cancel)."
+  source: "agent-memory/android-platform-expert/reference_android_runtime_pitfalls.md §R3"

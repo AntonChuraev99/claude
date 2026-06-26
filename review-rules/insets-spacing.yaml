@@ -1,0 +1,55 @@
+# insets-spacing — боль #1 (system bars не покрашены) + #3 (кривые отступы).
+# Mostly runtime red-flags: enclosure/sibling context can't be proven by grep,
+# so these point the reviewer / a real-device check at the right line.
+
+- id: double-system-bar-padding
+  pain: 3
+  mode: runtime
+  severity: medium
+  stack: [android, kmp, compose]
+  globs: ["**/*.kt"]
+  detect:
+    type: grep
+    has: '\.(navigationBarsPadding|statusBarsPadding)\(\)'
+  message: "ручной *BarsPadding внутри ModalDrawerSheet/ModalBottomSheet/Scaffold, который уже владеет window-insets, -> двойной отступ, обрезанный футер (особенно landscape / fontScale>=130%)."
+  fix: "не добавлять *BarsPadding на контент компонента, который уже применяет DrawerDefaults/sheet windowInsets. Проверить визуально на девайсе."
+  source: "agent-memory/design-expert/drawer-scroll-and-insets.md"
+
+- id: ime-gap-check-manifest-first
+  pain: 1
+  mode: runtime
+  severity: medium
+  stack: [android]
+  globs: ["**/*Activity*.kt", "**/MainActivity.kt"]
+  detect:
+    type: grep
+    has: 'enableEdgeToEdge\('
+  message: "edge-to-edge + клавиатура: если IME-инсет = 0 / контент под клавиатурой, корень в AndroidManifest (windowSoftInputMode), НЕ в Compose."
+  fix: "у Activity с текстовым вводом проверить windowSoftInputMode=\"adjustResize\" в манифесте ПЕРВЫМ делом, до правок Compose-инсетов."
+  source: "improvements (IME insets) + project-memory feedback_compose_ime_insets_check_manifest"
+
+- id: edge-to-edge-bar-tint
+  pain: 1
+  mode: runtime
+  severity: medium
+  stack: [android, kmp]
+  globs: ["**/*Activity*.kt", "**/MainActivity.kt", "**/*Theme*.kt"]
+  detect:
+    type: grep
+    has: 'enableEdgeToEdge\('
+  message: "система покраски status/nav bar: после enableEdgeToEdge проверить, что бары реально окрашены/прозрачны как задумано и контент не уезжает под них на КАЖДОМ форм-факторе (phone/tablet/desktop)."
+  fix: "форм-фактор-зависимый padding; nav bar coverage -> contentExtendsBehindNavBar. Проверка визуальная на девайсе, не headless."
+  source: "agent-memory/design-expert/drawer-scroll-and-insets.md + active_task_adaptive_ui_migration"
+
+- id: textalign-center-without-fillwidth
+  pain: 3
+  mode: runtime
+  severity: low
+  stack: [compose, kmp]
+  globs: ["**/*.kt"]
+  detect:
+    type: grep
+    has: 'textAlign\s*=\s*TextAlign\.Center'
+  message: "TextAlign.Center без fillMaxWidth() центрирует внутри ширины Text (=no-op) -> 'текст уехал влево'."
+  fix: "добавить .fillMaxWidth() на Text или обернуть в Box(contentAlignment=Center)."
+  source: "agent-memory/compose-feature-expert/reference_compose_pitfalls.md §10.2-A"
