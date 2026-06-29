@@ -31,6 +31,8 @@ not against ~/.claude — the rules live globally, the diff is local to the proj
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
 import json
 import os
 import re
@@ -50,7 +52,7 @@ try:
     import yaml
 except ImportError:
     sys.stderr.write("review-rules: PyYAML required (pip install pyyaml)\n")
-    sys.exit(2)
+    sys.exit(3)  # tool/setup error — distinct from exit 1 (finding); hook must NOT block
 
 RULES_DIR = Path(__file__).resolve().parent
 SEVERITY_ORDER = {"high": 3, "medium": 2, "low": 1}
@@ -124,6 +126,50 @@ def file_content(path: str, staged: bool) -> str | None:
         return None
 
 
+def added_lines(staged: bool, base: str | None) -> dict[str, set[int]]:
+    """Map path -> set of NEW-file line numbers added (+) in the diff (git diff -U0).
+
+    Used by --changed-only so STATIC rules consider only freshly added lines, not
+    pre-existing legacy code in a file you merely touched (no commit lockout, and
+    the Stop-hook's block stays loop-safe).
+    """
+    if base:
+        args = ["diff", "-U0", f"{base}...", "--diff-filter=ACM"]
+    elif staged:
+        args = ["diff", "-U0", "--cached", "--diff-filter=ACM"]
+    else:
+        args = ["diff", "-U0", "HEAD", "--diff-filter=ACM"]
+    out = git(args)
+    result: dict[str, set[int]] = {}
+    cur: str | None = None
+    newln = 0
+    for line in out.splitlines():
+        if line.startswith("+++ b/"):
+            cur = line[6:]
+            result.setdefault(cur, set())
+        elif line.startswith("@@"):
+            m = re.search(r"\+(\d+)", line)  # @@ -a,b +c,d @@ -> new-file start
+            newln = int(m.group(1)) if m else 0
+        elif line.startswith("+") and not line.startswith("+++"):
+            if cur is not None:
+                result[cur].add(newln)
+                newln += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            pass  # deletions don't advance the new-file counter
+    return result
+
+
+def diff_hash(staged: bool, base: str | None) -> str:
+    """8-char sha1 of the relevant diff — correlates L1/L2/L3 events for one state."""
+    if base:
+        d = git(["diff", f"{base}..."])
+    elif staged:
+        d = git(["diff", "--cached"])
+    else:
+        d = git(["diff", "HEAD"]) + git(["ls-files", "--others", "--exclude-standard"])
+    return hashlib.sha1(d.encode("utf-8", "replace")).hexdigest()[:8]
+
+
 # ---------------------------------------------------------------- rule loading
 def load_rules(area: str | None) -> list[dict]:
     rules: list[dict] = []
@@ -144,8 +190,14 @@ def load_rules(area: str | None) -> list[dict]:
 
 
 # ---------------------------------------------------------------- detectors
-def run_detector(rule: dict, path: str, content: str) -> list[dict]:
-    """Return a list of findings (each {line, snippet}) for one rule on one file."""
+def run_detector(
+    rule: dict, path: str, content: str, allowed: set[int] | None = None
+) -> list[dict]:
+    """Return a list of findings (each {line, snippet}) for one rule on one file.
+
+    `allowed` (when not None) restricts grep matches to those NEW-file line numbers —
+    used by --changed-only so static rules only flag freshly added lines.
+    """
     detect = rule.get("detect")
     if not detect:  # process-mode rule, no static detector
         return []
@@ -167,6 +219,8 @@ def run_detector(rule: dict, path: str, content: str) -> list[dict]:
         has_re = re.compile(has)
         unless_re = re.compile(unless) if unless else None
         for n, line in enumerate(content.splitlines(), start=1):
+            if allowed is not None and n not in allowed:
+                continue
             if has_re.search(line):
                 if unless_re and unless_re.search(line):
                     continue
@@ -175,24 +229,45 @@ def run_detector(rule: dict, path: str, content: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------- main review
-def review(files: list[str], rules: list[dict], staged: bool) -> list[dict]:
+def review(
+    files: list[str],
+    rules: list[dict],
+    staged: bool,
+    changed_only: bool = False,
+    added_map: dict[str, set[int]] | None = None,
+    untracked: set[str] | None = None,
+) -> list[dict]:
     results: list[dict] = []
     cache: dict[str, str | None] = {}
+    added_map = added_map or {}
+    untracked = untracked or set()
     for rule in rules:
         if rule.get("mode") == "process":
             continue
         globs = rule.get("globs") or []
         if not globs:
             continue
+        is_static = rule.get("mode", "static") == "static"
         for path in files:
             if not matches_any(path, globs):
                 continue
+            # --changed-only: STATIC rules see only newly added content (runtime stays
+            # full-content — it never blocks, and re-validating the whole file is fine).
+            allowed: set[int] | None = None
+            if changed_only and is_static:
+                if path in untracked:
+                    allowed = None  # a brand-new file is entirely "added"
+                else:
+                    added = added_map.get(path, set())
+                    if not added:
+                        continue  # tracked file with nothing newly added -> skip
+                    allowed = added
             if path not in cache:
                 cache[path] = file_content(path, staged)
             content = cache[path]
             if content is None:
                 continue
-            for hit in run_detector(rule, path, content):
+            for hit in run_detector(rule, path, content, allowed):
                 results.append(
                     {
                         "id": rule.get("id", "?"),
@@ -252,6 +327,47 @@ def print_human(results: list[dict]) -> None:
         print("review-rules: HIGH static finding(s) -> commit/gate should BLOCK.")
 
 
+# ---------------------------------------------------------------- telemetry
+def write_log(
+    log_path: str, entry: str, results: list[dict], files: list[str],
+    blocked: bool, dhash: str,
+) -> None:
+    """Append one L1 event (JSONL) so the system's usefulness can be measured later.
+
+    Logged on EVERY L1 invocation (stop-hook / pre-commit / manual), findings or not —
+    clean runs are the denominator for per-rule false-positive rates. See stats.py.
+    """
+    root = git_root(None)
+    proj = root.name if root else Path.cwd().name
+    ev = {
+        "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "layer": "L1",
+        "project": proj,
+        "entry": entry,
+        "diff_hash": dhash,
+        "files": len(files),
+        "findings": {
+            "static_high": sum(
+                1 for r in results if r["mode"] == "static" and r["severity"] == "high"
+            ),
+            "static": sum(1 for r in results if r["mode"] == "static"),
+            "runtime": sum(1 for r in results if r["mode"] == "runtime"),
+        },
+        "blocked": blocked,
+        "rules": [
+            {"id": r["id"], "area": r["area"], "mode": r["mode"], "sev": r["severity"],
+             "file": r["file"], "line": r["line"]}
+            for r in results
+        ],
+    }
+    try:
+        Path(log_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(ev, ensure_ascii=False) + "\n")
+    except OSError as e:
+        sys.stderr.write(f"review-rules: log write failed: {e}\n")
+
+
 # ---------------------------------------------------------------- hook install
 # Marker that identifies OUR hook inside a project's pre-commit file.
 HOOK_MARKER = "review-rules/run.py"
@@ -261,7 +377,11 @@ HOOK_TEMPLATE = """#!/usr/bin/env bash
 # Delegates to the global rule registry in ~/.claude/review-rules.
 RUNNER="$HOME/.claude/review-rules/run.py"
 [ -f "$RUNNER" ] || { echo "review-rules: runner not found at $RUNNER (skipping)"; exit 0; }
-python "$RUNNER" --staged || {
+python "$RUNNER" --staged --changed-only \
+  --log "$HOME/.claude/stats/review-rules-events.jsonl" --entry precommit
+code=$?
+[ "$code" -eq 3 ] && { echo "review-rules: tool error (setup) — not blocking commit"; exit 0; }
+[ "$code" -ne 0 ] && {
   echo ""
   echo "Commit blocked by review-rules (HIGH static finding). Fix, or bypass once with:"
   echo "    git commit --no-verify   (NOT recommended)"
@@ -372,6 +492,12 @@ def main() -> int:
                     help="self-config: install hook if missing (safe, for SessionStart)")
     ap.add_argument("--check-hook", metavar="DIR", nargs="?", const=".",
                     help="read-only: report whether the hook is installed")
+    ap.add_argument("--changed-only", action="store_true",
+                    help="static rules flag only newly added lines (diff -U0), not legacy code")
+    ap.add_argument("--log", metavar="PATH",
+                    help="append an L1 event (JSONL) to PATH for effectiveness tracking")
+    ap.add_argument("--entry", default="manual",
+                    help="entry-point tag for the log (stop|precommit|endsession|manual)")
     args = ap.parse_args()
 
     if args.check_hook is not None:
@@ -387,10 +513,20 @@ def main() -> int:
             print("review-rules: no changed files.")
         else:
             print("[]")
-        return 0
+        return 0  # nothing to review -> no log event (avoids noise on idle stops)
 
     rules = load_rules(args.area)
-    results = review(files, rules, args.staged)
+    added_map = added_lines(args.staged, args.base) if args.changed_only else {}
+    untracked = (
+        set(git(["ls-files", "--others", "--exclude-standard"]).splitlines())
+        if args.changed_only else set()
+    )
+    results = review(files, rules, args.staged, args.changed_only, added_map, untracked)
+    blk = blocking(results)
+
+    if args.log:
+        write_log(args.log, args.entry, results, files, blk,
+                  diff_hash(args.staged, args.base))
 
     if args.json:
         print(json.dumps(results, ensure_ascii=False, indent=2))
@@ -399,8 +535,14 @@ def main() -> int:
 
     if args.warn_only:
         return 0
-    return 1 if blocking(results) else 0
+    return 1 if blk else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception as exc:  # any unexpected failure is a TOOL error, never a finding
+        sys.stderr.write(f"review-rules: internal error: {exc}\n")
+        sys.exit(3)

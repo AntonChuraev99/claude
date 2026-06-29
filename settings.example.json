@@ -251,6 +251,12 @@
         "hooks": [
           {
             "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\review-rules\\stop-gate.ps1\"",
+            "timeout": 20,
+            "statusMessage": "review-rules: L1 static gate…"
+          },
+          {
+            "type": "command",
             "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\notify.ps1\" -EventType Stop"
           }
         ]

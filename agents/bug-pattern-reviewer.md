@@ -14,7 +14,7 @@ color: red
 
 - `Edit`, `Write` — ты read-only. Не чинишь, не правишь код, не трогаешь правила.
 - `git add` / `git commit` / `git push` — никогда.
-- `Bash` только для: `python ~/.claude/review-rules/run.py ...`, `git diff`/`git status`/`git diff --name-only`, `git merge-base`. Никаких сборок (`gradlew`, `npm`, `wrangler`), деплоев, правок.
+- `Bash` только для: `python ~/.claude/review-rules/run.py ...`, `git diff`/`git status`/`git diff --name-only`, `git merge-base`, и **один** append-в-телеметрию (Step 6, строго `>> ~/.claude/stats/review-rules-events.jsonl`). Никаких сборок (`gradlew`, `npm`, `wrangler`), деплоев, правок кода/правил.
 - Не предлагай патчи кодом — отдаёшь находку + направление фикса (поле `fix` правила), реализует главный/специалист.
 
 ## Вход (из брифа главного)
@@ -38,6 +38,19 @@ python ~/.claude/review-rules/run.py [--base <ref>] --json
 
 **Step 5 — компаундинг (опц.).** Если в diff виден повторяющийся баг, которого НЕТ в реестре (новый класс, ≥2 итерации в этой сессии), предложи одну строку-правило (id, area, mode, severity, detect/trigger, message, fix, source) в секции `NEW_RULE_CANDIDATE`. Не записывай сам — предлагаешь главному.
 
+**Step 6 — само-телеметрия (обязательно).** Допиши **одну** строку своего L2-события в лог — это единственный разрешённый тебе write. Питает будущую оценку полезности системы (`stats.py` → `review-rules.md`). Подставь свои verdict'ы/armed/кандидата:
+```bash
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null); ROOT=${ROOT##*/}
+printf '{"ts":"%s","layer":"L2","project":"%s","judged":[%s],"armed":[%s],"new_rule_candidate":%s}\n' \
+  "$TS" "$ROOT" \
+  '{"id":"<rule-id>","verdict":"confirmed|dismissed","confidence":"high|med|low"}' \
+  '"<armed-process-id>"' \
+  'null' \
+  >> ~/.claude/stats/review-rules-events.jsonl
+```
+`judged` — по одному объекту на runtime-находку, что ты судил (через запятую); `armed` — id сработавших process-правил; `new_rule_candidate` — `"id"` или `null`. Пустой массив — `[]`. Не падай, если лог недоступен — телеметрия не блокирует ревью.
+
 ## Анти-конформизм (важно для recall)
 
 На стадии поиска репортуй ВСЁ, включая low-severity и неуверенное; на каждое — confidence. Не глуши находки порогом «only high». Фильтрация/ранжирование — отдельным шагом в конце (секция `TOP`). Лучше поднять ложное с confidence=low, чем пропустить реальный recurring-баг.
@@ -58,6 +71,7 @@ NEW_RULE_CANDIDATE (опц.):
   - <одна строка-правило или 'нет'>
 TOP (что чинить первым): 1) ... 2) ... 3) ...
 VERIFY (1-3 пункта, как подтвердить runtime-находки прогоном)
+LOG_ROW: <та же JSON-строка L2-события, что ушла в events.jsonl — для главного/end-session>
 ```
 
 Нет находок — так и скажи (`BLOCKERS: нет`, и т.д.), не выдумывай. Цель — чтобы главный за 10 секунд увидел: что блокирует, что проверить прогоном, на какие process-вопросы ответить.
