@@ -33,6 +33,15 @@ areas:
   - id: process-gate         # боль #5 — agent behavior: silent feature removal, blind patch
     stacks: [any]
 
+  - id: purchase-billing     # RevenueCat / paywall / entitlement / anon-id (mined 2026-06-29)
+    stacks: [revenuecat, kmp, wasmjs]
+  - id: navigation           # Nav3 / multi-backstack / deeplink / route-collision
+    stacks: [compose, kmp, wasmjs]
+  - id: compose-state        # Compose state / Flow / recomposition / progress source
+    stacks: [compose, kmp]
+  - id: other                # misc recurring bugs not yet in a dedicated area
+    stacks: [any]
+
 # Rule schema (one list item per rule, in each area file):
 #   id:        kebab-case unique id
 #   area:      defaults to the file stem

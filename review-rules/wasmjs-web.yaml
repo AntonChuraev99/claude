@@ -37,3 +37,271 @@
   message: "overlay поверх HTML5 video: fillMaxSize блокирует клики host-слоем; wrapContent/wrapContentHeight -> nested ComposeViewport меряет 0 -> overlay невидим."
   fix: "размер overlay: heightIn(min,max) + if(visible)-гейт, не fillMaxSize и не wrapContent*. Проверить кликабельность и видимость на вебе."
   source: "project-memory feedback_composeover_video_sizing + agent-memory reference_android_runtime_pitfalls §R9"
+
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: csp-strips-loadbearing-origin
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/index.html'
+  - '**/wasmJsMain/resources/**/*.html'
+  detect:
+    type: grep
+    has: http-equiv=['\"]?Content-Security-Policy
+    lacks: wasm-unsafe-eval
+  message: wasmJs index.html ships a CSP meta tag missing 'wasm-unsafe-eval' (required to instantiate Kotlin/Wasm) — a CSP cleanup/dedup stripped a load-bearing keyword/origin, blanking the app at boot. Same class strips apis.google.com from connect-src (distinct origin from *.googleapis.com), silently killing Google auth.
+  fix: Keep 'wasm-unsafe-eval' in script-src, and keep https://apis.google.com in BOTH script-src and connect-src (NOT covered by *.googleapis.com). Annotate these entries 'do not collapse during cleanup' and back them with a static smoke-test that RED-fails on removal before deploy.
+  source: wasm-bugs/csp-apis-google-vs-googleapis-connect-src-2026-05-26.md; ci-deploy/recaptcha-audit-rollback-three-platform-blockers-2026-06-11.md
+- id: firebase-authstateready-no-timeout
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/**/*.js'
+  detect:
+    type: grep
+    has: authStateReady
+    lacks: Promise\.race
+  message: init.js awaits authStateReady()/setPersistence without a Promise.race timeout — opens IndexedDB and can hang forever on Safari Private/ITP, giving an infinite splash.
+  fix: Wrap setPersistence (fallback chain IDB->local->session->inMemory) and authStateReady in Promise.race with a per-step setTimeout, proceeding as guest on timeout; guard the boot promise against the JS-fired-before-Kotlin race with an initial-fired flag.
+  source: wasm-bugs/auth-promise-race-condition-infinite-loading-2026-04-09.md; kmp/wasms-safari-private-firebase-auth-persistence-fallback-2026-05-25.md
+- id: oauth-popup-no-redirect-fallback
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/**/*.js'
+  detect:
+    type: grep
+    has: signInWithPopup
+    lacks: signInWithRedirect
+  message: Firebase OAuth uses signInWithPopup with no signInWithRedirect fallback — breaks on Safari (ITP postMessage block) and mobile Android Chrome (popup auto-closes).
+  fix: 'Branch by UA: Safari + mobile (Android Chrome/iOS) -> signInWithRedirect; keep signInWithPopup only behind a narrow !isSafari && !isMobile gate.'
+  source: kmp/firebase-auth-same-origin-cf-worker-proxy-safari-itp-2026-05-26.md; wasm-bugs/google-signin-mobile-chrome-redirect-flow-2026-05-27.md; ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md; kmp/web-auth-providers-apple-email-2026-05-13.md
+- id: rvfc-hardcoded-playbackrate-fps-collapse
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/**/*.js'
+  detect:
+    type: grep
+    has: playbackRate\s*=\s*([2-9]|[1-9][0-9])
+    lacks: captureSafePlaybackRate|AdaptivePlaybackPacer
+  message: requestVideoFrameCallback capture loop sets a hardcoded high video.playbackRate (>=2) — RVFC fires once per compositor frame (~60Hz VSync), not per decoded frame, so sourceFps x rate > ~60 drops most frames and collapses output fps (e.g. 58fps -> ~14fps), worst on iOS Safari.
+  fix: 'Keep sourceFps x playbackRate <= ~50Hz: start at 1.0, measure true source fps from the median of first N frame deltas, then switch once to an adaptive safe rate (captureSafePlaybackRate); derive output timestamps from metadata.mediaTime, not wall-clock.'
+  source: wasm-bugs/ios-webcodecs-trim-fps-collapse-rvfc-playbackrate-2026-05-28.md; kmp/wasms-video-trim-webcodecs-mp4muxer-2026-05-21.md
+- id: sentry-capturemessage-interpolated-title
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: (sentryCaptureMessage|captureMessage)\s*\(\s*"[^"\n]*\$\{?[A-Za-z]
+  message: Variable interpolation ($var) inside a Sentry captureMessage title — Sentry fingerprints on the title text, so every distinct value (count/msg/ua/coroutine hash) forks a separate issue and breaks grouping/triage.
+  fix: Keep the captureMessage title a static string (a stable error code); move all variable context to breadcrumb/extra/tags. browser/os are auto-tags so $ua is never needed in the title.
+  source: ci-deploy/sentry-triage-app-gpu-recaptcha-2026-06-09.md; ci-deploy/sentry-triage-kmp-web-logger-consolidation-2026-06-12.md
+- id: signinwithredirect-no-getredirectresult
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/**/*.js'
+  detect:
+    type: grep
+    has: signInWithRedirect
+    lacks: getRedirectResult
+  message: init.js calls signInWithRedirect but never consumes the result via getRedirectResult() at boot — the redirect OAuth token is lost and onAuthStateChanged never fires.
+  fix: On boot, await getRedirectResult(auth) (resolve/catch as non-fatal) BEFORE auth.authStateReady; for custom Apple form_post, consume the return fragment at boot before authStateReady.
+  source: wasm-bugs/google-signin-mobile-chrome-redirect-flow-2026-05-27.md; ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md
+- id: wasmjs-video-sound-not-wired-to-preference
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/wasmJsMain/**/*.kt'
+  - '**/commonMain/**/*Video*.kt'
+  - '**/commonMain/**/*Trim*.kt'
+  detect:
+    type: grep
+    has: \bvar\s+(isSound|isSoundOn|isSoundEnable|isMuted|soundEnabled)\b
+    unless: AppDataStore|VideoSoundController|ObserveSoundEnabledUseCase|SetSoundEnabledUseCase
+  message: Web/wasmJs video screen declares local mute/sound state (var isSoundOn / isMuted) instead of reading the global AppDataStore sound preference, breaking the preference->player-><video> chain (video always muted or out of sync with the in-app toggle).
+  fix: Drive video muted/volume from the shared VideoSoundController / ObserveSoundEnabledUseCase (single source of truth = AppDataStore.isSoundEnabled) via LaunchedEffect(controller) and use the shared SoundToggleButton; keep the playWithMute fallback that mutes only on NotAllowedError.
+  source: wasm-bugs/web-video-sound-app-preference-2026-05-19.md; wasm-bugs/web-uploaded-video-sound-toggle-2026-06-03.md; wasm-bugs/web-sound-toggle-shared-pattern-2026-06-05.md
+- id: apple-oauth-provider-google-only-param
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/**/*.js'
+  detect:
+    type: grep
+    has: new OAuthProvider\(['\"]apple\.com
+  message: Apple OAuthProvider present — verify it is NOT configured with a Google-only custom parameter (prompt/hd/select_account). Apple supports only `locale`; an unsupported param yields invalid_request and only the Apple button breaks.
+  fix: 'On the apple.com provider pass only locale via setCustomParameters; drop prompt/hd and any param copied from the Google provider. (Red-flag: confirm by running Apple sign-in, not by static text alone — the prompt param is usually on a different line than the constructor.)'
+  source: kmp/web-auth-providers-apple-email-2026-05-13.md; kmp/firebase-auth-same-origin-cf-worker-proxy-safari-itp-2026-05-26.md
+- id: composeresources-cvr-cache-policy
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/_headers'
+  - '**/resources/_headers'
+  detect:
+    type: grep
+    has: /composeResources/
+  message: _headers declares a /composeResources/* cache block — verify it is max-age=0/must-revalidate. Fixed-name no-hash .cvr blobs served with non-zero max-age desync from content-hashed wasm and boot-crash on Base64.decode (string-heavy screens crash in normal Chrome, work in incognito).
+  fix: 'Two-layer gate: (1) _headers `/composeResources/*` -> `Cache-Control: public, max-age=0, must-revalidate`; (2) in init.js patch globalThis.fetch to force cache:''no-cache''/''reload'' on any `/composeResources/` URL (programmatic fetch ignores hard-refresh). Note: _headers cannot exclude by extension (rules comma-join), so client-side JS enforcement is mandatory. Keep a smoke-test that RED-fails on max-age>0.'
+  source: wasm-bugs/stale-sw-poisoned-cache-base64-crash-2026-05-26.md; wasm-bugs/web-composeresources-cache-base64-crash-2026-06-03.md
+- id: initjs-window-sentry-dead-channel
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/**/*.js'
+  detect:
+    type: grep
+    has: window\.Sentry\.
+  message: init.js calls window.Sentry.* — the Sentry SDK is imported as ESM into the Kotlin/Wasm bundle and never exposed on window, so every window.Sentry call is a silent no-op and OAuth diagnostics never reach Sentry (sign-in failures stay undiagnosable).
+  fix: Diagnose via console.log + write the outcome to globalThis.__xResult, then poll it from Kotlin (GlobalScope.launch + delay loop) and emit logger.e with the full trail -> a real unfiltered Sentry event.
+  source: ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md
+- id: layout-sizing-gated-by-platform-not-width
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: isWebPlatform\(\)\s*\)\s*\d+(\.dp|\s+else|\s*\))
+    unless: isWideLayout|rememberIsCompactWindow|WindowWidthSizeClass|cornerRadius|elevation|\.blur|\.alpha|borderRadius|cornerSize|\.shadow
+  message: 'Compose layout/sizing (grid columns, card/button width, split layout) branched on isWebPlatform() returning a numeric column count or .dp — platform is the wrong axis: wide Android tablets get the cramped mobile layout, narrow mobile browsers get the desktop layout.'
+  fix: 'Use isWideLayout() / rememberIsCompactWindow() (600dp breakpoint, Material3 Adaptive) for width-driven sizing: `val columns = if (isWideLayout()) 4 else 2`. Reserve isWebPlatform() for platform integrations (media picker, Firebase, emoji font, HTML5 video). Never mix platform and width in one variable.'
+  source: architecture/adaptive-layout-by-window-width-pattern-2026-05-12.md; kmp/appbutton-width-adaptive-expect-actual-composable-2026-05-18.md
+- id: nested-viewport-compositionlocal-not-reprovided
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: (ComposeOverVideoContent|NestedComposeViewport)\s*[({]
+    unless: fun (ComposeOverVideoContent|NestedComposeViewport)
+    lacks: CompositionLocalProvider
+  message: wasmJs over-video overlay (ComposeOverVideoContent/NestedComposeViewport == a fresh ComposeViewport root) used with no CompositionLocalProvider in the file — parent CompositionLocals don't cross the viewport boundary, so LocalEmojiFont/LocalFontFamilyResolver fall back to default (emoji tofu / blank text on mobile Safari) and LocalAnalyticsHelper crashes with IllegalStateException 'not provided'.
+  fix: Capture needed locals OUTSIDE the overlay (val emojiFont = LocalEmojiFont.current; LocalFontFamilyResolver.current; LocalAnalyticsHelper.current), then wrap ONLY the overlay content block in CompositionLocalProvider(LocalEmojiFont provides emojiFont, ...) { ... } — not the BoxScope.align scaffolding. No-op on Android.
+  source: kmp/composeover-video-nested-viewport-emoji-z-order-2026-04-29.md; wasm-bugs/dialog-over-video-wasmjs-2026-05-18.md; wasm-bugs/topbanner-empty-text-mobile-safari-nested-viewport-font-2026-05-29.md; wasm-bugs/web-feedback-sheet-compositionlocal-reprovide-2026-06-09.md
+- id: wasmjs-bootstrap-error-handler-suppresses
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/resources/**/*.js'
+  - '**/wasmJsMain/resources/**/*.html'
+  - '**/wasmJsMain/resources/**/*.template'
+  detect:
+    type: grep
+    has: addEventListener\(\s*['\"](error|unhandledrejection)
+  message: The wasmJs bootstrap installs a global error/unhandledrejection listener — verify it does NOT call event.preventDefault(). Blanket-suppressing the global handler swallows fatal wasm exceptions (e.g. the Base64/.cvr crash), keeping them out of console.error and Crashlytics and sending debugging down a false path.
+  fix: Never blanket-suppress errors in the wasm bootstrap. Let exceptions propagate to console.error (and Crashlytics if wired); if you must intercept, log the full error first and only suppress a specific, identified benign case — never all unhandled errors.
+  source: docs/solutions/web-infrastructure/splash-hang-corrupted-cvr-cache-2026-05-26.md
+- id: wasmjs-emoji-text-missing-fontfamily
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: '"[^"]*[\U0001F300-\U0001FAFF]'
+    unless: LocalEmojiFont|rememberEmojiAwareText|EmojiFont|emojiFont|emojiFontFamily|^\s*(//|\*|/\*)|//.*[\U0001F300-\U0001FAFF]
+  message: 'Emoji literal in a commonMain Text with no explicit emoji fontFamily on the line — Skiko canvas has no system emoji fallback on wasmJs, so it renders as tofu on web (the same Text looks fine on Android, masking the bug). Red-flag: the font may be provided elsewhere, confirm by rendering on web.'
+  fix: Wrap emoji-bearing text in rememberEmojiAwareText() and pass the returned fontFamily (LocalEmojiFont/Twemoji) on every Text; LocalEmojiFont is a no-op on Android so it is safe to apply unconditionally. Don't assume AppText/AppButton or strings/Remote-Config emoji are auto emoji-aware.
+  source: kmp/emoji-rendering-wasms-text-fontfamily-2026-05-07.md; wasm-bugs/premium-price-arrow-tofu-2026-05-22.md; docs/solutions/emoji-rendering-wasms-preloadfont.md
+- id: wasmjs-nonemoji-symbol-glyph-tofu
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: '[←-⇿①-⓿☀-➿⬀-⯿]'
+    unless: ^\s*(//|\*|/\*)
+  message: Non-emoji Unicode symbol literal (arrows/stars/checks/dingbats e.g. ★ ➜ ✓ ⚠) in commonMain Compose code renders as tofu (empty square) on wasmJs — Skiko has no CSS-style font fallback and neither the emoji font nor any web system font covers these ranges (Android's Roboto fallback hides it).
+  fix: Render ornamental symbols as a vector AppIcon (composeResources drawable XML) or a Compose Canvas drawPath shape, or gate them out on web via isWebPlatform(); never rely on a font glyph for non-emoji symbols in commonMain shared with wasmJs.
+  source: wasm-bugs/premium-price-arrow-tofu-2026-05-22.md; kmp/canvas-glyph-wasmjs-unicode-symbols-2026-04-29.md; ui-bugs/rate-dialog-stars-glyph-web-fix-2026-05-18.md
+- id: webcodecs-h264-level-below-resolution
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/**/*.js'
+  - '**/wasmJsMain/**/*.mjs'
+  - '**/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: '[''"]avc1\.[0-9a-fA-F]{4}1f'
+    unless: ^\s*(//|\*)
+  message: WebCodecs H.264 codec string at Level 3.1 (avc1.*1f, e.g. avc1.42001f, ~720p ceiling) used to encode 1080p+ phone frames — strict HW encoders (iOS VideoToolbox) reject encode() ('Encoding task failed'); desktop Chrome silently tolerates it and isConfigSupported() returns true.
+  fix: Use a level covering the resolution (avc1.42c028 Baseline 4.0 / avc1.4d4028 Main for <=1080p), downscale the long axis to <=1920 with even width/height via draw-to-OffscreenCanvas, and drop hardwareAcceleration:'prefer-hardware'. Validate level vs dimensions manually since isConfigSupported() does not.
+  source: wasm-bugs/ios-webcodecs-trim-encoder-level-mismatch-2026-05-28.md; kmp/wasms-video-trim-webcodecs-mp4muxer-2026-05-21.md; kmp/wasms-upload-video-transcode-webcodecs-parity-2026-05-22.md

@@ -41,3 +41,23 @@
   message: "wrong-region и deploy-skew дают одинаковый симптом (404 text/plain / CORS) и не локализуются без явной сверки региона и smoke."
   fix: "pre-deploy assert региона на 3 концах; post-deploy curl-OPTIONS smoke; gcloud ... describe --format='value(updateTime,state)' позже коммита."
   source: "backend-deploy/firebase-functions-region + cross-service-deployment-patterns.md"
+
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: onboarding-completion-flag-before-nav-out
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - kmp
+  - android
+  globs:
+  - '**/onboarding/**/*ViewModel.kt'
+  detect:
+    type: grep
+    has: navigateTo(Main|Home|ChecklistDetail|Analyze|Dashboard)\w*\s*\(
+    unless: ^\s*(//|\*|/\*)
+    lacks: completeOnboarding|OnboardingPassed|markOnboardingComplet|onboardingComplete
+  message: Onboarding ViewModel forward-navigates out of the flow (Main/Home/ChecklistDetail/Analyze) without persisting the completion flag — onboarding re-shows next launch and the A/B 'completed' arm under-counts.
+  fix: Call completeOnboardingUseCase() (writes isOnboardingPassed=true to DataStore) on EVERY exit path (chip-seed, AI-analyze, skip, default) and ALWAYS before the forward navigate*; order is load-bearing (complete -> navigate, never the reverse). Ordering/multi-path variants where the use case IS referenced but mis-ordered fall to the L2 runtime reviewer, not this static rule.
+  source: docs/solutions/features/onboarding-none-variant-2026-05-10.md; docs/completed/onboarding-3-variants-2026-06-19.md; docs/completed/welcome-onboarding-final-polish-2026-06-22.md; docs/decisions/onboarding-multimodality-variant-selection-2026-06-22.md

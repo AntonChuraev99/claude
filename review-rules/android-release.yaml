@@ -49,3 +49,185 @@
   message: ".svg в composeResources крашит Android (AAPT не парсит SVG); web рендерит через Skiko -> сборка обманчиво зелёная."
   fix: "конвертировать в Vector Drawable XML (imageVector / .xml drawable)."
   source: "improvements/2026-05-11-android-expert-crashfix-rules.md"
+
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: activity-api-from-application-context-silent-return
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/src/androidMain/**/*.kt'
+  detect:
+    type: grep
+    has: \.findActivity\(\)\s*\r?\n?\s*\?:\s*return
+  message: 'Activity-requiring API resolves the Activity from a (possibly Application) context and does a silent `?: return` when findActivity() yields null'
+  fix: 'Resolve the foreground Activity per-call via AppActivityHolder.current; on null give visible feedback (snackbar/logger.e) instead of a silent `?: return`, and wrap any deferred Activity use in try/catch(IllegalStateException) with a graceful no-op.'
+  source: crashfixes/in-app-review-appactivityholder-context-fix-2026-06-04.md; crashfixes/crashlytics-triage-4-06-07-three-fixes-2026-06-12.md
+- id: buildconfig-secret-inlined-in-apk
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/build.gradle.kts'
+  - '**/build.gradle'
+  detect:
+    type: grep
+    has: buildConfigField\s*\(\s*"String"\s*,\s*"[A-Z0-9_]*(KEY|SECRET|TOKEN|PASSWORD|PASSPHRASE)[A-Z0-9_]*"
+    unless: PUBLIC_KEY|PUBLISHABLE
+  message: buildConfigField exposes a *_KEY/SECRET/TOKEN/PASSWORD — R8 constant-folds it into the release classes.dex, so the secret ships inside the public Play APK and is trivially recoverable even if no code reads it
+  fix: 'Never surface a secret via buildConfigField (reading from local.properties does not help — it still inlines). Keep it server-side: Cloud Functions read it from Secret Manager and the client calls the backend. Remove the buildConfigField + SDK dependency + dead DI binding. Verify `unzip -p app-release.apk classes.dex | strings | grep -E ''AIza|sk_''` is empty; add the grep as a pre-commit/CI gate.'
+  source: docs/solutions/security/gemini-api-key-leak-audit-2026-05-24.md; docs/solutions/security-issues/firebase-api-key-leak.md; app@c87a226f
+- id: compose-maxlines-decrement-reaches-zero
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/src/commonMain/**/*.kt'
+  - '**/src/androidMain/**/*.kt'
+  detect:
+    type: grep
+    has: hasVisualOverflow[\s\S]{0,160}?-=\s*1
+    lacks: coerceAtLeast
+  message: 'maxLines state decremented in onTextLayout while hasVisualOverflow stays true, with no lower-bound guard, can reach 0 and crash Text (IllegalArgumentException: both minLines 1 and maxLines 0 must be greater than zero) on overflow-prone screens'
+  fix: Clamp with maxLines = state.coerceAtLeast(1) and guard the decrement (state > 1) before subtracting; prefer the built-in TextOverflow.Ellipsis instead of driving maxLines from onTextLayout.
+  source: android/premium-content-maxlines-zero-2026-04-27.md
+- id: mediastore-relativepath-ispending-missing-sdk-guard
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/src/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
+  - '**/src/main/**/*.java'
+  detect:
+    type: grep
+    has: MediaStore\.\w+\.Media\.(RELATIVE_PATH|IS_PENDING)
+    lacks: Build\.VERSION\.SDK_INT
+  message: MediaStore RELATIVE_PATH/IS_PENDING (API 29+ keys) used in a file with no Build.VERSION.SDK_INT>=Q guard — on API<29 the insert runs and throws SecurityException (WRITE_EXTERNAL_STORAGE), hard-crashing save-to-gallery on Android 7-9
+  fix: Wrap Q+ ContentValues keys in if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q), and wrap every contentResolver.insert/update/delete/openOutputStream in runCatching with onFailure logging + graceful return null (mirror copyVideoFileToMediaStore).
+  source: android/savetogallery-pre-q-securityexception-2026-04-27.md
+- id: oom-coil-oneshot-request-no-memorycache-disabled
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/*.kt'
+  detect:
+    type: grep
+    has: allowHardware\(false\)
+    unless: ImageLoader\.Builder|BlurImage|BlurTransformation|AsyncImage|rememberAsyncImage
+    lacks: memoryCachePolicy
+  message: One-shot Coil ImageRequest uses allowHardware(false) for decode-to-file/share without memoryCachePolicy(CachePolicy.DISABLED) -> large (~48 MB) software bitmap retained in Coil memory cache -> OOM after a few downloads/shares
+  fix: On one-shot ImageRequests that decode to a Bitmap for file write/share add .memoryCachePolicy(CachePolicy.DISABLED) alongside .allowHardware(false), and recycle the produced bitmap when done (finally / DisposableEffect onDispose). Keep allowHardware(false) only because Bitmap.compress / pixel access needs a software bitmap.
+  source: 'git:bb8308532; git:0a7144bed'
+- id: oom-nonstreamed-upload-readbytes
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/network/**/*.kt'
+  detect:
+    type: grep
+    has: openInputStream\([\s\S]{0,160}?\.readBytes\(\)
+    unless: \.source\(\)
+    lacks: toByteReadChannel|ReadChannelContent
+  message: Upload path buffers the entire content://file URI into a ByteArray (openInputStream().readBytes() -> toRequestBody/setBody) -> heap OOM on large media on 512 MB-heap devices
+  fix: 'Stream the body: OkHttp RequestBody.writeTo { sink.writeAll(stream.source()) } or Ktor OutgoingContent.ReadChannelContent opening the InputStream inside readFrom() with toByteReadChannel(Dispatchers.IO). Resolve Content-Length up front (OpenableColumns.SIZE / File.length()); fall back to readBytes only when size is unknown.'
+  source: 'git:50c67a27d; git:d8cae0056'
+- id: androidx-test-dep-as-production-implementation
+  mode: runtime
+  severity: high
+  stack:
+  - kmp
+  - android
+  globs:
+  - '**/build.gradle.kts'
+  detect:
+    type: grep
+    has: \bimplementation\(\s*(libs\.androidx\.(test|junit|espresso)|"androidx\.test)
+    unless: testImplementation|androidTestImplementation|androidInstrumentedTest|androidUnitTest
+    lacks: android\.test|baselineprofile|macrobenchmark
+  message: androidx.test/androidx.junit/espresso declared as a plain implementation(...) (ships in the production APK) instead of androidInstrumentedTest/androidUnitTest — Compose Resources init reflectively calls InstrumentationRegistry and crashes 'No instrumentation registered' on launch
+  fix: 'Move any androidx.test:* / androidx.junit / espresso dependency to androidInstrumentedTest (or androidUnitTest with plain junit:junit). Rule: any artifact with androidx.test in its name is never a plain implementation.'
+  source: docs/solutions/kmp/kmp-android-apk-preexisting-6bugs-2026-04-23.md
+- id: cancellationexception-swallowed-before-crash-report
+  mode: runtime
+  severity: high
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/src/androidMain/**/*.kt'
+  - '**/src/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: catch\s*\(\s*\w+\s*:\s*(Exception|Throwable)\s*\)\s*\{[^{}]*?(recordException|logger\.e)\s*\(
+    lacks: is\s+CancellationException|catch\s*\(\s*\w+\s*:\s*(\w+\.)*CancellationException
+  message: Broad catch (Exception/Throwable) reports to Crashlytics via recordException/logger.e but never re-throws CancellationException first
+  fix: Make the first line of the catch/onFailure `if (e is CancellationException) throw e` before any recordException/logger.e, and short-circuit CancellationException centrally inside AndroidCrashlyticsCrashReporter.recordException(). Re-throwing CancellationException is always safe and preserves structured concurrency.
+  source: crashfixes/crashlytics-triage-4-06-07-three-fixes-2026-06-12.md; crashfixes/android-trim-error-handling-audit-fixes-2026-06-15.md; crashlytics/crashlytics-nonfatal-noise-classification-2026-05-18.md
+- id: exoplayer-listener-in-composable-without-disposableeffect
+  mode: runtime
+  severity: high
+  stack:
+  - android
+  globs:
+  - '**/exoplayer/**/*.kt'
+  - '**/*ExoPlayer*.kt'
+  - '**/src/androidMain/**/*VideoPlayer*.kt'
+  detect:
+    type: grep
+    has: \.addListener\(
+    lacks: DisposableEffect|removeListener|onDispose|Transformer\.Listener|VideoPlayerController|fun release\(
+  message: ExoPlayer/Player.Listener registered via addListener() in a player file with no DisposableEffect/removeListener/onDispose cleanup — listeners accumulate across recompositions (OOM) and the singleton keeps playing audio after the screen is disposed
+  fix: Wrap listener registration and playback start in DisposableEffect(player){ addListener(l); onDispose { removeListener(l); player.pause() } }. Never call addListener directly in the composable body; on Compose back-nav pause() the reused singleton rather than releasing it.
+  source: memory-leaks/bitmap-and-exoplayer-memory-leaks.md; kmp/app-item-singleton-player-pause-on-dispose-2026-05-20.md
+- id: kmp-compose-resources-missing-androidresources-enable
+  mode: runtime
+  severity: high
+  stack:
+  - kmp
+  - android
+  globs:
+  - '**/build.gradle.kts'
+  detect:
+    type: grep
+    has: compose\.components\.resources
+    lacks: androidResources
+  message: KMP android-library module depends on compose.components.resources but build.gradle.kts has no `androidResources { enable = true }` block — composeResources build locally yet are never packed into the APK (silent runtime MissingResourceException after an AGP 9.2+ bump)
+  fix: 'For every KMP android-library module owning a composeResources/ dir: add `implementation(compose.components.resources)` to commonMain AND `androidResources { enable = true }` inside `kotlin { android { } }` (mandatory since the AGP 9.2 AKMP DSL). Verify with `unzip -l <apk> | grep <resource>`; never mask a resource read failure with a bare emptyList() catch.'
+  source: docs/solutions/build-system/agp9-feature-module-androidresources-fix-2026-05-11.md; app@957cfa36; app@bf7c2811
+- id: oom-coil-global-imageloader-allowhardware-false
+  mode: runtime
+  severity: high
+  stack:
+  - android
+  globs:
+  - '**/di/**/*.kt'
+  - '**/*ImageLoaderFactory*.kt'
+  detect:
+    type: grep
+    has: \.allowHardware\(false\)
+    unless: ImageRequest\.Builder
+  message: Global allowHardware(false) on the shared ImageLoader.Builder (DI/factory) forces every decoded bitmap onto the Java heap; with Coil's default 25% memory cache this OOMs while scrolling grids of image cards on 512 MB devices
+  fix: Remove allowHardware(false) from the global ImageLoader.Builder (keep hardware bitmaps app-wide); disable hardware only on the specific requests that read pixels (blur) or write to file. Set an explicit MemoryCache { maxSizePercent(context, 0.15) } to bound heap on 512 MB devices instead of the default 0.25.
+  source: 'git:fe8aeabe5; git:42693ef6f; performance-issues/memory-pressure-manager-kmp-android17-2026-06-03.md'

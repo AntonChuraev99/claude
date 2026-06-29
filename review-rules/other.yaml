@@ -1,0 +1,49 @@
+# other — misc recurring bugs not yet in a dedicated area. Mined 2026-06-29; runtime probation.
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: compose-resources-backslash-escaped-string
+  mode: runtime
+  severity: low
+  stack:
+  - kmp
+  - compose
+  globs:
+  - '**/composeResources/**/strings.xml'
+  detect:
+    type: grep
+    has: \\['"]
+    unless: ^\s*<!--|-->
+  message: Backslash-escaped quote/apostrophe in a Compose Multiplatform composeResources string — CMP does NOT strip the escape (unlike Android res), so the backslash renders literally in the UI.
+  fix: Use bare, unescaped quotes/apostrophes in composeResources strings.xml (Don't, Tap "Open Settings"). Only & still needs an XML entity (&). Do not carry Android \' / \" escaping habits into CMP Resources. Glob is scoped to composeResources so androidMain res/values/strings.xml (where \' / \" ARE correct) is untouched.
+  source: 'app: docs/solutions/ui-improvements/compose-resources-string-escaping.md'
+- id: mock-data-production-fallback
+  mode: runtime
+  severity: high
+  stack:
+  - kmp
+  - android
+  globs:
+  - '**/src/{main,commonMain,androidMain,iosMain}/**/*.kt'
+  detect:
+    type: grep
+    has: \bval\s+(MOCK|FAKE|STUB|DUMMY)_[A-Z0-9_]+\s*=\s*(listOf|mutableListOf|mapOf|setOf|arrayOf|[A-Z]\w*\s*\()
+    unless: '@Preview|BuildConfig\.DEBUG|isDebug\(\)|AppBuildConfig\.isDebug|review-rules:allow-mock'
+    lacks: review-rules:allow-mock
+  message: Mock/stub constant (MOCK_/FAKE_/STUB_/DUMMY_) declared in a production source set — used as a load/read-failure fallback it hides the error and feeds garbage downstream.
+  fix: 'Remove mock/stub fallbacks from production paths: on load/read failure show a visible error + retry and log it (analytics + AppLogger.error), never substitute fabricated data and clear the error. Keep MOCK_/FAKE_/STUB_/DUMMY_ data only in test source sets, @Preview functions, or debug-gated code (or annotate an intentional case with // review-rules:allow-mock).'
+  source: runtime-errors/paywall-mock-product-silent-failure.md; runtime-errors/content-uri-photo-analysis-failure.md
+- id: prerelease-dep-bump-needs-clean-build
+  mode: runtime
+  severity: high
+  stack:
+  - kmp
+  - android
+  globs:
+  - '**/libs.versions.toml'
+  - '**/*.versions.toml'
+  detect:
+    type: grep
+    has: (?i)=\s*"\d[^"]*-(alpha|beta|rc|eap|dev|snapshot|pre|m\d)
+    unless: (?i)#.*(clean-build|arm64|smoke|verified|pinned-prerelease)
+  message: A pre-release (alpha/beta/rc/snapshot) dependency version is set in the version catalog — these ship breaking API + native (ARM64) changes between builds and the local Gradle daemon klib cache masks the skew until a clean CI build or a real device hits it.
+  fix: 'After bumping any pre-release dep run a clean no-cache build (./gradlew --rerun-tasks --no-build-cache compileKotlinWasmJs assembleDebug) and smoke-test on a real ARM64 device (not an emulator) before merge; pin the exact alpha/beta version, prefer member APIs over moved top-level extensions, and read the changelog for suspend/artifact-split breaks. Red-flag (mode=runtime) not a hard block: pre-release versions are routine in KMP catalogs and a grep cannot confirm the clean-build/ARM64-smoke step, so a static HIGH here would block normal commits — annotate a verified line with a trailing ''# arm64 smoke clean-build verified'' comment to silence.'
+  source: kmp/room3-alpha-sqlite-bundled-arm64-regression-2026-05-11.md; ci-deploy/sqlite-bundled-alpha04-suspend-member-api-2026-05-11.md

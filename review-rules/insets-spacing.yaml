@@ -53,3 +53,24 @@
   message: "TextAlign.Center без fillMaxWidth() центрирует внутри ширины Text (=no-op) -> 'текст уехал влево'."
   fix: "добавить .fillMaxWidth() на Text или обернуть в Box(contentAlignment=Center)."
   source: "agent-memory/compose-feature-expert/reference_compose_pitfalls.md §10.2-A"
+
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: localized-text-clipping-fixed-container
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - kmp
+  globs:
+  - '**/src/commonMain/**/*.kt'
+  - '**/src/androidMain/**/*.kt'
+  - '**/src/wasmJsMain/**/*.kt'
+  - '**/src/main/**/*.kt'
+  detect:
+    type: grep
+    has: maxLines\s*=\s*1\b
+    unless: TextAutoSize|basicMarquee
+    lacks: TextAutoSize
+  message: Single-line (maxLines=1) Text inside fixed-dp M3 containers (compare-table columns, PlanRow subtitle, PRO/credits badge, pager titles) truncates/clips/wraps on long localized strings (KZT/RU, 'Unlimited'); emulator USD fallback hides the bug.
+  fix: Size containers from the longest expected localized value (+~15-20% buffer); use TextAutoSize.StepBased (>=8.sp floor) or widthIn(min=)/let height grow; pair centered & pager Text with fillMaxWidth(); validate on a real KZT/RU locale + physical device, not the USD RemoteConfig fallback on emulator.
+  source: ui-improvements/paywall-truthful-copy-and-layout-2026-04-28.md; ui-improvements/paywall-polish-and-locale-fixes-2026-04-28.md; features/paywall-best-practices.md

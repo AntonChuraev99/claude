@@ -50,3 +50,89 @@
   message: "правка wrangler-конфига: деплой может уйти не в тот CF-аккаунт; добавление routes молча выключает workers_dev (legacy *.workers.dev URL умирает)."
   fix: "перед деплоем `wrangler whoami` == ожидаемый аккаунт; явный \"workers_dev\": true, если legacy URL ещё нужен."
   source: "project-memory cloudflare-deploy-accounts-and-workers-dev-default"
+
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: gen2-function-iam-via-gen1-api
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - gcp
+  - firebase
+  globs:
+  - '**/*deploy*.{sh,py}'
+  detect:
+    type: grep
+    has: gcloud functions add-iam-policy-binding
+    lacks: gcloud run services add-iam-policy-binding
+  message: Gen1 IAM API (`gcloud functions add-iam-policy-binding`) grants invoker — but it silently no-ops for a --gen2 function (backed by Cloud Run). Deploy log prints 'Updated IAM policy / deployed successfully', yet a curl POST to the URL returns 403.
+  fix: For --gen2 functions grant invoke via `gcloud run services add-iam-policy-binding <name-with-hyphens> --member=allUsers --role=roles/run.invoker` (or --allow-unauthenticated at deploy time), then smoke-test the URL expecting a non-403 response before marking the deploy done.
+  source: deployment-issues/gen2-cloud-functions-iam-policy.md
+- id: gradle-daemon-jvm-properties-committed
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - gradle
+  - ci
+  - cloudflare
+  globs:
+  - '**/gradle/gradle-daemon-jvm.properties'
+  detect:
+    type: glob
+  message: Committed gradle/gradle-daemon-jvm.properties forces clean CI to provision a JDK through foojay.io -> fragile 'Could not HEAD api.foojay.io 400' failures on EVERY branch; local builds pass (JDK cached in ~/.gradle/jdks).
+  fix: Delete gradle/gradle-daemon-jvm.properties; install the JDK explicitly in .cloudflare/build.sh (download Temurin from github.com/adoptium, export JAVA_HOME/PATH). Never re-run ./gradlew updateDaemonJvm without updating the CI script — it re-pins to the local dev JVM.
+  source: ci-deploy/cloudflare-workers-builds-jvm-21-foojay-400-fix-2026-06-17.md
+- id: gradle-string-by-project-delegate
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - gradle
+  - kmp
+  globs:
+  - '**/build.gradle.kts'
+  detect:
+    type: grep
+    has: val\s+\w+\s*:\s*String\s+by\s+project
+    unless: ^\s*(//|\*|/\*)
+  message: '`val X: String by project` reads a required property at the CONFIGURATION phase and throws when it is absent in CI; Gradle evaluates all config (e.g. :androidApp signing) even when building an unrelated target (:app:wasmJs), so one missing secret aborts the entire build.'
+  fix: 'Read optional props with findProperty("X") as? String ?: "<placeholder>" (nullable + default) instead of the strict `by project` delegate; provide CI placeholders in local.defaults.properties.'
+  source: ci-deploy/cloudflare-workers-builds-kmp-wasmjs-setup-2026-04-21.md
+- id: gradle-wrapper-in-gitignore
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - gradle
+  - ci
+  globs:
+  - '**/.gitignore'
+  detect:
+    type: grep
+    has: ^\s*/?(gradlew(\.bat)?|gradle/wrapper)/?\s*$
+  message: 'Gradle wrapper (gradlew / gradlew.bat / gradle/wrapper) listed in .gitignore makes a clean CI checkout unbuildable (''chmod: cannot access gradlew''); local builds pass because the wrapper is on disk and git status never flags it.'
+  fix: Remove gradlew, gradlew.bat and gradle/wrapper from .gitignore and `git add -f` them — the wrapper is a tracked convention artifact required for reproducible builds.
+  source: ci-deploy/cloudflare-workers-builds-kmp-wasmjs-setup-2026-04-21.md
+- id: wrangler-spa-assets-missing-run-worker-first
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - cloudflare
+  - wasmjs
+  - web
+  globs:
+  - '**/wrangler.{jsonc,toml,json}'
+  detect:
+    type: grep
+    has: single-page-application
+    lacks: run_worker_first
+  message: 'wrangler SPA assets (not_found_handling=single-page-application) WITHOUT run_worker_first: Static Assets intercept top-level navigations (Sec-Fetch-Mode: navigate) before the Worker, so POST-navigation OAuth form_post callbacks get 405 and never reach the Worker. curl/fetch don''t send navigate, so it passes every non-browser test.'
+  fix: 'Add assets.run_worker_first listing the OAuth callback + auth-proxy paths (e.g. /apple-callback, /__/auth/*, /__/firebase/*) in EVERY env''s wrangler config (staging AND prod); verify with curl -X POST -H ''Sec-Fetch-Mode: navigate'' expecting 303, not 405.'
+  source: ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md

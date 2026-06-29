@@ -1,0 +1,93 @@
+# compose-state — Compose state / Flow / recomposition / progress-source recurring bugs.
+# Mined 2026-06-29; runtime probation.
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: compose-oneshot-event-as-launchedeffect-key
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - compose
+  - kmp
+  - android
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/androidMain/**/*.kt'
+  detect:
+    type: grep
+    has: LaunchedEffect\([^)]*[Tt]rigger[^)]*\)
+    unless: receiveAsFlow|Channel<|//
+  message: 'A one-shot signal (scroll-to-top / reopen-sheet) is modeled as persistent state and used directly as a LaunchedEffect key (e.g. an Int *Trigger): the value survives recomposition/backstack-return, so the new LaunchedEffect sees the same non-neutral key and re-fires the action.'
+  fix: Model one-shot events as Channel<Unit>(CONFLATED).receiveAsFlow() collected in LaunchedEffect(Unit){ flow.collect { ... } }; keep any remember{mutableStateOf(...)} initial value neutral (false/0) and make a single LaunchedEffect the source of truth for the state, not the Int trigger.
+  source: ui-bugs/app-tab-selector-intarray-race-condition-2026-05-15.md; kmp/compose-scroll-trigger-channel-event-pattern-2026-05-06.md; kmp/app-item-sheet-reopen-split-layout-adaptive-2026-05-20.md
+- id: compottie-completion-without-null-composition-guard
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - compose
+  - kmp
+  - android
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/androidMain/**/*.kt'
+  detect:
+    type: grep
+    has: \bisAtEnd\b
+    unless: //
+    lacks: composition\s*[!=]=\s*null|composition\?\.|has\w*Started
+  message: A Compottie completion callback is driven off isAtEnd with no composition!=null guard; animateLottieCompositionAsState(composition = null) returns isAtEnd=true, so onComplete/onFirstSpinComplete fires on the async JSON-load tick instead of real animation end (manifests only on slow devices).
+  fix: Gate isPlaying and every progress/isAtEnd LaunchedEffect on composition != null (early-return if null and add composition to the effect keys); fire onComplete only when isAtEnd && hasStarted, where hasStarted flips true only after real progress movement (> 0.01f); capture initialProgress only after the composition loads.
+  source: kmp/app-android-postmigration-compottie-painter-bug-2026-04-27.md
+- id: flow-combine-with-never-emitting-source
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: combine\s*\([^)]*emptyFlow\s*\(
+    unless: Fake|Test|Preview|//
+  message: A Flow combine(...) includes emptyFlow() (or another never-emitting source) inline; combine emits only after EVERY input has emitted at least once, so the derived gate/state never resolves and stays on its initial fallback (onboarding always shows / splash hangs for every user).
+  fix: Never feed emptyFlow()/never-emitting flows into combine(); seed every source with an initial emission (onStart { emit(default) }, stateIn(scope, started, initial), or flowOf(default)); for optional sources use a nullable initial value rather than emptyFlow() so combine can emit immediately.
+  source: 'cluster incident: onboarding always showing due to emptyFlow in combine (app); docs/solutions/runtime-errors/splash-navigation-race-channel-fix-2026-04-28.md'
+- id: progress-from-template-instead-of-fill
+  mode: runtime
+  severity: medium
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - kmp
+  - compose
+  globs:
+  - '**/feature/home/**/*.kt'
+  - '**/presentation/**/*.kt'
+  detect:
+    type: grep
+    has: \b(checklist|template)\w*\.items\.(count|filter|any|all|none|sumOf)\s*\{[^}]*\bchecked\b
+    unless: '[Ff]ill|//'
+  message: Completion/progress is computed from Checklist.items (the immutable template, always checked=false) instead of the default ChecklistFill.items that holds real user state, so the main/detail screen shows 0%/stale progress even though items are checked.
+  fix: Derive total/checked/progress from the default ChecklistFill.items (fall back to the template size only for the total when no fill exists); compose a ChecklistWithProgress in the ViewModel via flatMapLatest/combine that takes the checked counts exclusively from the fill instance.
+  source: docs/solutions/logic-errors/progress-bar-shows-zero-using-template-instead-of-fill.md; docs/solutions/ui-bugs/checklist-detail-overflow-menu-quick-add-bugs.md
+- id: compose-render-state-non-snapshot-or-late-update
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - android
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/androidMain/**/*.kt'
+  detect:
+    type: grep
+    has: remember\s*(\([^)]*\))?\s*\{\s*(IntArray|FloatArray|LongArray|DoubleArray|arrayOfNulls|Array<)
+    unless: mutableStateListOf|snapshotStateListOf|//
+  message: 'Render/scroll-sync state held in a non-snapshot array (IntArray/Array remembered then mutated from onSizeChanged/onGloballyPositioned) or updated late in LifecycleEventEffect(ON_RESUME): element writes are invisible to recomposition, so the first frame / tab indicator freezes on stale cold-cache measurements.'
+  fix: Store measured widths/positions in mutableStateListOf or per-item mutableStateOf (snapshot-observable); derive readiness with derivedStateOf instead of a latched Boolean ready-flag; key the LaunchedEffect on the computed target values (targetLeft/targetRight) so a re-measure re-runs it; update the render-driving value inside composition via LaunchedEffect BEFORE the first layout pass, never in ON_RESUME.
+  source: ui-bugs/app-tab-selector-intarray-race-condition-2026-05-15.md; architecture/catalog-loading-state-scaffold-unification-2026-05-07.md; kmp/app-result-video-stale-first-render-wasmjs-2026-05-21.md

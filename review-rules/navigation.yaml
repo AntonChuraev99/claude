@@ -1,0 +1,71 @@
+# navigation — Nav3 / multi-backstack / deeplink / route-collision recurring bugs.
+# Mined 2026-06-29; runtime probation.
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: deeplink-catchall-replays-raw-route
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/*Deeplink*.kt'
+  - '**/navigation/**/*.kt'
+  detect:
+    type: grep
+    has: else\s*->\s*"[\w-]+:\s*(\$\{?(hash|route|path|uri|segment)|"\s*\+)
+    unless: //|/\*|@Test
+  message: Catch-all else branch in a hash/deeplink->route mapping interpolates the RAW input into a replayable nav-route (e.g. `else -> "nav-route:$hash"`), queuing transient/auth-transit routes (acceptPolicy, signUp) as persistent deeplinks -> user is bounced back to auth right after login.
+  fix: 'Make the mapping exhaustive and explicit: whitelist only known production routes; map auth-transit/splash/empty/UNKNOWN hashes to null (return String?). The else/unknown branch returns null (no-op, falls through to the normal splash flow) instead of interpolating the raw hash. Back with an enumeration test asserting every declared replayable route is registered.'
+  source: wasm-bugs/web-login-bounce-navigation-queue-2026-05-19.md; runtime-errors/deeplink-silent-fail-not-in-list-2026-05-05.md; kmp/revenuecat-web-purchase-success-deeplink-2026-05-15.md
+- id: kmp-nav-route-optional-query-placeholder
+  mode: runtime
+  severity: medium
+  stack:
+  - kmp
+  - wasmjs
+  - web
+  globs:
+  - '**/commonMain/**/*Navigation*.kt'
+  - '**/commonMain/**/NavigationConstants*.kt'
+  - '**/commonMain/**/navigationconstants/**/*.kt'
+  detect:
+    type: grep
+    has: '"[A-Za-z_][\w/{}-]*\?[A-Za-z_]\w*=\{[A-Za-z_]\w*\}'
+    unless: //|/\*
+  message: Shared (commonMain) Compose Navigation route string declared with optional query placeholders (?key={key}). On wasmJs, bindToBrowserNavigation.getRouteWithEncodedArgs() fills ALL placeholders (nullable -> literal 'null'), so the encoded route no longer matches the base back-stack entry -> popBackStack/reconcile misses and Back breaks.
+  fix: Keep only required path params in the route string (e.g. "premium/{openFrom}"). Move every optional query arg into savedStateHandle, set at navigate()/navigateFromDeeplink() time and read in the Route composable. Strip external-redirect query at the source in main.kt (window.history.replaceState) instead of parameterizing target routes per query variant.
+  source: docs/completed/web-back-navigation-rework-2026-05-19.md; docs/solutions/kmp/revenuecat-web-purchase-success-deeplink-2026-05-15.md
+- id: nav3-route-arg-via-savedstatehandle-reflection
+  mode: runtime
+  severity: medium
+  stack:
+  - kmp
+  - compose
+  globs:
+  - '**/feature/**/*.kt'
+  - '**/composeApp/**/*.kt'
+  detect:
+    type: grep
+    has: savedStateHandle\[\s*[\w.]+::\w+\.name\s*\]
+    unless: //|/\*|@Test|\?:\s*savedStateHandle\[
+  message: Navigation 3 typed route arg read via savedStateHandle[Route::field.name] reflection. In Nav3, routes are NavKey objects (not Bundles), so this reflection key does not reliably extract the field and it collapses to a default (e.g. source="unknown" despite all call-sites passing it).
+  fix: Bind the route in the entry block (`entry<Route> { route -> Screen(route.field) }`) and forward ViewModel ctor params via Koin parametersOf(route.field). Treat savedStateHandle[Route::field.name] only as an optional process-death fallback, never as the primary transport for a required route argument.
+  source: docs/solutions/architecture/navigation3-savedstatehandle-paywall-source-fix-2026-05-28.md
+- id: wasmjs-custom-popstate-vs-bindtobrowsernavigation
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/**/*.kt'
+  - '**/wasmJsMain/**/*.js'
+  detect:
+    type: grep
+    has: addEventListener\(\s*["']popstate["']|\.onpopstate\s*=
+    unless: //|/\*|@Test
+  message: Hand-rolled popstate interception (addEventListener("popstate")/onpopstate, usually with stopImmediatePropagation + sentinel pushState) coexists with Compose Navigation's bindToBrowserNavigation -> two uncoordinated owners of window.history race, breaking the browser Back button (double pops, wrong tab, leaving the site).
+  fix: 'Make bindToBrowserNavigation the SOLE owner of window.history; delete the custom popstate listener / stopImmediatePropagation / sentinel pushState. If a root-guard is needed, implement it structurally: LaunchedEffect(nav.currentBackStack) gated on previousBackStackEntry == null with a single buffer pushState, deriving state from destination.route (NavController) — never intercept the popstate event, never read window.history.state.'
+  source: docs/completed/web-back-navigation-rework-2026-05-19.md; docs/solutions/wasm-bugs/web-login-bounce-navigation-queue-2026-05-19.md

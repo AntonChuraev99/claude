@@ -25,3 +25,20 @@
   message: "захардкоженный boolean в аналитике (Param(\"x\", false)) -> при KMP-абстракции реальный callback-параметр (userCancelled / errorMessage) мог потеряться молча; компилится, тесты зелёные, видно только на дашборде."
   fix: "проверить, что каждый callback-параметр доходит до потребителя типизированно; не хардкодить аналитику; не терять поведенческую ветку (web-billing fallback на cancel)."
   source: "agent-memory/android-platform-expert/reference_android_runtime_pitfalls.md §R3"
+
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: kmp-platform-tuning-constant-drift
+  mode: runtime
+  severity: medium
+  stack:
+  - kmp
+  globs:
+  - '**/src/androidMain/**/*.kt'
+  - '**/src/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: const\s+val\s+[A-Z_]*(MAX_SIDE|MAX_DIMENSION|MAX_WIDTH|MAX_HEIGHT|JPEG_QUALITY|_QUALITY|BITRATE)[A-Z_]*\s*=\s*\d+
+    unless: \b(actual|expect)\b
+  message: 'Image/video tuning constant (max-side, JPEG quality, bitrate) hardcoded inside a single platform source set (androidMain/wasmJsMain) — duplicated per-platform literals drift apart (e.g. PREVIEW_MAX_SIDE 900 > IMAGE_MAX_SIDE 600 inversion) when only one side is bumped. Red-flag for review: a grep cannot tell a legitimately platform-specific value from a should-be-shared one, so confirm whether the same constant exists in the other platform set.'
+  fix: Hoist shared tuning constants into a commonMain single source of truth (interface/object companion) referenced by both androidMain and wasmJsMain; use expect/actual only when the value legitimately must differ per platform.
+  source: docs/solutions/kmp/photo-compression-parameters-bump-2026-05-27.md, docs/solutions/kmp/wasms-upload-video-transcode-webcodecs-parity-2026-05-22.md, docs/solutions/kmp/wasms-upload-image-downscale-parity-android-2026-05-22.md

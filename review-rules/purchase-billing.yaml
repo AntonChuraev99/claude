@@ -1,0 +1,179 @@
+# purchase-billing — RevenueCat / paywall / entitlement / anon-id recurring bugs.
+# Mined 2026-06-29 from project incident history; all runtime (probation) pending telemetry.
+# === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: paywall-already-linked-skips-rc-sync
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/feature/splash/**/*.kt'
+  - '**/feature/paywall/**/*.kt'
+  - '**/*SplashViewModel*.kt'
+  detect:
+    type: grep
+    has: if\s*\([^)]*isPaywallLinked\(\)
+    unless: ^\s*(//|\*)
+    lacks: refreshSubscriptionStatus|getCustomerInfo
+  message: A client-side isPaywallLinked() guard early-returns on app launch without refreshing RevenueCat subscription status, so returning premium users are shown FREE (and Buy errors 'already subscribed') until they open the paywall and come back.
+  fix: 'On every cold start sync RC state unconditionally: call idempotent Purchases.logIn(userId) and/or refreshSubscriptionStatus()/getCustomerInfo() before any return; keep the ''already linked'' gate as a server-side READ, never a client-side WRITE shortcut.'
+  source: docs/solutions/logic-errors/premium-status-not-syncing-on-launch.md; docs/solutions/configuration-issues/revenuecat-firebase-premium-sync-2026-04-18.md
+- id: paywall-hardcoded-product-id-resolution
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/feature/paywall/**/*.kt'
+  - '**/paywall/**/*.kt'
+  detect:
+    type: grep
+    has: \.id\s*==\s*"[a-z_]+:[a-z0-9-]+"
+    unless: Test|^\s*(//|\*)
+  message: Paywall matches a subscription product by a hardcoded 'subscriptionId:basePlanId' literal (e.g. premium_yearly:main-20); RC strips the basePlan suffix and the plan vanishes when offerings.current serves a different offering or storeProduct.period is null on some locales.
+  fix: Resolve the offering by name (offerings.all[OFFERING_ID] with offerings.current as fallback) and match plans by id substring ('year'/'month'/'annual') plus periodString fallback; never compare it.id to a hardcoded 'sub:baseplan' literal.
+  source: 'app git commit d4bbc289 fix(paywall): resolve yearly product by offering id and id substring (2026-04-28); docs/solutions/features/paywall-silent-skip-no-trial-nav3-fixes-2026-06-07.md; docs/solutions/runtime-errors/paywall-purchase-flow-monetization-fix-2026-05-10.md'
+- id: paywall-mock-product-as-prod-fallback
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/feature/paywall/**/*.kt'
+  - '**/paywall/**/*.kt'
+  detect:
+    type: grep
+    has: (MOCK_PRODUCT|MOCK_PACKAGE|MOCK_OFFERING|mock_premium|mock_package)
+    unless: Test|@Preview|PreviewParameter|isDebug|^\s*(//|\*)
+  message: Production paywall code references a mock/placeholder product (MOCK_PRODUCT / mock_package / mock_premium) as a fallback for empty or failed offerings and sets error=null, presenting a functional-looking but unbuyable paywall while masking the load failure.
+  fix: Keep mock/placeholder products in test/@Preview/isDebug only; on empty/failed offerings show a visible error + Retry action and emit a products_load_failed event (never a fake product); source every price from store priceString, no hardcoded fallback price baked into UiState.
+  source: docs/solutions/runtime-errors/paywall-mock-product-silent-failure.md; docs/solutions/runtime-errors/paywall-purchase-flow-monetization-fix-2026-05-10.md; app git commits aafb965 (2026-02-22 MOCK_PRODUCT), 6c7ca8dd (2026-04-28 fallback price $1.99)
+- id: rc-restore-on-auto-login-transfer
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - android
+  globs:
+  - '**/MainActivityViewModel.kt'
+  - '**/MainViewModel.kt'
+  - '**/*MainActivityViewModel*.kt'
+  detect:
+    type: grep
+    has: (restorePurchasesWith\s*\{|restorePurchases\s*\(|loginUserAndRestorePurchases\s*\()
+    unless: ^\s*(//|\*)
+    lacks: RestoreWebPurchasesUseCase|RestorePurchasesButton|onRestorePurchasesClick
+  message: restorePurchases is invoked from the automatic login/identity-change path (Main VM userId collector) rather than an explicit user button — with RC Restore Behavior=Transfer this migrates a store subscription between App User IDs (User A loses premium to User B on a shared store account).
+  fix: 'Split login: loginUser(uid)=Purchases.logIn(uid) (identity only, no store scan) in the auto userId collector; keep loginUserAndRestorePurchases (logInWith{restorePurchasesWith}) ONLY behind an explicit Settings/paywall Restore button. Also set RC dashboard Restore Behavior to ''Keep with original App User ID'' (verify via the sandbox toggle).'
+  source: crashfixes/revenucat-cross-account-purchase-transfer-2026-06-08.md; crashfixes/purchase-account-identifiers-mismatch-diagnosis-2026-06-10.md
+- id: rc-web-anon-id-merge-or-persist-broken
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/src/wasmJsMain/**/*RevenueCat*.kt'
+  - '**/src/wasmJsMain/**/*Purchase*.kt'
+  - '**/src/wasmJsMain/**/*Logout*.kt'
+  - '**/src/wasmJsMain/**/*PurchaseInitService*.kt'
+  detect:
+    type: grep
+    has: (changeUser\s*\(|generateAnonymousUserId\s*\(|mergeAnonPurchaseOnAuth|changeUserWithAnonMergeFallback)
+    unless: ^\s*(//|\*)
+    lacks: identifyUser|persistAnonymousUserId
+  message: wasmJs RevenueCat code switches/regenerates the anon user via changeUser()/generateAnonymousUserId() but never aliases via identifyUser() nor re-persists the anon-id (persistAnonymousUserId) — purchases-js changeUser does NOT alias, and an un-persisted anon-id desyncs across the pay redirect/cold-reload, orphaning the guest purchase.
+  fix: For anon->identified merge call identifyUser(uid) (not a second changeUser), warming the anon context first; after ANY changeUser(anonId) (logout included) immediately persistAnonymousUserId(anonId) (persist AFTER changeUser, never before); clear the persisted anon-id only post-merge. Verify on a real RC sandbox run.
+  source: wasm-bugs/web-guest-anonymous-purchase-bugfixes-2026-06-22.md; web-guest-anonymous-purchase-anon-id-desync-2026-06-24.md
+- id: rc-web-producttype-billing-string-mismatch
+  mode: runtime
+  severity: high
+  probation: '2026-06-29'
+  target_mode: static
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/src/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: productType[^"\n]{0,40}"(NON_SUBSCRIPTION|INAPP|SUBS)"
+    unless: ^\s*(//|\*)
+  message: A wasmJs RevenueCat mapper compares productType to Android Billing strings (NON_SUBSCRIPTION/INAPP/SUBS); the JS SDK (@revenuecat/purchases-js) only emits lowercase subscription/consumable/non_consumable, so the branch never matches and consumable/credits offers mis-map to the subscription path (priceInfo null -> empty paywall).
+  fix: Match RC Web SDK productType against a lowercased whitelist ('consumable' || 'non_consumable' for one-time, 'subscription' for subs); route consumable/non_consumable to the Credits path (no offerPeriod), never to the SpecialOffer/discount path.
+  source: kmp/revenuecat-web-sdk-producttype-creditsoffers-2026-04-24.md
+- id: paywall-fabricated-trial-flag
+  mode: runtime
+  severity: medium
+  stack:
+  - android
+  globs:
+  - '**/feature/paywall/**/*.kt'
+  - '**/paywall/**/*.kt'
+  detect:
+    type: grep
+    has: \.introductoryDiscount\s*=\s*[^=]
+    unless: Test|^\s*(//|\*)
+  message: Paywall fabricates/force-defaults the free-trial flag by assigning a fake introductoryDiscount (or DEFAULT_FREE_TRIAL_DAYS) instead of trusting the real store product, so trial copy and the free_trial_start conversion event fire on no-trial offers.
+  fix: Derive hasFreeTrial only from storeProduct.introductoryDiscount (periodDays>0); never assign introductoryDiscount; read one normalized store-derived flag in both the UI and ConversionEventHelper so copy and analytics match the real offer.
+  source: docs/solutions/logic-errors/revenuecat-sandbox-trial-detection-mismatch.md; docs/solutions/features/paywall-silent-skip-no-trial-nav3-fixes-2026-06-07.md; app git commits fc74d6ad (2026-03-14), eddebde3 + 339fd44d (2026-06-07)
+- id: rc-web-postpurchase-work-in-cancellable-scope
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/purchaseSuccess/**/*.kt'
+  - '**/*PurchaseSuccess*.kt'
+  - '**/*PaymentSuccess*.kt'
+  - '**/premium/**/*Success*.kt'
+  detect:
+    type: grep
+    has: (syncPurchases\s*\(|completePostPurchaseAnalytics|PostPurchaseAnalytics|onPurchaseResult\s*\()
+    unless: ^\s*(//|\*)
+    lacks: AppCoroutineScope|appScope\.launch|koinInject<AppCoroutineScope>
+  message: Post-purchase work (syncPurchases / premium-refresh / analytics) on the web success landing runs in a composition/viewModel scope that the RevenueCat redirect-reload cancels, so premium status, user data and analytics are silently dropped on web.
+  fix: Move all redirect-surviving post-purchase work (syncPurchases -> refresh premium status -> reload user data -> analytics flush) into an app-scope orchestrator (AppCoroutineScope singleton) plus a localStorage pending-purchase read on the landing; never LaunchedEffect/viewModelScope, and never rely on a CustomerInfoUpdateListener on wasmJs (it does not exist).
+  source: kmp/wasms-postpurchase-analytics-parity-2026-04-27.md; wasm-bugs/web-premium-purchase-events-parity-2026-06-09.md; kmp/revenuecat-webbilling-redirect-flow-wasms-2026-04-23.md; kmp/revenuecat-wasms-integration-2026-04-17.md
+- id: revenuecat-call-before-configured-race
+  mode: runtime
+  severity: high
+  stack:
+  - android
+  globs:
+  - '**/feature/paywall/**/data/**/*.kt'
+  - '**/feature/paywall/**/*Repository*.kt'
+  detect:
+    type: grep
+    has: Purchases\.(shared|sharedInstance)\.(getOfferings|purchase|purchasePackage)\s*\(
+    unless: ^\s*(//|\*)
+    lacks: isConfigured|awaitPurchasesReady
+  message: First RevenueCat API call (getOfferings/purchase) fires before the async BillingClient init completes, with no isConfigured/awaitPurchasesReady guard — first paywall load fails with BILLING_UNAVAILABLE on production-device timing (never reproduces against the fake RC stub).
+  fix: Gate the first RC API call behind awaitPurchasesReady() that polls Purchases.isConfigured with bounded exponential backoff (500ms->1s->1.5s) and returns an explicit BILLING_NOT_INITIALIZED failure on timeout, before calling getOfferings()/purchase().
+  source: runtime-errors/paywall-purchase-flow-monetization-fix-2026-05-10.md
+- id: server-trusts-client-entitlement
+  mode: runtime
+  severity: high
+  stack:
+  - backend
+  globs:
+  - '**/firebase-functions/**/*.py'
+  - '**/functions/**/*.py'
+  detect:
+    type: grep
+    has: is_premium\s*=\s*(data|request|req|body)\.get\(\s*["']is_premium
+    unless: ^\s*#
+    lacks: get_user_premium_status|verify_premium_with_revenuecat
+  message: Backend derives is_premium from the client request body (or restore_credits_after_purchase grants entitlement without verification), so the client is the source of truth for a paid entitlement — anyone can curl for free premium/credits.
+  fix: 'Read entitlement only from server truth: get_user_premium_status() over Firestore users/{id}; before granting, verify via verify_premium_with_revenuecat() (RC REST sk_ key) or the RC Firebase-extension doc, returning 403 on NOT_VERIFIED / 503 on UNAVAILABLE. Ignore any is_premium sent by the client.'
+  source: 'app: docs/plans/2026-02-17-fix-credits-race-condition-and-silent-failure-plan.md; app: docs/solutions/configuration-issues/revenuecat-firebase-premium-sync-2026-04-18.md; app: docs/solutions/features/instant-credits-restore-after-purchase.md'
