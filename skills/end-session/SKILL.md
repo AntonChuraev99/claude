@@ -25,15 +25,15 @@ description: Финальная проверка перед завершение
 
 ## Step 1 — Session Snapshot
 
-Собрать: изменённые файлы (`git status` + `git diff --stat`); вызванные специалисты; Complexity/Impact из Prompt Contract (не помнишь → переоценка); путь к активному документу в `docs/active/` (Trivial/Low — может отсутствовать); состояние graphify.
+Собрать: изменённые файлы (`git status` + `git diff --stat`); вызванные специалисты; Complexity/Impact из Prompt Contract (не помнишь → переоценка); путь к активному документу в `docs/active/` (Trivial/Low — может отсутствовать).
 
-Печатать `📋 Session snapshot:` + строки `Files changed`, `Agents used`, `Complexity`, `Impact`, `Active doc`, `Graphify`.
+Печатать `📋 Session snapshot:` + строки `Files changed`, `Agents used`, `Complexity`, `Impact`, `Active doc`.
 
 ---
 
 ## Step 2 — Definition of Done Checks
 
-9 пунктов CLAUDE.md → «Definition of Done» + п. 2.10 (bug-pattern review). Прогоняй по порядку, статус одной строкой.
+9 пунктов CLAUDE.md → «Definition of Done» + п. 2.9 (bug-pattern review). Прогоняй по порядку, статус одной строкой.
 
 ### 2.1 Validation
 
@@ -79,20 +79,7 @@ description: Финальная проверка перед завершение
 
 `INDEX_ROW:` нет → постоянный документ не создавался, `✅ N/A`.
 
-### 2.8 Graphify graph freshness (per-project, опционально)
-
-Решение принимает скилл **сам** без вопросов (AST-only, идемпотентно). Кратко:
-
-- CLI не установлен → `✅ N/A`.
-- `graphify-out/graph.json` отсутствует → `AskUserQuestion` (Run / Skip / Never).
-- Fresh + code в диффе → `graphify update .`.
-- Stale + distance ≤ 50 commits + deleted < 20% → `graphify update .` (auto).
-- Stale + distance > 50 commits или массовое удаление → `⚠️ manual rebuild`.
-- Stale + только doc-файлы → `✅ skipped (docs only)`.
-
-Полный decision tree, Bash-команды → `references/graphify-freshness.md`.
-
-### 2.9 Deferred-work integrity (TODO / FIXME / docs/todos/)
+### 2.8 Deferred-work integrity (TODO / FIXME / docs/todos/)
 
 Проверить, что в коде нет «потерянных» TODO/FIXME, отложенный функционал имеет `docs/todos/<...>.md`. Источник — `~/.claude/CLAUDE.md` → «Отложенный функционал».
 
@@ -105,7 +92,7 @@ description: Финальная проверка перед завершение
 
 Полные Bash-команды, exclude-патcerns, шаблон `docs/todos/<...>.md`, опции `AskUserQuestion` → `references/deferred-work-scan.md`.
 
-### 2.10 Bug-pattern review (L1 static + L2 reviewer + L3 process gate)
+### 2.9 Bug-pattern review (L1 static + L2 reviewer + L3 process gate)
 
 Сверка diff с реестром повторяющихся багов `~/.claude/review-rules/` — система против «тех же багов каждую сессию» (system bar не покрашен, анимация, отступы, регион деплоя, субагент выпилил фичу). Источник — `~/.claude/review-rules/README.md`.
 
@@ -236,7 +223,7 @@ description: Финальная проверка перед завершение
 
 ### 5.1.1 Auto-commit (когда коммит — единственный блокер)
 
-Скилл вызывает `/commit` автоматически, **если все 5 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.9 без unbacked TODO.
+Скилл вызывает `/commit` автоматически, **если все 5 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.8 без unbacked TODO.
 
 Выполнены → `Skill(skill="commit")`, перепроверить `git status`. Чисто → `✅ commit auto-created`, SHA в отчёт. Не чисто → `❌ auto-commit failed`, stderr в отчёт, передать пользователю.
 
@@ -244,7 +231,7 @@ description: Финальная проверка перед завершение
 
 ### 5.2 Final Report
 
-Табличка `END SESSION GATE` со всеми пунктами 2.1–2.10 + 3 + 4 + 5.1 + статусами, завершить `VERDICT: <READY|READY WITH WARNINGS|NOT READY>`. После — обязательно секция Recommendations (5.2.1).
+Табличка `END SESSION GATE` со всеми пунктами 2.1–2.9 + 3 + 4 + 5.1 + статусами, завершить `VERDICT: <READY|READY WITH WARNINGS|NOT READY>`. После — обязательно секция Recommendations (5.2.1).
 
 Маркеры: `4 Recommendations` → `✅ N queued (H/M/L)`. `5.1 Commit`: `✅` / `✅ auto` (SHA в ответ) / `⚠️ deferred` / `❌ uncommitted`.
 
@@ -266,7 +253,7 @@ description: Финальная проверка перед завершение
 
 ## Edge cases
 
-Нестандартные ситуации (не git-репо, сессия без задачи, недописанная задача, упавший doc-writer, graphify без index'а, несколько задач за сессию, фоновый task, malformed STATS_ROW, out-of-scope recommendations, auto-commit упал на pre-commit hook) → `references/edge-cases.md`.
+Нестандартные ситуации (не git-репо, сессия без задачи, недописанная задача, упавший doc-writer, несколько задач за сессию, фоновый task, malformed STATS_ROW, out-of-scope recommendations, auto-commit упал на pre-commit hook) → `references/edge-cases.md`.
 
 ## Связанные скиллы и файлы
 
@@ -275,4 +262,4 @@ description: Финальная проверка перед завершение
 - `~/.claude/stats/doc-writer.md` — глобальная статистика (`STATS_ROW`).
 - `docs/solutions/INDEX.md` — per-project индекс (`INDEX_ROW`).
 - `@doc-writer` — субагент INIT/UPDATE/COMPLETE.
-- `references/` — calibration, graphify-freshness, deferred-work-scan, auto-commit-rules, edge-cases.
+- `references/` — calibration, deferred-work-scan, auto-commit-rules, edge-cases.

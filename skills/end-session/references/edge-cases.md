@@ -49,25 +49,7 @@
    - **Отложить** — `⚠️ doc-writer deferred`, остановить end-session, вернуть управление.
 3. **Не зацикливаться на ретраях** — максимум 1 повтор после ошибки; если и он упал — обязательно спросить пользователя.
 
-## 5. Graphify CLI установлен, но `graphify-out/` нет
-
-Проект ещё не проиндексирован.
-
-**Действие:** предложить пользователю первичную индексацию через `AskUserQuestion` (3 опции):
-
-| Опция | Действие |
-|---|---|
-| `Run /graphify . now` | Пользователь сам запустит (требует LLM-токенов) |
-| `Skip for this session` | Пометка `⚠️ no graph (deferred)`, продолжаем |
-| `Never ask for this project` | Запись в project memory `graphify_optout.md`, больше не предлагать |
-
-**Сам не запускать** `/graphify .` — это требует LLM-токенов и решения пользователя по бюджету.
-
-Если опция «никогда» уже зафиксирована в memory — пропустить шаг тихо, без `AskUserQuestion`.
-
-Подробности — `references/graphify-freshness.md`.
-
-## 6. Несколько задач за сессию
+## 5. Несколько задач за сессию
 
 Сессия содержала 2+ логических задач (например, сначала bug-fix, потом feature, потом рефакторинг).
 
@@ -81,7 +63,7 @@
 | **Проверить все задачи последовательно** | Прогнать gate N раз, отчёт по каждой отдельно, общий verdict — худший из всех |
 | **Только финальный коммит и общий статус** | Skip subagent sanity / doc-writer / recommendations, проверить только `git status` + наличие коммита |
 
-## 7. Subagent task всё ещё работает в фоне
+## 6. Subagent task всё ещё работает в фоне
 
 Признаки:
 - `@doc-writer` запущен с `run_in_background: true` и ещё не вернул результат.
@@ -94,7 +76,7 @@
 
 **Не блокировать диалог** долго: если ответ затягивается, дать пользователю промежуточный статус и спросить, ждать ли.
 
-## 8. `STATS_ROW` есть, но его формат сломан
+## 7. `STATS_ROW` есть, но его формат сломан
 
 Ожидаемый формат:
 ```
@@ -111,7 +93,7 @@ STATS_ROW: | YYYY-MM-DD | project | complexity | iterations | effect_% | doc-lin
   - **Manually fix and add** — открыть `~/.claude/stats/doc-writer.md`, дать пользователю править.
   - **Append as-is (might break formatting)** — записать в `## Session Log` с пометкой `<!-- malformed -->`.
 
-## 9. Рекомендация из Step 4 указывает на out-of-scope plugin
+## 8. Рекомендация из Step 4 указывает на out-of-scope plugin
 
 Если recommendation предлагает менять Anthropic-managed plugins/skills (`compound-engineering:*`, `vercel:*`, `cloudflare:*`, `figma:*`, `amplitude:*`):
 
@@ -122,7 +104,7 @@ STATS_ROW: | YYYY-MM-DD | project | complexity | iterations | effect_% | doc-lin
 
 Подробности — `~/.claude/recommendations/README.md` → секция «Best-practice критерии классификации».
 
-## 10. Auto-commit упал на pre-commit hook
+## 9. Auto-commit упал на pre-commit hook
 
 `/commit` вернул non-zero exit, в stderr — текст pre-commit hook'а (detekt, lint, type-check).
 

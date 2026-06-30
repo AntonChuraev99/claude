@@ -58,7 +58,6 @@ clean.
 ├── notify.ps1                 # Windows toast notifications (Stop / Notification hooks)
 ├── statusline.sh              # status line (model · branch · context · cost · device)
 ├── session-docs-digest.ps1    # SessionStart: digest of in-progress / deferred task docs
-├── graphify-pretool.ps1       # PreToolUse: nudge toward the knowledge graph over grep
 ├── doc-writer-update-reminder.ps1
 ├── toast-action.ps1 / .vbs    # toast button actions (open folder / focus terminal)
 └── LICENSE

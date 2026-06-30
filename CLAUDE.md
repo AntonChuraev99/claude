@@ -121,8 +121,8 @@ doc-writer: Impact ≥ Medium → минимум COMPLETE; Complexity = Complex 
 
 1. Разобрать запрос по таблице.
 2. **Impact scan** — `Grep`/`Glob` по затрагиваемым сущностям, прочитать ключевые файлы. Менять ВСЕ зависимости (использования, импорты, тесты). 3+ файла — пересмотреть сложность.
-3. **Knowledge scan (Standard+, обязательно делегировать).** `@knowledge-scout` читает `docs/` и project memory **за главного**, возвращает дайджест (`FOUND`/`APPLY`/`PITFALLS`/`READ_FULL`). Передать: GOAL (1-2 предл.), 2-5 keywords, путь к project memory; упомянуть `graphify-out/graph.json` если есть.
-   - **Главному запрещено напрямую (Standard+):** `Read` INDEX-файлов в `docs/`; широкий `Grep`/`Glob` по `docs/{solutions,decisions,active,plans,...}` и project-memory; cross-module code-вопросы через Grep при наличии графа (сначала `graphify`).
+3. **Knowledge scan (Standard+, обязательно делегировать).** `@knowledge-scout` читает `docs/` и project memory **за главного**, возвращает дайджест (`FOUND`/`APPLY`/`PITFALLS`/`READ_FULL`). Передать: GOAL (1-2 предл.), 2-5 keywords, путь к project memory.
+   - **Главному запрещено напрямую (Standard+):** `Read` INDEX-файлов в `docs/`; широкий `Grep`/`Glob` по `docs/{solutions,decisions,active,plans,...}` и project-memory; code discovery (символы/использования/файлы) — всегда сначала `ast-index`, не широкий Grep.
    - **Разрешено:** `Read` конкретного файла по прямой ссылке (из ответа скаута `READ_FULL`, запроса, прошлой задачи).
    - **Параллельно — `@best-practices-scout`** если задача про выбор/использование библиотеки/API, новый модуль/интеграцию, миграцию версии, или явное «как лучше X». Дайджест `FOUND/APPLY/DEPRECATED/SOURCES` + deprecation-check. Главный **ждёт оба**. НЕ запускать для багфиксов внутренней логики / рефакторинга без новых зависимостей / trivial.
    - В CONSTRAINTS вписать применяемое: `паттерн из <path>: <one-liner>` (из `APPLY`); актуальный API/версия + явно вынести `DEPRECATED/AVOID`.
@@ -135,18 +135,26 @@ doc-writer: Impact ≥ Medium → минимум COMPLETE; Complexity = Complex 
 
 **Анти-регрессия в выборе решения.** Фикс/фича затрагивает компонент с существующими функциями (скролл, состояние, действие, ввод, навигация — у ЛЮБОГО затронутого компонента, не только в фокусе задачи) → выбранное решение обязано сохранить ВСЕ из них. Есть вариант без потери функции — брать его, даже если он сложнее (здесь приоритет «качество/польза > скорость» работает прямо). Единственный известный путь требует убрать существующую пользовательскую функцию — вынести развилку пользователю через `AskUserQuestion` (что теряем / альтернатива) ДО реализации; молчаливая отгрузка регрессии с пометкой «trade-off» в отчёте постфактум = ошибка, даже если помечена честно. _(прецедент widget-trampoline-fix 2026-06-22 — references/claude-md-precedents.md)_
 
-### Graphify (когда есть `graphify-out/graph.json`)
+### ast-index (навигация по коду)
 
-Использовать `graphify` ВМЕСТО Grep/Read по коду:
+CLI `ast-index` (плагин `ast-index@ast-index-marketplace`). Core Rules по доке проекта (USER_GUIDE):
 
-| Вопрос | Команда |
+1. **Code discovery — всегда сначала `ast-index`** (поиск символов/файлов/использований), не Grep/Read.
+2. **Не дублировать результат** — вывод ast-index полный; повторно искать то же не нужно.
+3. **Grep — только** при пустом результате ast-index ИЛИ для regex / literal-string поиска.
+4. **Перед чтением файла >500 строк** — `ast-index outline <file>`, выбрать нужные символы, затем `Read` с `offset`/`limit` (не читать файл целиком).
+
+| Задача | Команда |
 |---|---|
-| «как X связан с Y» (разные модули) | `graphify path "X" "Y"` |
-| «где используется Z», «зависимости W» | `graphify query "<вопрос>" --budget 800` |
-| «структура класса/файла, соседи» | `graphify explain "<NodeName>"` |
-| любой cross-module вопрос (иначе 3+ Grep'а) | `graphify query` |
+| универсальный поиск | `ast-index search "query"` |
+| найти файл | `ast-index file "Name"` |
+| использования символа | `ast-index usages "Name"` |
+| реализации | `ast-index implementations "Name"` |
+| определения класса | `ast-index class "Name"` |
+| вызывающие функцию | `ast-index callers "func"` |
+| структура файла перед чтением | `ast-index outline <file>` |
 
-Граф обновляется автоматически через `/end-session` (AST-only). **НЕ запускать** `graphify update/extract/add/watch` самому — это пользователь или end-session.
+Индекс обновляется сам (плагин-хуки: PostToolUse Edit/Write, SessionStart-refresh) — `rebuild` руками не нужен, кроме первого cold-start в проекте. **Субагенты:** project-правила им не наследуются автоматически — класть инструкцию ast-index в бриф субагента (knowledge-scout уже покрыт; плагин-скилл `ast-index:ast-index` грузится во все surface'ы).
 
 ### Уточнение — только через `AskUserQuestion`
 
@@ -219,7 +227,7 @@ _Чтение/анализ (дёшево и безопасно — паралл�
 
 | Задача | `subagent_type` | Когда |
 |---|---|---|
-| Knowledge scan | `knowledge-scout` | Standard+: `docs/` + memory за главного + graphify. Дайджест `FOUND/APPLY/PITFALLS/READ_FULL` |
+| Knowledge scan | `knowledge-scout` | Standard+: `docs/` + memory за главного + ast-index. Дайджест `FOUND/APPLY/PITFALLS/READ_FULL` |
 | Внешний best-practices/freshness | `best-practices-scout` | Standard+ про библиотеку/API/модуль/миграцию/«как лучше X». Параллельно с knowledge-scout. НЕ для багфиксов/рефакторинга без зависимостей |
 | Исследование кода | `Explore` | **Всегда breadth в 1-й строке** (`quick`/`medium`/`very thorough`) — иначе сжигает 25-37 turns. Точечный поиск — Glob/Grep напрямую |
 | Сложный код без домена (5+ файлов) | `general-purpose` | изоляция контекста, нет специалиста |
