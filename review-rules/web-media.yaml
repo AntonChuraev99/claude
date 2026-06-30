@@ -1,0 +1,16 @@
+# web-media — web/wasmJs media-asset recurring bugs (codec, color, container).
+# Added 2026-06-30 from the VP9-on-Windows-HDR overlay neon incident.
+- id: web-video-vp9-webm-hdr-overlay-neon
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/composeResources/**/*.webm'
+  detect:
+    type: glob
+  message: 'A web-facing video is shipped as WebM (VP9). On Windows with system HDR enabled, Chrome runs a VP9-specific "Auto HDR" upconversion that treats the limited-range BT.709 SDR stream as HDR-headroom source and tone-maps it up, rendering it wildly oversaturated/neon (skin->magenta, background->yellow) — even with correct bt709 primaries/transfer/matrix tags. Correct for ~1s (software path) then shifts when the hardware VP9 decoder + DirectComposition overlay take over. HEVC/H.264 use a separate decode path and are unaffected; the MP4(HEVC)->VP9 re-encode introduced it. Hits every HDR-display Chrome/Windows user; invisible on an SDR monitor and on the other screen, so it slips through normal QA. Chromium #40073950 / #324641634, still reported Jan 2026.'
+  fix: 'Codec, not metadata, is the root (bt709 tags were already correct; NO VP9 encoder flag avoids Chrome VP9 Auto HDR, and there is no standards-blessed site-side fix — dynamic-range-limit CSS does not touch the video decode path; opacity/filter/mix-blend overlay-suppression are fragile class-B hacks). Re-encode web-facing hero/onboarding clips to H.264/AVC + MP4: libx264 -crf 23 -pix_fmt yuv420p -color_range tv -color_primaries bt709 -color_trc bt709 -colorspace bt709 -movflags +faststart. H.264 = universal support + correct on HDR. AV1 untested for this bug; HEVC web-support fragile (avoid). VERIFY any new/re-encoded web video on a Windows HDR display in Chrome (Win+Alt+B toggles HDR) before shipping — SDR monitor hides it. Browser/OS workarounds (--disable_vp_auto_hdr, disable HDR) are NOT product fixes.'
+  source: 'improvements/2026-06-30-web-video-vp9-hdr-overlay-neon.md (HEVC->VP9 re-encode commit d3a29a577 -> Chrome Windows-HDR DirectComposition overlay neon; ffprobe-confirmed identical bt709 tags, codec is the only delta)'
