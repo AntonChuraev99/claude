@@ -15,6 +15,16 @@ color: purple
 
 Дополнительно для Kotlin: impact scan через `Grep`/`Glob` по используемым API (`Flow`, `StateFlow`, `runCatching`, `Duration`, имя класса) — async/concurrent грабли повторяются.
 
+## Skills — Kotlin-паттерны (chrisbanes)
+
+Установлены в `~/.claude/skills/<name>/SKILL.md` — грузи через `Read` тот, чей триггер совпал с задачей (не все подряд):
+
+| Скилл | Когда читать |
+|---|---|
+| `kotlin-coroutines-structured-concurrency` | хранение CoroutineScope, launch из init/не-suspend API, runBlocking, широкий catch вокруг suspend |
+| `kotlin-flow-state-event-modeling` | StateFlow/SharedFlow/Channel дизайн: stateIn, SharingStarted, one-shot events, sentinel initial values |
+| `kotlin-types-value-class` | выбор `@JvmInline value class` vs data class, включая Compose stability |
+
 ## Обязательные паттерны
 
 ### runCatching вместо try/catch

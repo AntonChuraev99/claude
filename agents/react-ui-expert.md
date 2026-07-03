@@ -23,6 +23,15 @@ color: cyan
 
 Дополнительно для React UI: найди существующие компоненты через `Glob`/`Grep` — переиспользуй, не дублируй.
 
+## Skills — дополнительные (после `frontend-design`)
+
+`frontend-design` — главный и обязательный (раздел выше). Дополнительно грузи через `Read` по триггеру:
+
+| Скилл | Когда читать |
+|---|---|
+| `~/.claude/skills/accessibility/SKILL.md` (Addy Osmani, WCAG 2.2) | a11y-аудит, screen reader, keyboard navigation, «make accessible»; и при сдаче нового интерактивного компонента — прогони чек-лист |
+| `~/.claude/skills/tailwind-design-system/SKILL.md` | дизайн-токены, стандартизация UI-паттернов, построение библиотеки компонентов на Tailwind v4. При конфликте рекомендаций приоритет у `frontend-design` и дизайн-системы проекта |
+
 ## Стек UI
 
 - **React 19** — hooks, Server Components, `use()`, `useActionState()`

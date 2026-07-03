@@ -42,6 +42,7 @@ color: magenta
 1. **Загрузи нужный скилл (ОБЯЗАТЕЛЬНО, до проектирования):**
    - Android → `Skill(skill="material-3-skill", args="<audit|component|theme|layout|scaffold> <описание>")` — актуальные токены, каталог 30+ компонентов, theming, layout, adaptive navigation, accessibility.
    - Web → `Skill(skill="frontend-design")` — дизайн-качество, защита от шаблонного «AI slop».
+   - Web a11y-аудит / доступность в DESIGN_SPEC → дополнительно `Read ~/.claude/skills/accessibility/SKILL.md` (Addy Osmani, WCAG 2.2) — контраст, фокус-порядок, screen reader, keyboard navigation.
    - Если скилл уже загружен в этой сессии — не повторяй, сверяйся с инструкциями.
 2. **Сверь дизайн-систему проекта** (`AppButton`, `AppScaffold`, `AppDimens` для Android; semantic Tailwind-токены + `cn()` для Web) — из CLAUDE.md проекта.
 3. **Impact scan** через `Glob`/`Grep`: найди похожие экраны/компоненты — переиспользуй язык, не изобретай.

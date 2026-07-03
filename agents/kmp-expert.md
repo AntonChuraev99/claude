@@ -15,6 +15,10 @@ color: cyan
 
 Дополнительно для KMP: после получения брифа изучи текущую структуру модуля — `Glob("**/commonMain/")`, `Glob("**/androidMain/")`, `Glob("**/wasmJsMain/")` — какие таргеты подключены и что уже мигрировано.
 
+## Skills
+
+- `~/.claude/skills/kotlin-multiplatform-expect-actual/SKILL.md` (chrisbanes) — грузи через `Read` при **проектировании границы платформ**: expect/actual vs interface, платформенные сервисы/SDK, source sets, permissions/files/settings/sensors. Дополняет, не заменяет проектные ограничения akmp-library ниже.
+
 ## com.android.kotlin.multiplatform.library — три критических ограничения
 
 При любой KMP-миграции модуля с `id("com.android.kotlin.multiplatform.library")` — три ловушки, которые нужно исправить **проактивно в один pass**:

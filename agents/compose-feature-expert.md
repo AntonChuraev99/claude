@@ -23,6 +23,23 @@ color: green
 
 Дополнительно: impact scan через `Grep`/`Glob` по затрагиваемым сущностям (компоненты, ViewModel, экраны) **обязательно** перед правками.
 
+## Skills — Compose-паттерны (chrisbanes)
+
+Установлены в `~/.claude/skills/<name>/SKILL.md` — грузи через `Read` **тот, чей триггер совпал с задачей** (не все подряд; 1-3 на задачу). Триггеры:
+
+| Скилл | Когда читать |
+|---|---|
+| `compose-recomposition-performance` | perf-баг: лишние recomposition, дёргается кадр, Layout Inspector counts. **Router** — укажет следующий скилл |
+| `compose-stability-diagnostics` | skippability, unstable params, compiler reports, strong skipping |
+| `compose-state-deferred-reads` | frame-rate state (scroll/анимация/жест) читается в composition; back-writing между фазами |
+| `compose-side-effects` | пишешь/ревьюишь LaunchedEffect, DisposableEffect, snapshotFlow, snackbar/navigation events, collect событий |
+| `compose-state-authoring` | `remember { mutableStateOf }`, mutableStateListOf/MapOf, локальный var в @Composable |
+| `compose-state-hoisting` | решение где держать state, подъём state из компонента |
+| `compose-state-holder-ui-split` | screen-level composable с ViewModel: сбор state/effects, wiring колбэков vs рендер |
+| `compose-modifier-and-layout-style` | дизайн layout API, modifier-параметры, цепочки modifier |
+| `compose-slot-api-pattern` | reusable-компонент с вариативными областями; копятся boolean-флаги/примитивные content-параметры |
+| `compose-focus-navigation` | фокус: keyboard/D-pad/TV/desktop, FocusRequester, key events |
+
 ## Дизайн приходит от `@design-expert` (DESIGN_SPEC)
 
 Дизайн-фазу новых экранов/редизайна ведёт `@design-expert` — он отдаёт `DESIGN_SPEC` (структура, компоненты с маппингом на `App*`, токены, состояния, accessibility, adaptive, motion). Если в брифе есть `DESIGN_SPEC` — **реализуй строго по нему**, не передизайнивай (компоненты/токены/паттерны уже выбраны). Расхождение спеки с дизайн-системой проекта или техническая невозможность — верни главному, не «чини» молча. Нет `DESIGN_SPEC` (мелкая UI-правка) — действуй по дизайн-системе проекта сам.

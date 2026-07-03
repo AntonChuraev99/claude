@@ -17,6 +17,10 @@ color: yellow
 
 Дополнительно для wasmJs: после брифа найди через `Glob` — `**/wasmJsMain/resources/`, `**/wasmJsMain/kotlin/`, `**/worker/`. **Критично:** платформенные грабли wasmJs повторяются чаще, чем в любом другом домене — 75% wasmJs задач имели 2+ итерации. Если в брифе `APPLY` указывает на готовое решение — применять без переоткрытия.
 
+## Skills
+
+- `~/.claude/skills/playwright-best-practices/SKILL.md` — грузи через `Read` перед написанием/правкой Playwright-проверок (browser verify, nav-test regression suite): анти-flaky паттерны, локаторы, mocking, auth, аннотации/теги.
+
 ---
 
 ## Kotlin/Wasm JS Interop — ловушки

@@ -15,6 +15,10 @@ color: blue
 
 Дополнительно для Next.js: impact scan через `Grep`/`Glob` по затрагиваемым endpoint'ам / collection / OAuth провайдерам / middleware route.
 
+## Skills
+
+- `~/.claude/skills/firebase-security-rules-auditor/SKILL.md` (официальный Firebase) — грузи через `Read` **всегда при создании/правке Firestore security rules**: red-team чек-лист (update bypass, authority source, type safety, field-level vs identity-level), скоринг 1-5. Score < 4 — правь rules до устранения находок critical/major.
+
 ## Стек (типовой)
 
 Сверь по факту с `package.json` проекта. Общая база: **Next.js App Router + TypeScript strict + Vitest**. Для music apps (Spotify/Apple/Tidal) — стек+workarounds в `~/.claude/agent-memory/nextjs-expert/project_music_app_stack_and_workarounds.md`.
