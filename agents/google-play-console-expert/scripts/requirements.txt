@@ -1,6 +1,8 @@
-# Зависимости play_publish.py — ТОЛЬКО официальные библиотеки Google.
+# Зависимости play_publish.py и play_vitals.py — ТОЛЬКО официальные библиотеки Google
+# (+ requests, транспорт для google.auth AuthorizedSession).
 # Версии-baseline проверены 2026-06; перед долгим использованием сверь свежие
 # на PyPI (API Play Developer v3 стабилен, обновления обычно безопасны).
 google-api-python-client==2.197.0
 google-auth==2.55.0
 google-auth-httplib2==0.4.0
+requests==2.32.3
