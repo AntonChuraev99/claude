@@ -252,7 +252,9 @@
   - '**/wasmJsMain/resources/**/*.template'
   detect:
     type: grep
-    has: addEventListener\(\s*['\"](error|unhandledrejection)
+    # Только GLOBAL-таргеты: element-level `el.addEventListener("error")` (video/img,
+    # vendored lottie-web в generated web-react.js) — легитимные фолбэки, recurring FP.
+    has: (window|globalThis|self)\.addEventListener\(\s*['\"](error|unhandledrejection)
   message: The wasmJs bootstrap installs a global error/unhandledrejection listener — verify it does NOT call event.preventDefault(). Blanket-suppressing the global handler swallows fatal wasm exceptions (e.g. the Base64/.cvr crash), keeping them out of console.error and Crashlytics and sending debugging down a false path.
   fix: Never blanket-suppress errors in the wasm bootstrap. Let exceptions propagate to console.error (and Crashlytics if wired); if you must intercept, log the full error first and only suppress a specific, identified benign case — never all unhandled errors.
   source: docs/solutions/web-infrastructure/splash-hang-corrupted-cvr-cache-2026-05-26.md
@@ -305,3 +307,68 @@
   message: WebCodecs H.264 codec string at Level 3.1 (avc1.*1f, e.g. avc1.42001f, ~720p ceiling) used to encode 1080p+ phone frames — strict HW encoders (iOS VideoToolbox) reject encode() ('Encoding task failed'); desktop Chrome silently tolerates it and isConfigSupported() returns true.
   fix: Use a level covering the resolution (avc1.42c028 Baseline 4.0 / avc1.4d4028 Main for <=1080p), downscale the long axis to <=1920 with even width/height via draw-to-OffscreenCanvas, and drop hardwareAcceleration:'prefer-hardware'. Validate level vs dimensions manually since isConfigSupported() does not.
   source: wasm-bugs/ios-webcodecs-trim-encoder-level-mismatch-2026-05-28.md; kmp/wasms-video-trim-webcodecs-mp4muxer-2026-05-21.md; kmp/wasms-upload-video-transcode-webcodecs-parity-2026-05-22.md
+
+- id: css-border-on-rounded-pill-artifacts
+  mode: runtime
+  severity: medium
+  stack: [wasmjs, web]
+  globs: ["web-react/src/**/*.tsx", "web-react/src/**/*.css"]
+  detect:
+    type: grep
+    has: 'rounded-(full|[23]?xl)[^"`]*\bborder(-\[|\b(?!-transparent|-none))|\bborder(-\[|\b)[^"`]*rounded-(full|[23]?xl)'
+    unless: shadow-\[inset|border-transparent|border-none|^\s*(//|\*|/\*)
+  message: 1px CSS `border` on a rounded pill/chip (border-radius near half-height) rasterizes with seams/uneven ring thickness at fractional DPR (Windows 125/150% scale) — looks clean at DPR=1 headless, artifacts on the user's real screen. Red-flag needing a visual check at deviceScaleFactor 1.25/1.5 (non-headless), not headless DPR=1.
+  fix: Draw the ring with an inset box-shadow instead of border (`shadow-[inset_0_0_0_1px_<color>]`) — paints in one layer, no curve seams. Also prefer rounded-full over a fixed radius larger than half the element height (CSS clamps only one axis -> elliptical corners). Verify via test-web/chip-dpr-shot.mjs (screenshots at DPR 1.25/1.5).
+  source: docs/active/web-home-compose-to-js-port-2026-06-30.md (Итер14 chips border artifact, 2026-07-02)
+
+- id: web-shell-mirror-state-lags-host-push
+  mode: runtime
+  severity: medium
+  stack: [wasmjs, web]
+  globs: ["web-react/src/components/shell/**/*.tsx", "web-react/src/components/shell/**/*.ts"]
+  detect:
+    type: grep
+    has: 'activeTab\s*===?'
+    unless: ^\s*(//|\*|/\*)
+  message: React-shell reveals/switches the content zone off a mirror of host state (activeTab from the async Kotlin onShell push) while navigation happens synchronously (emit + navigate) — for a frame the zone renders the STALE/default tab before the push lands = visible flash. Second occurrence of this class (transient settings-flash, glam activeTab-flash 2026-07-02).
+  fix: Until the confirming onShell push arrives, keep the zone neutral/transparent, or optimistically set the mirrored activeTab from the emitted nav intent (reconcile on push). Verify live (not static screenshots) by clicking Compose tabs from a React-owned page and watching the first ~200ms.
+  source: docs/active/web-home-compose-to-js-port-2026-06-30.md (Итер15 glam zone, 2026-07-02); deferred_web_home_js_port.md (transient settings-flash)
+
+- id: initjs-eager-toplevel-webapi-factory-throws
+  mode: runtime
+  severity: high
+  stack: [wasmjs, web]
+  globs: ["app/src/wasmJsMain/resources/*.js"]
+  detect:
+    type: grep
+    has: '^(const|let|var)\s+\w+\s*=\s*(getMessaging|getAnalytics|getPerformance)\('
+    unless: ^\s*(//|\*)
+  message: SDK factory (FCM/analytics/perf) called at init.js top level synchronously touches an optional Web API (navigator.serviceWorker / window.*) inside the factory; in restricted webviews (iOS Telegram WKWebView) that throws a TypeError at module-eval time, the whole init.js module dies, app.js is never injected and the loader spins forever (KMP-WEB-75/76).
+  fix: Wrap in a lazy guarded getter (check the Web API truthy, try/catch the factory, return null on failure) and call it on first use — never at module-eval time. Repro guard - test-web/tg-webview-no-serviceworker-boot-test.mjs (strip navigator.serviceWorker, expect [BootDiag] kotlin-main-started).
+  source: wasm-bugs/telegram-webview-no-serviceworker-boot-fix-2026-07-02.md; web-infra/boot-diagnostics-pre-wasm-telemetry-2026-07-02.md
+
+- id: boot-resource-retry-no-terminal-spinner-state
+  pain: 2
+  mode: runtime
+  severity: high
+  stack: [wasmjs, web]
+  globs: ["**/wasmJsMain/resources/*.js"]
+  detect:
+    type: grep
+    has: 'onerror'
+  message: "boot-инжектор скрипта с retry (onerror + повторный inject): exhausted-ветка (attempt >= MAX) обязана снять #loading и/или показать fallback, иначе исчерпание retry = вечный спиннер поверх мёртвого boot. Класс infinite-spinner рецидивил: KMP-WEB-75/76 (TG WebView), KMP-WEB-77/74/73 (фильтрующий VPN)."
+  fix: "зеркалить app.js-ветку init.js: на attempt >= MAX — getElementById('loading')?.remove() + оставить net-trouble-баннер/показать fallback-экран."
+  source: "docs/solutions/wasm-bugs/boot-resource-retry-vpn-filter-resilience-2026-07-02.md"
+
+- id: icon-text-row-vertical-misalignment
+  pain: 2
+  mode: runtime
+  severity: medium
+  stack: [web, react]
+  globs: ["web-react/src/**/*.tsx"]
+  detect:
+    type: grep
+    has: 'items-center(?![^"}]*leading-)[^"}]*text-\[0\.[0-9]+rem'
+  message: "flex-ряд иконка+текст с кастомным мелким размером (text-[0.Xrem]) без leading-*: наследованный line-height делает line-box текста выше глифов -> items-center сажает текст ниже иконки (иконка едет вверх, текст вниз). Рецидив: like-pill EffectCard 2026-07-03; юзер повторно репортит вертикальный перекос icon+text рядов."
+  fix: "leading-none (или явный leading-N = высоте иконки) на текст/контейнер каждого flex-ряда иконка+текст; проверять глазом на карточке/пилюле, не только в коде."
+  source: "docs/active/web-home-compose-to-js-port-2026-06-30.md (Итер19 like-pill vertical align)"

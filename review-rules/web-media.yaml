@@ -14,3 +14,37 @@
   message: 'A web-facing video is shipped as WebM (VP9). On Windows with system HDR enabled, Chrome runs a VP9-specific "Auto HDR" upconversion that treats the limited-range BT.709 SDR stream as HDR-headroom source and tone-maps it up, rendering it wildly oversaturated/neon (skin->magenta, background->yellow) — even with correct bt709 primaries/transfer/matrix tags. Correct for ~1s (software path) then shifts when the hardware VP9 decoder + DirectComposition overlay take over. HEVC/H.264 use a separate decode path and are unaffected; the MP4(HEVC)->VP9 re-encode introduced it. Hits every HDR-display Chrome/Windows user; invisible on an SDR monitor and on the other screen, so it slips through normal QA. Chromium #40073950 / #324641634, still reported Jan 2026.'
   fix: 'Codec, not metadata, is the root (bt709 tags were already correct; NO VP9 encoder flag avoids Chrome VP9 Auto HDR, and there is no standards-blessed site-side fix — dynamic-range-limit CSS does not touch the video decode path; opacity/filter/mix-blend overlay-suppression are fragile class-B hacks). Re-encode web-facing hero/onboarding clips to H.264/AVC + MP4: libx264 -crf 23 -pix_fmt yuv420p -color_range tv -color_primaries bt709 -color_trc bt709 -colorspace bt709 -movflags +faststart. H.264 = universal support + correct on HDR. AV1 untested for this bug; HEVC web-support fragile (avoid). VERIFY any new/re-encoded web video on a Windows HDR display in Chrome (Win+Alt+B toggles HDR) before shipping — SDR monitor hides it. Browser/OS workarounds (--disable_vp_auto_hdr, disable HDR) are NOT product fixes.'
   source: 'improvements/2026-06-30-web-video-vp9-hdr-overlay-neon.md (HEVC->VP9 re-encode commit d3a29a577 -> Chrome Windows-HDR DirectComposition overlay neon; ffprobe-confirmed identical bt709 tags, codec is the only delta)'
+
+- id: web-share-transient-activation-lost-after-await
+  mode: runtime
+  severity: medium
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: 'suspend fun share\w*\('
+  message: 'navigator.share() requires transient activation (~5s after the user gesture). A suspend share path that fetches media (fetch -> Blob -> File) BEFORE navigator.share burns the activation window on slow networks / large media -> NotAllowedError, the share sheet silently never opens. Headless/local runs hide it (fast fetch).'
+  fix: 'Call navigator.share synchronously in onClick when possible; pre-fetch the blob BEFORE the tap (e.g. when the result screen loads) or share a URL instead of files. Measure navigator.userActivation.isActive right before share and log it (actAtShare) to confirm. Verify on a real device with throttled network, not headless.'
+  source: 'docs/active/web-share-generated-media-diagnostic-2026-07-03.md; core/ui/src/wasmJsMain/kotlin/com/example/ui/WebShareBridge.kt (shareFiles diag, commit 27f5e518c)'
+
+# Added 2026-07-06: photoshoot share leaked raw (un-watermarked) media for non-premium — the
+# SECOND photoshoot export surface after download to need the same premium+watermark gate.
+# SCOPE: watermark applies to PHOTOSHOOTS ONLY. Non-photoshoot media is intentionally
+# un-watermarked — do NOT add a watermark there, and this rule is photoshoot-scoped on purpose.
+- id: photoshoot-nonpremium-export-missing-watermark
+  mode: runtime
+  severity: high
+  stack:
+  - wasmjs
+  - web
+  globs:
+  - '**/photoshoots/**/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: 'class Wasm\w*(Share|Download)'
+  message: 'A PHOTOSHOOT wasmJs export path (share/download/save) that exports the raw CDN url/bytes without a premium check lets non-premium users get the ORIGINAL, un-watermarked photoshoot — a monetization bypass. Already shipped on download, then re-appeared on photoshoot share (2026-07-06). Also watch the FAILURE fallback: copyToClipboard(rawUrl) / raw-url download on a share failure re-leaks the un-watermarked original even when the happy path is gated. NOTE: watermark is photoshoot-only — non-photoshoot media is intentionally NOT watermarked, so this concern does not extend to it.'
+  fix: 'Gate every PHOTOSHOOT export surface on premium via UserDataRepository (userData.firstOrNull() -> isAuth() && userData.isPremium()); for non-premium, run WasmBitmapWatermark.apply BEFORE export (mirror WasmPhotoshootImageDownloadService.downloadWithWatermark). Cover ALL branches incl. the desktop download-fallback AND the share-failure fallback. Add an e2e/repro assert that non-premium photoshoot share/download yields watermarked bytes (not raw).'
+  source: 'features/photoshoots/src/wasmJsMain/.../PhotoshootShareHandler.wasmJs.kt + WasmPhotoshootImageDownloadService.kt (commit 65652264b); docs/solutions/wasm-bugs/web-share-watermark-blob-url-2026-07-06.md'

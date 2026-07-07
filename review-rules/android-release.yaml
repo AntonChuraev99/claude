@@ -231,3 +231,22 @@
   message: Global allowHardware(false) on the shared ImageLoader.Builder (DI/factory) forces every decoded bitmap onto the Java heap; with Coil's default 25% memory cache this OOMs while scrolling grids of image cards on 512 MB devices
   fix: Remove allowHardware(false) from the global ImageLoader.Builder (keep hardware bitmaps app-wide); disable hardware only on the specific requests that read pixels (blur) or write to file. Set an explicit MemoryCache { maxSizePercent(context, 0.15) } to bound heap on 512 MB devices instead of the default 0.25.
   source: 'git:fe8aeabe5; git:42693ef6f; performance-issues/memory-pressure-manager-kmp-android17-2026-06-03.md'
+- id: notificationchannel-missing-sdk-o-guard
+  mode: runtime
+  severity: high
+  probation: '2026-07-03'
+  target_mode: static
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/src/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
+  - '**/src/main/**/*.java'
+  detect:
+    type: grep
+    has: '(?<![A-Za-z])NotificationChannel\('
+    lacks: Build\.VERSION\.SDK_INT
+  message: Raw android.app.NotificationChannel(...) constructor (an API 26+ class) is used in a file with no Build.VERSION.SDK_INT guard — on API 24/25 the class fails to resolve and throws NoClassDefFoundError. Called from Application.onCreate it crashes EVERY launch on pre-O devices (minSdk 24), so the whole install is dead — compiles + runs fine on any API 26+ dev device, hiding it.
+  fix: 'Guard channel creation with `if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return` at the top of the create function (pre-O posts notifications with no channel — there is nothing to create). The lookbehind excludes the safe get/create/deleteNotificationChannel(...) manager methods and NotificationChannelCompat(...); only the raw platform constructor trips. Prefer NotificationManagerCompat / NotificationChannelCompat, which gate the SDK internally.'
+  source: crashfixes/notificationchannel-noclassdeffound-api25-2026-07-03.md; crashlytics:c1aeb170cc24097db96662fa0dedc7a6
