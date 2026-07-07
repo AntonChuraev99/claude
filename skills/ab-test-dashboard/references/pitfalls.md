@@ -422,3 +422,32 @@ Same rule for the other envelope fields (`country`, `os`, `platform`, `start_ver
 Why: 2026-06-15 (an Android daily-report routine, "Premium Purchase Error" by release version). Burned several rounds grouping inside the event with `type:"event"` (all `(none)`/"not tracked") and almost concluded "the event has no version" — until the user pasted the raw event JSON showing `version_name` in the envelope. `query_dataset`'s `event` group_by validates against event-property taxonomy, where envelope fields don't exist. Full writeup: `routines/<your-report>/docs/solutions/amplitude-builtin-version-groupby-2026-06-15.md`.
 
 **Action**: for App Version (and country/os/platform/start_version), always use top-level `groupBy {type:"user", value:"version", ...}`; never the event's `group_by` with `type:"event"`. If a built-in returns all-`(none)`, suspect wrong layer before concluding "not tracked".
+
+---
+
+## 20. Window-based behavioral segment "did NOT do X" structurally zeroes conversions
+
+❌ Building a placebo/control arm as a behavioral segment `{type:"event", event_type:"X", op:"=", value:0}` ("users who never did X in the window") for a conversion funnel:
+
+Anyone who converts and then does X — e.g. buys premium, then generates content (the whole point of buying) — acquires X inside the window and **falls out of the segment**. The "did NOT do X" arm structurally retains only non-converters → funnel shows 0% CR that looks like a data bug. Real case 2026-07-03: "no generations" arm = 52 funnel entries, 0 purchases in BOTH variants; the user flagged the zeros as suspicious within minutes.
+
+✅ Two corrections:
+
+1. **"Did X before converting" arm** → express as an **ordered funnel step**, not a segment: `X → <entry event> → <success event>` (`mode: "ordered"`, `conversionSeconds` bounds the path). Step order guarantees X happened BEFORE the conversion attempt — clean treatment-on-treated.
+2. **"Did NOT do X" arm** → cannot be expressed with window-based segments at all; don't try. Put the placebo elsewhere — e.g. an entry-point/source breakdown where X is impossible (users in onboarding flows can't have generated content yet).
+
+Why: behavioral segment membership is evaluated over the whole chart window, not "as of the moment of the funnel entry". Amplitude has no "had not yet done X at event time" segment primitive.
+
+**Action**: whenever a segment is defined by ABSENCE of an event, stop and check: does conversion itself cause that event later? If yes, the arm is structurally empty of converters — redesign as ordered steps or a different breakdown.
+
+---
+
+## 21. Chart window starts at PARAM ROLLOUT, not experiment launch
+
+❌ Setting `start` to the experiment's launch moment when the variant event-property shipped in an app release weeks later:
+
+All series are empty (all-`(none)`) until the release rolls out → a ratio/formula chart renders noise (0, then 1 from a single stray event, then a real value) that reads as "chart is broken or useless".
+
+✅ For charts keyed on an event-property that shipped later than the experiment: `start` = **release rollout date of the property**, stated in the chart description and glossary. Keep the experiment launch date in the glossary for context; pre-rollout events are unrecoverable (`(none)`).
+
+**Action**: in Step 2 diagnostics, when the marked share is a small fraction of total volume, find when the property actually started flowing (daily uniques of the property vs `(none)`) and anchor `start` there. This complements pitfall 18 (exact launch moment): launch moment bounds the cohort, rollout date bounds the *usable* data.
