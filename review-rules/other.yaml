@@ -47,3 +47,19 @@
   message: A pre-release (alpha/beta/rc/snapshot) dependency version is set in the version catalog — these ship breaking API + native (ARM64) changes between builds and the local Gradle daemon klib cache masks the skew until a clean CI build or a real device hits it.
   fix: 'After bumping any pre-release dep run a clean no-cache build (./gradlew --rerun-tasks --no-build-cache compileKotlinWasmJs assembleDebug) and smoke-test on a real ARM64 device (not an emulator) before merge; pin the exact alpha/beta version, prefer member APIs over moved top-level extensions, and read the changelog for suspend/artifact-split breaks. Red-flag (mode=runtime) not a hard block: pre-release versions are routine in KMP catalogs and a grep cannot confirm the clean-build/ARM64-smoke step, so a static HIGH here would block normal commits — annotate a verified line with a trailing ''# arm64 smoke clean-build verified'' comment to silence.'
   source: kmp/room3-alpha-sqlite-bundled-arm64-regression-2026-05-11.md; ci-deploy/sqlite-bundled-alpha04-suspend-member-api-2026-05-11.md
+- id: toast-crashes-on-background-thread
+  mode: static
+  severity: high
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
+  detect:
+    type: grep
+    has: \bToast\.makeText\b|^\s*import\s+android\.widget\.Toast
+    unless: review-rules:allow-toast|//
+  message: 'Toast.makeText requires the main looper. The global Koin CoroutineScope is CoroutineScope(SupervisorJob()+Dispatchers.Default), so any scope.launch{}/onSuccess callback that reaches a Toast runs on a background thread → NullPointerException "Can''t toast on a thread that has not called Looper.prepare()" crashes the whole app (e.g. Save/Download on a share result screen). Toast is also banned for in-app notifications — App Top Banner is the only channel.'
+  fix: 'Replace every user-facing Toast with ShowTopBannerUseCase (AppBannersRepository.showBanner = Channel.trySend, thread-safe from any thread; resolve stringResource in the Composable and pass the texts into non-Composable handlers via a small data class, like DownloadBannerTexts). Any other UI/Activity call reached from a background scope.launch (startActivityForResult, dialogs) must be wrapped in withContext(Dispatchers.Main). A genuinely dev-only Toast in DebugMenu / debug-gated code: annotate the line with // review-rules:allow-toast.'
+  source: 'media-share result screen: Toast.makeText inside scope.launch on the global Dispatchers.Default Koin scope crashed Save/Download, 2026-07-10'
