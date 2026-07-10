@@ -66,15 +66,7 @@ Pre-commit hook (`.git/hooks/pre-commit`) блокирует коммит при
 
 ## Отложенный функционал (`docs/todos/`)
 
-Задача завершается, но **часть scope сознательно не доделана** (попросили отложить, ждём бэкенд/решение/данные, второй контур в другую сессию) — это **deferred work**, не «completed».
-
-**Триггер — РОВНО два случая, иначе todos НЕ создавать:** (а) пользователь **явно** просит зафиксировать задачу в `docs/todos/`; (б) задачу **начали**, и пользователь **по ходу** её откладывает (сказал «отложим/оставь стаб»; specialist вернул `NEEDS_DELEGATION`, делегирование отложено; хочется `// TODO:`/`// FIXME:`, запрещённых detekt'ом; реализована одна платформа из двух — KMP androidMain/wasmJs).
-
-**НЕ создавать todos** для «ожидания проверки» (фикс задеплоен, ждём подтверждения тестировщиком / на проде), для «снять временную диагностику после подтверждения» и для любого «вернуться, если всплывёт» без явной просьбы зафиксировать. Случай само-возвращающийся: будет баг — задача вернётся **вместе с багом**, пользователь возьмёт её заново; не будет — todo осядет мусором, который придётся убирать руками. Создание todos здесь = чистый минус. _(прецедент anon-purchase-desync 2026-06-24 — references/claude-md-precedents.md)_
-
-**Сделать:** (1) `docs/todos/<YYYY-MM-DD>-<slug>.md` по `docs/todos/TEMPLATE.md` (frontmatter: `status: deferred`, `blocking_reason`, `resume_trigger`, `keywords`; тело: что отложено / контекст / шаги возобновления). (2) Обновить `docs/todos/INDEX.md` (`## Open` таблица). (3) Project memory секция `## Deferred Work`: `- [<title> (date)](deferred_<slug>.md) — <summary>; resume: <trigger>`. (4) В коде вместо `// TODO:` — `// Pending: docs/todos/<...>.md` (detekt не ловит), 1 anchor на todo.
-
-**deferred → resolved:** scope закрыт → строка `## Open` → `## Resolved` в INDEX, `status: resolved`, memory-файл удалить. Отменён → `status: cancelled`. Скан на `/commit` и `/end-session` ловит unbacked TODO.
+Часть scope сознательно не доделана (просили отложить / ждём бэкенд/данные/решение / вторая платформа в другую сессию) — это **deferred work**, оформляется в `docs/todos/`, не «completed». Полный workflow (2 триггера, что НЕ создавать, шаги оформления, `deferred→resolved`) — `~/.claude/clauderules/deferred-work.md` (читать когда откладываешь scope или пользователь просит зафиксировать задачу).
 
 ---
 
@@ -144,15 +136,7 @@ CLI `ast-index` (плагин `ast-index@ast-index-marketplace`). Core Rules п�
 3. **Grep — только** при пустом результате ast-index ИЛИ для regex / literal-string поиска.
 4. **Перед чтением файла >500 строк** — `ast-index outline <file>`, выбрать нужные символы, затем `Read` с `offset`/`limit` (не читать файл целиком).
 
-| Задача | Команда |
-|---|---|
-| универсальный поиск | `ast-index search "query"` |
-| найти файл | `ast-index file "Name"` |
-| использования символа | `ast-index usages "Name"` |
-| реализации | `ast-index implementations "Name"` |
-| определения класса | `ast-index class "Name"` |
-| вызывающие функцию | `ast-index callers "func"` |
-| структура файла перед чтением | `ast-index outline <file>` |
+Список команд (`search` / `file` / `usages` / `implementations` / `class` / `callers` / `outline <file>`) — плагин-скилл `ast-index:ast-index` (грузится во все surface'ы).
 
 Индекс обновляется сам (плагин-хуки: PostToolUse Edit/Write, SessionStart-refresh) — `rebuild` руками не нужен, кроме первого cold-start в проекте. **Субагенты:** project-правила им не наследуются автоматически — класть инструкцию ast-index в бриф субагента (knowledge-scout уже покрыт; плагин-скилл `ast-index:ast-index` грузится во все surface'ы).
 
@@ -328,20 +312,7 @@ if (stripped.isBlank()) { emitSideEffect(ShowSnackbar(HINT_EMPTY_INPUT)); return
 
 **COMPLETE обязателен** (даже Trivial×Low/Medium) если: 2+ итерации / ошибка в начальном плане; 5+ файлов / новый модуль / миграция; recurring bug / app-wide perf fix; инфраструктурный фикс с нетривиальной причиной (CSP, Firebase config, DI, регионы, serialization).
 
-**INIT (Standard) — стаб пишет главный сам** одним `Write` в `docs/active/<slug>-<date>.md` (не субагент — cold-start ради frontmatter): шапка (Статус, Дата, Start SHA, Тип, Сложность, Impact, Затронутые модули) + `## Цель` + `## Технический план` + пустые `## Лог итераций` / `## Выводы` / `## Предложения по улучшению агентов`. INIT-**субагент** — только для Complex.
-
-**UPDATE и COMPLETE — всегда `run_in_background: true`** (не блокировать диалог). UPDATE — сразу после каждого специалиста (иначе документ застывает на INIT). **COMPLETE-слим:** главный передаёт готовый `git diff --name-only <START_SHA>..HEAD` + 3-5 строк key-findings; doc-writer НЕ делает git-археологию сам (один `git diff --stat` для `files_edited` ок). COMPLETE возвращает `STATS_ROW:`/`INDEX_ROW:`.
-
-**Жизненный цикл статуса и архивация (`docs/active` → `docs/completed`).** Статус в шапке активного документа — ровно один из словаря: `In Progress` | `Done` | `Deferred` | `Planned` | `Partially Done`. Формат строго `**Статус:** <значение>` — без ведущего дефиса-буллета, без эмодзи (`✅`/`✓`) и хвостов в самой строке (детали — в `## Выводы`); иначе SessionStart-дайджест парсит мимо шапки и подхватывает промежуточный `**Статус:**` из тела. Завершённая задача = `**Статус:** Done` + **перенос файла в `docs/completed/`** (делает doc-writer COMPLETE Шаг 7; `docs/active/` остаётся только для незавершённого). Промежуточные отметки специалистов в `## Лог итераций` НЕ писать через `**Статус:**` — использовать `**Итог итерации:**`.
-
-**Fallback без `/end-session` / без doc-writer.** Задача фактически завершена, но COMPLETE/end-session не запускались (Trivial, сессия оборвалась, классификация сменилась на ходу) — **главный сам** ставит `**Статус:** Done` в шапке и перемещает документ в `docs/completed/`. Не оставлять завершённое в `docs/active/` как `In Progress`. _(прецедент docs-active-stuck 2026-06-11 — references/claude-md-precedents.md)_
-
-**Hard scope guard в конце каждого промпта `@doc-writer`** (полные лимиты — `~/.claude/agents/doc-writer.md`):
-```
-ЗАПРЕЩЕНО: git add/commit/push; ./gradlew build/assemble/compile/test;
-Edit/Write вне docs/, project memory, ~/.claude/stats/ (НЕ трогать *.kt/*.kts/*.gradle*/*.xml/*.json).
-Требует выйти — STATUS: REJECTED.
-```
+**Механика фаз** (INIT-стаб / UPDATE-триггер / COMPLETE-слим), формат `**Статус:**` и словарь, архивация `docs/active`→`docs/completed`, fallback без `/end-session`, hard scope guard для `@doc-writer` — `~/.claude/clauderules/documentation-workflow.md` (читать при документировании / спавне `@doc-writer`).
 
 ---
 
