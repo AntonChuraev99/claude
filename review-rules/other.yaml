@@ -63,3 +63,23 @@
   message: 'Toast.makeText requires the main looper. The global Koin CoroutineScope is CoroutineScope(SupervisorJob()+Dispatchers.Default), so any scope.launch{}/onSuccess callback that reaches a Toast runs on a background thread → NullPointerException "Can''t toast on a thread that has not called Looper.prepare()" crashes the whole app (e.g. Save/Download on a share result screen). Toast is also banned for in-app notifications — App Top Banner is the only channel.'
   fix: 'Replace every user-facing Toast with ShowTopBannerUseCase (AppBannersRepository.showBanner = Channel.trySend, thread-safe from any thread; resolve stringResource in the Composable and pass the texts into non-Composable handlers via a small data class, like DownloadBannerTexts). Any other UI/Activity call reached from a background scope.launch (startActivityForResult, dialogs) must be wrapped in withContext(Dispatchers.Main). A genuinely dev-only Toast in DebugMenu / debug-gated code: annotate the line with // review-rules:allow-toast.'
   source: 'media-share result screen: Toast.makeText inside scope.launch on the global Dispatchers.Default Koin scope crashed Save/Download, 2026-07-10'
+
+- id: analytics-event-feeds-behavior-observer
+  area: other
+  mode: runtime
+  severity: medium
+  tags:
+  - analytics
+  - kmp
+  globs:
+  - '**/*ViewModel.kt'
+  - '**/*Dispatcher*.kt'
+  - '**/*UseCase.kt'
+  - '**/App.kt'
+  detect:
+    type: grep
+    has: analyticsTracker\.event\(
+    unless: review-rules:allow-observed-event|//
+  message: 'An analytics emit routed through ObservableAnalyticsTracker is NOT observability-only. CsatManager subscribes to a set of event names (EVENT_*/WEIGHTS) and increments a LIFETIME counter that awards weight at the 3rd/5th checklist — so adding an emit on a previously-silent path changes who gets shown the CSAT survey, i.e. product behaviour, under a feat(analytics) label. It also contaminates the baseline of any open verify-todo on csat_shown, making "did the rework lift shows?" unanswerable.'
+  fix: 'Check the event name against CsatManager EVENT_*/WEIGHTS. If it is observed: estimate the delta in eligible users, and do not ship it in the same release as an open CSAT verify-todo (or rewrite that todo to account for the new paths). If the emit is genuinely inert, annotate the line with // review-rules:allow-observed-event.'
+  source: 'review 2026-07-15 (19ea4c7b): checklist_created added to chat/attachment/gallery paths; CsatManager.kt:105,170 observes it; collided with docs/todos/2026-07-10-verify-csat-scored-metrics.md'
