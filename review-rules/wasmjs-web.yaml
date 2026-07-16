@@ -334,6 +334,21 @@
   fix: Until the confirming onShell push arrives, keep the zone neutral/transparent, or optimistically set the mirrored activeTab from the emitted nav intent (reconcile on push). Verify live (not static screenshots) by clicking Compose tabs from a React-owned page and watching the first ~200ms.
   source: docs/active/web-home-compose-to-js-port-2026-06-30.md (Итер15 glam zone, 2026-07-02); deferred_web_home_js_port.md (transient settings-flash)
 
+- id: web-bridge-pending-consume-not-in-initial-state
+  mode: runtime
+  severity: medium
+  stack: [wasmjs, web]
+  globs: ["web-react/src/**/*.ts", "web-react/src/**/*.tsx"]
+  detect:
+    type: grep
+    # Только consume-строки вида `if (bridge.__pendingX) handle(...)` (эффект-consume после paint);
+    # объявления типов (`__pendingX?: string`) и lazy-init (`parse(getBridge().__pendingX) ?? DEFAULT`) — не смелл.
+    has: 'if\s*\(\s*\w+\.__pending\w+\s*\)'
+    unless: ^\s*(//|\*|/\*)
+  message: Consume of a bridge pending-stash (__pendingX) inside useEffect runs AFTER the first paint — the first frame renders DEFAULT_STATE even when the host push already landed before mount (flag/tab flash; 3rd occurrence of the mirror-lag class — generationEnabled 2026-07-16, glam activeTab-flash 2026-07-02).
+  fix: Consume the stash in a lazy useState initializer — useState(() => parse(getBridge().__pendingX) ?? DEFAULT) — keeping useEffect only for live pushes; race-proof reference pattern is initialAuthState (WebReactBridge.wasmJs.kt).
+  source: docs/solutions/web-generation-tab-feature-flag-2026-07-16.md (web2, 2026-07-16); docs/active/web-home-compose-to-js-port-2026-06-30.md (Итер15)
+
 - id: initjs-eager-toplevel-webapi-factory-throws
   mode: runtime
   severity: high

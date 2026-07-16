@@ -177,3 +177,20 @@
   message: Backend derives is_premium from the client request body (or restore_credits_after_purchase grants entitlement without verification), so the client is the source of truth for a paid entitlement — anyone can curl for free premium/credits.
   fix: 'Read entitlement only from server truth: get_user_premium_status() over Firestore users/{id}; before granting, verify via verify_premium_with_revenuecat() (RC REST sk_ key) or the RC Firebase-extension doc, returning 403 on NOT_VERIFIED / 503 on UNAVAILABLE. Ignore any is_premium sent by the client.'
   source: 'app: docs/plans/2026-02-17-fix-credits-race-condition-and-silent-failure-plan.md; app: docs/solutions/configuration-issues/revenuecat-firebase-premium-sync-2026-04-18.md; app: docs/solutions/features/instant-credits-restore-after-purchase.md'
+- id: retry-without-idempotency-on-charging-endpoint
+  mode: runtime
+  severity: medium
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/data/remote/*AiService*.kt'
+  - '**/*FirebaseAiService*.kt'
+  detect:
+    type: grep
+    has: (HttpRequestRetry|retryOnExceptionIf)
+    unless: Test|^\s*(//|\*)
+    lacks: (idempotency|request_id|requestId|Idempotency)
+  message: A Ktor HttpClient that POSTs to a credit/charging endpoint (server reserve_credits deducts) installs HttpRequestRetry/retryOnExceptionIf without an idempotency key — retrying a transport-drop after the server already succeeded double-charges the user; refund only covers a server-5xx, not an abandoned-success.
+  fix: Send a client request_id (UUID) per AI action and dedup reserve_credits on (user_id, request_id) in a TTL server-side; OR narrow retry to retryOnServerErrors only (refund-safe) and never retryOnExceptionIf a charging POST. Verify on a real flaky-network run (proxy killing the socket post-send), not headless.
+  source: docs/todos/2026-07-09-ai-credit-retry-idempotency.md; docs/solutions/features/ai-analyze-failure-decomposition-fix-2026-07-09.md; session ef63f67d

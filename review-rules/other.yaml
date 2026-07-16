@@ -83,3 +83,51 @@
   message: 'An analytics emit routed through ObservableAnalyticsTracker is NOT observability-only. CsatManager subscribes to a set of event names (EVENT_*/WEIGHTS) and increments a LIFETIME counter that awards weight at the 3rd/5th checklist — so adding an emit on a previously-silent path changes who gets shown the CSAT survey, i.e. product behaviour, under a feat(analytics) label. It also contaminates the baseline of any open verify-todo on csat_shown, making "did the rework lift shows?" unanswerable.'
   fix: 'Check the event name against CsatManager EVENT_*/WEIGHTS. If it is observed: estimate the delta in eligible users, and do not ship it in the same release as an open CSAT verify-todo (or rewrite that todo to account for the new paths). If the emit is genuinely inert, annotate the line with // review-rules:allow-observed-event.'
   source: 'review 2026-07-15 (19ea4c7b): checklist_created added to chat/attachment/gallery paths; CsatManager.kt:105,170 observes it; collided with docs/todos/2026-07-10-verify-csat-scored-metrics.md'
+
+- id: appwide-scope-without-supervisor-or-catch
+  area: other
+  mode: static
+  severity: high
+  globs:
+  - '**/di/*Module.kt'
+  detect:
+    type: grep
+    has: CoroutineScope\(\s*Dispatchers\.\w+\s*\)
+    unless: SupervisorJob|//|review-rules:allow-unsupervised-scope
+  message: 'An app-wide singleton CoroutineScope built as CoroutineScope(Dispatchers.X) has NO supervision: the factory supplies a plain Job() when the context carries none, so ONE failing child cancels the singleton Job and every later launch{} on that scope becomes a silent no-op for the rest of the process — sync, credits convergence and any user-data write that shares the scope die together, with no crash and no log to point at. The blast radius escalates the moment a ViewModel moves a destructive persist onto this scope to survive its own back-stack pop: a single Room/OPFS throw turns "this one write failed" into "nothing writes again until restart".'
+  fix: 'Pin a SupervisorJob: CoroutineScope(SupervisorJob() + Dispatchers.Default) — consumers of an app-wide scope are independent, so a failure must stay local to the child that threw. Separately, guard every critical persist launched on it with runCatching + AppLogger.error (no CoroutineExceptionHandler is installed by default, so an uncaught throw reaches the default handler and crashes the process). If the scope is deliberately fail-fast, annotate with // review-rules:allow-unsupervised-scope.'
+  source: 'review 2026-07-15 (a4abf621): confirmFolderDelete moved its persist onto the app-wide Koin scope to survive its own navigator.onBack() pop, becoming the first unguarded write consumer of a scope that had no SupervisorJob; 5 consumers shared it. Found by bug-pattern-reviewer on PR#12.'
+
+- id: textfield-icon-slot-conditional-null
+  area: other
+  mode: runtime
+  severity: medium
+  tags:
+  - compose
+  - kmp
+  globs:
+  - '**/*.kt'
+  detect:
+    type: grep
+    has: (trailingIcon|leadingIcon)\s*=\s*\{
+  message: 'Material3 wraps ANY non-null trailingIcon/leadingIcon of (Outlined)TextField in a defaultMinSize(48dp) slot. An always-non-null lambda with conditional visibility INSIDE (AnimatedVisibility/if) keeps 48dp of dead space reserved while the icon is hidden — the placeholder gets truncated/ellipsised earlier than it should. Fires on every icon-slot line: check whether the icon is meant to be conditional.'
+  fix: 'Move the condition OUTSIDE the slot: trailingIcon = if (cond) { { Icon(...) } } else null. Never hide an icon inside an always-non-null slot lambda.'
+  source: 'catalog search field 2026-07-16: clear-X wrapped in AnimatedVisibility reserved 48dp on the empty field and clipped the placeholder'
+
+- id: raw-material-textfield-outside-designsystem
+  area: other
+  mode: static
+  severity: medium
+  tags:
+  - compose
+  - kmp
+  globs:
+  - '**/src/*Main/**/*.kt'
+  - '**/src/main/**/*.kt'
+  detect:
+    type: grep
+    has: import androidx\.compose\.material3\.(OutlinedTextField|TextField)$
+    lacks: fun AppOutlinedTextField
+  message: 'Raw Material3 (Outlined)TextField outside the design-system wrapper: Material renders the placeholder with its own bodyLarge while the input uses textStyle — the empty vs filled field round to different integer heights (1-2px vertical jump the moment typing starts); a long placeholder also wraps and inflates the field; icon slots silently reserve 48dp.'
+  fix: 'Use the project text-field wrapper (e.g. AppOutlinedTextField in core/designsystem: placeholder style=textStyle, maxLines follows singleLine). A raw OutlinedTextField is acceptable only with an explicit fixed-lineHeight textStyle AND the same style passed to the placeholder.'
+  source: 'catalog search field 2026-07-16 (height jump on first char) + auth email/password jump 2026-07-07 — same class, recurs'
