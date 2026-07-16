@@ -136,3 +136,22 @@
   message: 'wrangler SPA assets (not_found_handling=single-page-application) WITHOUT run_worker_first: Static Assets intercept top-level navigations (Sec-Fetch-Mode: navigate) before the Worker, so POST-navigation OAuth form_post callbacks get 405 and never reach the Worker. curl/fetch don''t send navigate, so it passes every non-browser test.'
   fix: 'Add assets.run_worker_first listing the OAuth callback + auth-proxy paths (e.g. /apple-callback, /__/auth/*, /__/firebase/*) in EVERY env''s wrangler config (staging AND prod); verify with curl -X POST -H ''Sec-Fetch-Mode: navigate'' expecting 303, not 405.'
   source: ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md
+
+- id: optional-analytics-secret-silent-noop
+  target_mode: runtime
+  severity: medium
+  stack:
+  - cloudflare
+  - web
+  - backend
+  globs:
+  - '**/types.ts'
+  - '**/analytics.*'
+  - '**/*init.js*'
+  detect:
+    type: grep
+    has: '[A-Z_]*(ANALYTICS|AMPLITUDE|MEASUREMENT|GA4)[A-Z_]*\??\s*:\s*string'
+    lacks: 'wrangler secret put|Secret Manager|required'
+  message: 'An analytics key is declared OPTIONAL and degrades to a silent no-op when unset, so "zero events" becomes indistinguishable from "zero usage" — the metric reads as a product verdict when it is really a config hole. The instrumentation was written to answer exactly the question its own absence now silently mis-answers.'
+  fix: 'After deploy, smoke on a LIVE event landing in the analytics project — not on "deploy succeeded". Alternatively fail-fast when the key is unset in a prod env. Verify the secret exists in the deploy target BEFORE trusting any dashboard built on these events.'
+  source: 'review 2026-07-16 (875de201) AMPLITUDE_SERVER_API_KEY optional in worker env; plus CI drift shipping measurementId="" so web GA4 may not count. Two documented cases of the same class.'
