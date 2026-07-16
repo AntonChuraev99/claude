@@ -138,7 +138,8 @@
   source: ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md
 
 - id: optional-analytics-secret-silent-noop
-  target_mode: runtime
+  mode: runtime
+  target_mode: static
   severity: medium
   stack:
   - cloudflare
