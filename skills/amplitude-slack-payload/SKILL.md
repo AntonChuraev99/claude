@@ -151,7 +151,7 @@ Sample — это JSON, имитирующий реальный Amplitude event.
 | `userId`, `user_id` в event_properties (дубль `input.user_id`) | Совпадает с верхним `user_id` — `"test_user_123"` |
 | `userCancelled`, `isCancelled` | `false` (более интересный кейс — реальная ошибка) |
 | `isSandbox`, `isDebug` | `false` |
-| Boolean (другие) | `false` (или `true` если ветка `<#if>` это требует) |
+| Boolean (другие) | **строкой**: `"false"` (или `"true"`, если ветка `<#if>` это требует). Именно в кавычках — Amplitude в живом webhook отдаёт boolean-свойства строками, и sample с JSON-boolean `false` даст ложно-зелёный Send Test Event на шаблоне, который упадёт на реальном event'е |
 | Numeric (`price`, `amount`, `duration`) | Реалистичное число (`9.99`, `100`, `30`) |
 | Date / timestamp | ISO 8601 string или Unix epoch |
 | Enum (по контексту имени) | Самый «интересный» вариант из найденных в коде enum'а |
@@ -250,7 +250,15 @@ Sample — это JSON, имитирующий реальный Amplitude event.
 
   Прецедент 2026-05-14 (Submit Purchase Error Support): первая отправленная версия `(input.platform)!'' == 'iOS'` валилась с `Error executing transformation: For "#if" condition: Expected a boolean`. Фикс — `(input.platform!'') == 'iOS'`.
 
-- **`<#if (input.X!false)>`** — для boolean-полей. Та же скобка-правило.
+- **🚨 Boolean-поля — сравнивать через `?string`, НЕ через `!false`.** Amplitude отдаёт boolean-свойства в webhook как **строки** (`"true"` / `"false"` — видно и на top-level, напр. `"paying": "true"`, и в `event_properties`).
+
+  | ❌ ПАДАЕТ | ✅ РАБОТАЕТ |
+  |---|---|
+  | `<#if (input.event_properties.X!false)>` | `<#if (input.event_properties.X!'')?string == 'true'>` |
+
+  Почему: default-операнд `false` объявляет тип boolean, а фактическое значение приходит строкой → `Expected a boolean, but this has evaluated to a string (wrapper: f.t.SimpleScalar)`. Форма `(...!'')?string == 'true'` покрывает оба типа: настоящий boolean `true` → `"true"`, строка `"true"` → `"true"`, отсутствие → `""` (ветка else). Прецедент 2026-07-22 (`[Amplitude] Application Opened`, свойство `[Amplitude] From Background`).
+
+- **Ключи с пробелами / скобками** (`[Amplitude] Build`, `[Amplitude] From Background`) — только hash-lookup в **одинарных** кавычках: `input.event_properties['[Amplitude] Build']`. Точечная нотация на таких ключах не парсится; двойные кавычки внутри JSON-payload пришлось бы экранировать.
 
 - **`?json_string` для пользовательских строк** — `${(input.event_properties.text!'')?json_string}`. Без него `"` или `\n` в пользовательском вводе ломают итоговый JSON. Обязательно для: text/message/feedback/errorMessage/optionalErrorMessage/stackTrace полей.
 
@@ -313,6 +321,8 @@ Sample — это JSON, имитирующий реальный Amplitude event.
 - [ ] **Каждое поле — на отдельной строке через `\n`**. Склеек через `·` — нет.
 - [ ] **Ссылка на профиль в Amplitude** последней строкой с эмодзи `:link:` **через Slack named-link** `<url|label>` (не голая URL — см. правило 3.5).
 - [ ] Каждое `${input.X}` имеет `!` или `!"default"`.
+- [ ] **Ни одного `!false` в шаблоне.** Каждая boolean-ветка — `<#if (input.<...>!'')?string == 'true'>`. Grep по собранному payload на `!false` перед возвратом: непусто → чинить (Amplitude шлёт boolean строкой, падает `Expected a boolean … SimpleScalar`).
+- [ ] **Ключи с пробелами / скобками / дефисами** — hash-lookup в одинарных кавычках: `input.event_properties['[Amplitude] Build']`, не `input.event_properties.[Amplitude] Build`.
 - [ ] Платформенный эмодзи через `<#if>` присутствует.
 - [ ] Версия приложения — `${(input.version_name!input.app_version!'')}` (fallback Android `version_name` → iOS/Web `app_version`), не голый `${input.app_version!}` — иначе на Android-only event'ах будет двойной пробел в Slack (см. правило 3.3).
 - [ ] JSON валиден (все `"` внутри `text` экранированы как `\"`).
