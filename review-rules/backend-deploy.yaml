@@ -156,3 +156,22 @@
   message: 'An analytics key is declared OPTIONAL and degrades to a silent no-op when unset, so "zero events" becomes indistinguishable from "zero usage" — the metric reads as a product verdict when it is really a config hole. The instrumentation was written to answer exactly the question its own absence now silently mis-answers.'
   fix: 'After deploy, smoke on a LIVE event landing in the analytics project — not on "deploy succeeded". Alternatively fail-fast when the key is unset in a prod env. Verify the secret exists in the deploy target BEFORE trusting any dashboard built on these events.'
   source: 'review 2026-07-16 (875de201) AMPLITUDE_SERVER_API_KEY optional in worker env; plus CI drift shipping measurementId="" so web GA4 may not count. Two documented cases of the same class.'
+
+- id: ci-branch-gate-skip-reports-success
+  mode: runtime
+  target_mode: static
+  severity: high
+  stack:
+  - cloudflare
+  - web
+  - ci
+  globs:
+  - '**/.cloudflare/*.sh'
+  - '**/branch-gate*.sh'
+  detect:
+    type: grep
+    has: 'WORKERS_CI_BRANCH|rev-parse --abbrev-ref'
+    lacks: 'FATAL|exit 1'
+  message: 'A CI branch gate whose skip path returns exit 0 makes "nothing was deployed" indistinguishable from "deployed successfully" in the dashboard. Any failure to identify the branch — CI variable renamed, detached checkout falling back to the literal HEAD, production branch drifting from the name the gate matches — yields a GREEN build that silently no-ops the production deploy.'
+  fix: 'Fail fast (exit 1) on an empty/HEAD/unknown branch instead of falling through to skip: a red build beats a silent no-op on prod. Separately, smoke that the target URL actually serves the new version — "build success" is not deploy verification.'
+  source: 'review 2026-07-20 cloudflare-workers-builds-branch-gate; reproduced locally: WORKERS_CI_BRANCH=HEAD -> mode=skip -> green build, prod untouched. See docs/solutions/ci-deploy/cloudflare-workers-builds-branch-gate-2026-07-20.md'

@@ -42,3 +42,17 @@
   message: 'Image/video tuning constant (max-side, JPEG quality, bitrate) hardcoded inside a single platform source set (androidMain/wasmJsMain) — duplicated per-platform literals drift apart (e.g. PREVIEW_MAX_SIDE 900 > IMAGE_MAX_SIDE 600 inversion) when only one side is bumped. Red-flag for review: a grep cannot tell a legitimately platform-specific value from a should-be-shared one, so confirm whether the same constant exists in the other platform set.'
   fix: Hoist shared tuning constants into a commonMain single source of truth (interface/object companion) referenced by both androidMain and wasmJsMain; use expect/actual only when the value legitimately must differ per platform.
   source: docs/solutions/kmp/photo-compression-parameters-bump-2026-05-27.md, docs/solutions/kmp/wasms-upload-video-transcode-webcodecs-parity-2026-05-22.md, docs/solutions/kmp/wasms-upload-image-downscale-parity-android-2026-05-22.md
+- id: prod-telemetry-via-logger-d-noop-in-release
+  area: kmp-parity
+  mode: runtime
+  severity: medium
+  stack:
+  - kmp
+  globs:
+  - '**/src/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: logger\.d\([^)]*"(timing|elapsed|duration|took|ms:|metric|count)
+  message: '`logger.d` использован как канал измерений/телеметрии, но в проде он мёртв на ОБЕИХ платформах: ReleaseCrashReportingLogger.d = Unit (Android release), ConsoleLogger(printDebugLogs = WebBuildFlags.IS_STAGING) = false на main (web prod). Замер, задуманный как «работает и на web», молча даёт ноль данных в проде — а решение потом принимают «по данным», которых нет.'
+  fix: Решение-по-данным вести через PerformanceTracer (Firebase Perf, Android) или AnalyticsHelper; logger.d оставлять для локальной отладки и НЕ описывать в комментарии как прод-канал. Помнить, что на wasmJs PerformanceTracer = NoOpPerformanceTracer — web-замеров нет без отдельного канала.
+  source: 'сессия 2026-07-20 (perf-инструментация Generation-таба): комментарий утверждал «канал работает и на web», фактически мёртв и на Android release, и на web prod; core/common/.../ReleaseCrashReportingLogger.kt + app/src/wasmJsMain/.../WasmPlatformModule.kt:45'

@@ -74,3 +74,18 @@
   message: Single-line (maxLines=1) Text inside fixed-dp M3 containers (compare-table columns, PlanRow subtitle, PRO/credits badge, pager titles) truncates/clips/wraps on long localized strings (KZT/RU, 'Unlimited'); emulator USD fallback hides the bug.
   fix: Size containers from the longest expected localized value (+~15-20% buffer); use TextAutoSize.StepBased (>=8.sp floor) or widthIn(min=)/let height grow; pair centered & pager Text with fillMaxWidth(); validate on a real KZT/RU locale + physical device, not the USD RemoteConfig fallback on emulator.
   source: ui-improvements/paywall-truthful-copy-and-layout-2026-04-28.md; ui-improvements/paywall-polish-and-locale-fixes-2026-04-28.md; features/paywall-best-practices.md
+
+- id: unbounded-backend-text-pushes-row-sibling-out
+  area: insets-spacing
+  mode: runtime
+  severity: medium
+  stack: [compose, kmp]
+  globs:
+  - '**/src/commonMain/**/*.kt'
+  - '**/src/main/**/*.kt'
+  detect:
+    type: grep
+    has: horizontalArrangement\s*=\s*Arrangement\.spacedBy
+  message: Backend-driven Text (nullable String из DTO, без enum-контракта) без maxLines/overflow/weight в Row рядом с сиблингом — длинная строка выталкивает сиблинг за границу клипающего родителя, сиблинг и его contentDescription исчезают. Особо опасно при рефакторинге «перенесли из независимых якорей (TopStart/TopEnd) в общий Row». localized-text-clipping-fixed-container это НЕ ловит - оно кейится на maxLines=1, а здесь maxLines нет вовсе.
+  fix: maxLines=1 + overflow=Ellipsis + Modifier.weight(1f, fill=false) на растяжимый Text (сиблинг сохраняет intrinsic-ширину), либо widthIn(max=). Golden/скриншот-тест с САМЫМ ДЛИННЫМ реалистичным значением с бэка, не с образцовым коротким.
+  source: PortalEffectCard.kt 2026-07-20 (badge TopStart+pill TopEnd -> общий Row -> длинный badge прячет type-pill)

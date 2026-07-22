@@ -38,6 +38,21 @@
   fix: "размер overlay: heightIn(min,max) + if(visible)-гейт, не fillMaxSize и не wrapContent*. Проверить кликабельность и видимость на вебе."
   source: "project-memory feedback_composeover_video_sizing + agent-memory reference_android_runtime_pitfalls §R9"
 
+# === mined 2026-07-20 (runtime probation) ===
+- id: coop-same-origin-allow-popups-firebase-popup-login
+  mode: runtime
+  severity: high
+  probation: '2026-07-20'
+  target_mode: runtime
+  stack: [wasmjs, web]
+  globs: ["**/*.js", "**/wasmJsMain/**/*", "**/redirect.js", "**/_headers"]
+  detect:
+    type: grep
+    has: 'signInWithPopup'
+  message: "Firebase signInWithPopup молча ломается на Chromium (window.close blocked, ужесточён opener<->popup) без COOP=same-origin-allow-popups. Заголовок нужен в ДВУХ surface'ах: _headers /* И worker not_found fallback (redirect.js isHtml) — _headers НЕ достаёт синтезированный SPA-fallback HTML для / и deep-links. COOP document-scoped: заголовок на .js/ассете бесполезен, нужен на top-level HTML-документе."
+  fix: "COOP same-origin-allow-popups на top-level HTML в обоих surface'ах; НЕ добавлять COEP (гейтит SharedArrayBuffer, ломает SAH-pool OPFS + 3rd-party). Verify: curl -sI и /, и deep-link -> оба с заголовком. Отличается от oauth-popup-no-redirect-fallback (там Safari/mobile redirect)."
+  source: "firebase-js-sdk#8541; project-memory web-coop-header-via-worker-not-headers-file; сессия 2026-07-20"
+
 # === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
 - id: csp-strips-loadbearing-origin
   mode: runtime
@@ -387,3 +402,39 @@
   message: "flex-ряд иконка+текст с кастомным мелким размером (text-[0.Xrem]) без leading-*: наследованный line-height делает line-box текста выше глифов -> items-center сажает текст ниже иконки (иконка едет вверх, текст вниз). Рецидив: like-pill EffectCard 2026-07-03; юзер повторно репортит вертикальный перекос icon+text рядов."
   fix: "leading-none (или явный leading-N = высоте иконки) на текст/контейнер каждого flex-ряда иконка+текст; проверять глазом на карточке/пилюле, не только в коде."
   source: "docs/active/web-home-compose-to-js-port-2026-06-30.md (Итер19 like-pill vertical align)"
+- id: jsscreen-emit-null-instead-of-lifo-restore
+  pain: 1
+  mode: static
+  severity: medium
+  stack: [web, wasmjs]
+  globs: ["app/src/wasmJsMain/**/*.kt", "app/src/wasmJsMain/resources/init.js"]
+  detect:
+    type: grep
+    has: '__\w+JsScreenEmit\s*=\s*null'
+  message: "dispose верхнего JsScreenHost зануляет общий emit-глобал вместо LIFO-восстановления предыдущего хендлера -> клики нижнего стекового экрана (web_home rail) уходят в никуда после закрытия верхнего."
+  fix: "запомнить previousEmit при mount и восстановить его на dispose (паттерн JsScreenHost.wasmJs.kt; docs/solutions/wasmjs-lifo-emit-restore-pattern-2026-07-16.md)."
+  source: "paywall-enter-card-screen 2026-07-16 (card_checkout поверх web_home)"
+- id: media-element-clip-by-ancestor-radius-aa-fringe
+  pain: 1
+  mode: static
+  severity: medium
+  stack: [web, react]
+  globs: ["web-react/src/**/*.tsx"]
+  detect:
+    type: grep
+    has: '(video|img)[^>]*className="[^"]*(?:h-full|inset-0)[^"]*object-cover(?![^"]*rounded)'
+  message: "composited <video>/<img> (object-cover, inset-0/h-full) внутри overflow-hidden rounded-* БЕЗ rounded-* на самом элементе: Chromium клипает слой радиусом предка и рисует белый AA-fringe по краю скругления (виден на любом DPR; headless-скрин DPR=1 может прятать). Рецидив-класс: catalog card fringe 2026-07-16 — 3 компонента одним махом."
+  fix: "rounded-[inherit] на сам медиа-элемент и промежуточный host (PreviewVideo); верифицировать test-web/card-fringe-probe.mjs (outside-edge scan) при --dpr 1.25/1.5/2."
+  source: "docs/solutions/web-react-shell-upload-cta-and-card-fringe-2026-07-16.md"
+- id: sentry-title-variable-via-throwable-message
+  pain: 1
+  mode: runtime
+  severity: high
+  stack: [web, wasmjs]
+  globs: ["**/wasmJsMain/**/*.kt", "**/commonMain/**/*.kt"]
+  detect:
+    type: grep
+    has: 'logger\.e\([^)]*(RuntimeException|IllegalStateException|Throwable|error)\("[^"]*\$\{'
+  message: "Заголовок Sentry-события на wasmJs склеивается как \"$message: ${throwable.message}\" (WasmSentryCrashReporter.recordException) — переменное значение в СООБЩЕНИИ ИСКЛЮЧЕНИЯ форкает issue так же, как в аргументе logger.e. Санитизации одного logger.e недостаточно."
+  fix: "Статичный текст в обоих каналах: logger.e(TAG, \"<static>\", Throwable(\"<static>\")); всё переменное — logger.context(TAG, ...) (breadcrumb, на группировку не влияет)."
+  source: "core/common/.../WasmSentryCrashReporter.kt; сессия sentry-web-bugs 2026-07-21 (первый фикс KMP-WEB-95 не достиг цели)"
