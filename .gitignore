@@ -55,6 +55,10 @@
 !/review-rules/
 !/review-rules/**
 
+# --- 7b. Per-model behavioral overlays (injected by hooks/model-overlay.ps1) -
+!/model-overlays/
+!/model-overlays/**
+
 # --- 8. Toast icons (used by notify.ps1) ------------------------------------
 !/assets/
 !/assets/events/

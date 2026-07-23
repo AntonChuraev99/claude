@@ -242,6 +242,12 @@
             "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\session-docs-digest.ps1\"",
             "timeout": 30,
             "statusMessage": "Собираю дайджест docs/active + docs/todos…"
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
+            "timeout": 10,
+            "statusMessage": "model-overlay: промпт под активную модель…"
           }
         ]
       }
