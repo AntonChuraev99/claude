@@ -250,3 +250,15 @@
   message: Raw android.app.NotificationChannel(...) constructor (an API 26+ class) is used in a file with no Build.VERSION.SDK_INT guard — on API 24/25 the class fails to resolve and throws NoClassDefFoundError. Called from Application.onCreate it crashes EVERY launch on pre-O devices (minSdk 24), so the whole install is dead — compiles + runs fine on any API 26+ dev device, hiding it.
   fix: 'Guard channel creation with `if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return` at the top of the create function (pre-O posts notifications with no channel — there is nothing to create). The lookbehind excludes the safe get/create/deleteNotificationChannel(...) manager methods and NotificationChannelCompat(...); only the raw platform constructor trips. Prefer NotificationManagerCompat / NotificationChannelCompat, which gate the SDK internally.'
   source: crashfixes/notificationchannel-noclassdeffound-api25-2026-07-03.md; crashlytics:c1aeb170cc24097db96662fa0dedc7a6
+
+- id: distribution-channel-added-play-only-gates
+  area: android-release
+  mode: process
+  severity: high
+  stack:
+  - android
+  - kmp
+  trigger: "diff добавляет productFlavor в dimension store либо новое значение AppDistributionStore"
+  message: "Новый канал дистрибуции автоматически попадает в Play-путь у подсистем, которые гейтятся по КОНКРЕТНОМУ стору, а не по каналу: App Check (release-провайдер = Play Integrity, sideload его не проходит), In-App Update (Play Core на не-Play установке), In-App Review, store-deeplink openStore()/market:// (ведёт на листинг, которого у канала нет). Компилится, тесты зелёные, ломается только на реальной установке из канала — а App Check при включённом enforcement отдаёт 403 на весь Firebase-бэкенд молча."
+  fix: "Прогнать чеклист по всем Play-only точкам и на каждую принять явное решение для нового канала: grep 'DISTRIBUTION_STORE ==', 'hasGooglePlayServices', 'play.google.com/store', 'market://', per-buildType AppCheckProvider. Отдельно: маппинг строки flavor->enum не должен молча падать в else -> GooglePlay (логировать неизвестное значение)."
+  source: "review 2026-07-22 directDownload flavor; прецедент xiaomi flavor 2026-07-20; alt-store-repack-detection-play-signing.md"

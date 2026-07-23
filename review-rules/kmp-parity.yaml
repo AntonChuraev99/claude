@@ -56,3 +56,23 @@
   message: '`logger.d` использован как канал измерений/телеметрии, но в проде он мёртв на ОБЕИХ платформах: ReleaseCrashReportingLogger.d = Unit (Android release), ConsoleLogger(printDebugLogs = WebBuildFlags.IS_STAGING) = false на main (web prod). Замер, задуманный как «работает и на web», молча даёт ноль данных в проде — а решение потом принимают «по данным», которых нет.'
   fix: Решение-по-данным вести через PerformanceTracer (Firebase Perf, Android) или AnalyticsHelper; logger.d оставлять для локальной отладки и НЕ описывать в комментарии как прод-канал. Помнить, что на wasmJs PerformanceTracer = NoOpPerformanceTracer — web-замеров нет без отдельного канала.
   source: 'сессия 2026-07-20 (perf-инструментация Generation-таба): комментарий утверждал «канал работает и на web», фактически мёртв и на Android release, и на web prod; core/common/.../ReleaseCrashReportingLogger.kt + app/src/wasmJsMain/.../WasmPlatformModule.kt:45'
+- id: rc-driven-url-visibility-decoupled-from-link-validity
+  area: kmp-parity
+  mode: runtime
+  severity: medium
+  stack:
+  - kmp
+  - wasmjs
+  - web
+  globs:
+  - '**/commonMain/**/*Config.kt'
+  - '**/commonMain/**/*.kt'
+  - 'web-react/src/**/*.ts'
+  - 'web-react/src/**/*.tsx'
+  detect:
+    type: grep
+    has: (UrlOr|url)\s*\.?\s*(ifBlank|takeIf\s*\{\s*it\.isNotBlank)
+    unless: ^\s*(//|\*)
+  message: 'RC-строка URL уходит в навигационный sink (openUri/window.open/href) с fallback на встроенную константу, а видимость элемента гейтится ОТДЕЛЬНЫМ boolean-флагом. Один тумблер в RC-консоли включает элемент со встроенным (возможно мёртвым/устаревшим) URL; схема URL не валидируется; параллельная реализация на другой платформе применяет своё правило видимости → рейлы/платформы расходятся.'
+  fix: 'Видимость выводить из валидности ссылки, а не из отдельного флага: show = flagX && urlFor(X).isNotBlank(); пропускать только https://-схему, иначе fallback; правило видимости держать в общей модели (commonMain), чтобы обе платформы читали одно.'
+  source: 'сессия 2026-07-22 (store-badges-remote-config): StoreBadgesConfig — showGooglePlay=true в одиночку воскрешал 404-листинг через fallback на UrlsConstants.GOOGLE_PLAY, React coerce требовал непустой URL, Compose нет; тот же shape — webInfoDeeplinkConfig.url → openUri (app/.../AppContent.kt)'

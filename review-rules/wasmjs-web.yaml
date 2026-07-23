@@ -449,3 +449,16 @@
   message: 'React-мост/провайдер, потребляющий one-shot Firestore-push (onPortalCatalog/onCatalog-подобный): loading/error/EMPTY-success push вытесняет уже отрисованный non-empty success -> бланк каталога (Firestore local-cache отдаёт empty при disableNetwork-race). mode runtime — grep лишь триггер, подтверждать глазами (широкий детект намеренно, точный grep фрагилен, предупреждение L2).'
   fix: 'Гардить: не давать loading/error/empty-success вытеснять показанный non-empty success; кешировать/сидить только non-empty success.'
   source: 'photoshoots-catalog-empty-after-relogin-2026-06-25; glam-portal-catalog-ls-cache-2026-07-03 (2-й раз); NEW_RULE_CANDIDATE L2'
+
+# === mined 2026-07-23 (runtime probation) ===
+- id: jsscreen-spinner-before-compose-splash-disposed
+  mode: runtime
+  severity: medium
+  stack: [wasmjs]
+  globs: ["**/wasmJsMain/resources/*.js"]
+  detect:
+    type: grep
+    has: 'appendChild\(spinner\)'
+  message: "JsScreenHost-фабрика (прозрачный overlay над Compose-canvas) добавляет loading-спиннер сразу на cold-boot, пока Compose boot-splash ещё гаснет -> два кольца / «лоудер + лого правее» в момент хэндовера Splash->контент (DOM overlay не наследует Compose nav-fade)."
+  fix: "гейтить показ overlay-спиннера на globalThis.__<yourapp>BootSplashGone (из SplashScreen.onDispose), снимать на React-mount, форсить на error; live-verify на реальном cold-boot (headed, real DPR), не headless. Guest-фабрику (непрозрачный overlay) не трогать."
+  source: "docs/active/web-boot-spinner-first-frame-2026-07-23.md (FS-1125 follow-up)"
