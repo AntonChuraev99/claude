@@ -91,3 +91,18 @@
   message: 'Render/scroll-sync state held in a non-snapshot array (IntArray/Array remembered then mutated from onSizeChanged/onGloballyPositioned) or updated late in LifecycleEventEffect(ON_RESUME): element writes are invisible to recomposition, so the first frame / tab indicator freezes on stale cold-cache measurements.'
   fix: Store measured widths/positions in mutableStateListOf or per-item mutableStateOf (snapshot-observable); derive readiness with derivedStateOf instead of a latched Boolean ready-flag; key the LaunchedEffect on the computed target values (targetLeft/targetRight) so a re-measure re-runs it; update the render-driving value inside composition via LaunchedEffect BEFORE the first layout pass, never in ON_RESUME.
   source: ui-bugs/app-tab-selector-intarray-race-condition-2026-05-15.md; architecture/catalog-loading-state-scaffold-unification-2026-05-07.md; kmp/app-result-video-stale-first-render-wasmjs-2026-05-21.md
+- id: shared-component-optional-param-silent-default
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: ':\s*\([^)]*\)\s*->\s*\w+\s*=\s*\{\s*\}'
+    unless: //
+  message: 'Новый параметр-колбэк общего @Composable с no-op дефолтом (= {}) при 2+ живых call-site: компонент рендерится на N поверхностях (dock/full/вложенный экран), опциональный колбэк молча отключает фичу на забытой поверхности — компилятор молчит, ловится только прогоном на КАЖДОЙ поверхности.'
+  fix: 'Делать параметр обязательным (без дефолта) — новая поверхность не соберётся, пока колбэк не проведён; либо source-parsing-тест всех call-site (образец ChatMessageKeyResolutionTest).'
+  source: 'D1 2026-07-15 (2 регрессии, SHA 3371fc75); D2 AiChoiceResponse.onMemoryToggle; NEW_RULE_CANDIDATE bug-pattern-reviewer L2'

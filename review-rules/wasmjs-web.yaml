@@ -438,3 +438,14 @@
   message: "Заголовок Sentry-события на wasmJs склеивается как \"$message: ${throwable.message}\" (WasmSentryCrashReporter.recordException) — переменное значение в СООБЩЕНИИ ИСКЛЮЧЕНИЯ форкает issue так же, как в аргументе logger.e. Санитизации одного logger.e недостаточно."
   fix: "Статичный текст в обоих каналах: logger.e(TAG, \"<static>\", Throwable(\"<static>\")); всё переменное — logger.context(TAG, ...) (breadcrumb, на группировку не влияет)."
   source: "core/common/.../WasmSentryCrashReporter.kt; сессия sentry-web-bugs 2026-07-21 (первый фикс KMP-WEB-95 не достиг цели)"
+- id: bridge-empty-push-displaces-nonempty-success
+  mode: runtime
+  severity: medium
+  stack: [web, wasmjs]
+  globs: ["**/web-react/src/bridge/**", "**/web-react/src/**/*.tsx"]
+  detect:
+    type: grep
+    has: 'set[A-Z]\w*\(|setState\(|setData\('
+  message: 'React-мост/провайдер, потребляющий one-shot Firestore-push (onPortalCatalog/onCatalog-подобный): loading/error/EMPTY-success push вытесняет уже отрисованный non-empty success -> бланк каталога (Firestore local-cache отдаёт empty при disableNetwork-race). mode runtime — grep лишь триггер, подтверждать глазами (широкий детект намеренно, точный grep фрагилен, предупреждение L2).'
+  fix: 'Гардить: не давать loading/error/empty-success вытеснять показанный non-empty success; кешировать/сидить только non-empty success.'
+  source: 'photoshoots-catalog-empty-after-relogin-2026-06-25; glam-portal-catalog-ls-cache-2026-07-03 (2-й раз); NEW_RULE_CANDIDATE L2'

@@ -175,3 +175,14 @@
   message: 'A CI branch gate whose skip path returns exit 0 makes "nothing was deployed" indistinguishable from "deployed successfully" in the dashboard. Any failure to identify the branch — CI variable renamed, detached checkout falling back to the literal HEAD, production branch drifting from the name the gate matches — yields a GREEN build that silently no-ops the production deploy.'
   fix: 'Fail fast (exit 1) on an empty/HEAD/unknown branch instead of falling through to skip: a red build beats a silent no-op on prod. Separately, smoke that the target URL actually serves the new version — "build success" is not deploy verification.'
   source: 'review 2026-07-20 cloudflare-workers-builds-branch-gate; reproduced locally: WORKERS_CI_BRANCH=HEAD -> mode=skip -> green build, prod untouched. See docs/solutions/ci-deploy/cloudflare-workers-builds-branch-gate-2026-07-20.md'
+- id: portal-callable-contract-unverified
+  mode: runtime
+  severity: medium
+  stack: [cloudflare, web, backend]
+  globs: ["**/*.kt", "**/*.ts"]
+  detect:
+    type: grep
+    has: 'build\w*Payload|VIDEO_MODELS|backendModel'
+  message: 'Diff меняет payload-ключи / model-whitelist / enum, уходящие в Cloud callable (build*Payload put-ключи, VIDEO_MODELS, engine.backendModel), контракт «принятые ключи + сериализация» заявлен только in-code комментарием -> backend rejects (invalid-argument) или тихо дропает->дефолт.'
+  fix: 'Верифицировать против ФАКТИЧЕСКИ задеплоенного callable реальным прод-путём; инструментировать обе стороны границы (продюсер+консьюмер) за один прогон.'
+  source: 'portal-контракт рекуррентно: 07-07 durationSec drop, 07-09, 07-10, 07-14 (>=4 итерации, commit 34d0e908a); deferred_portal_video_generation_backend.md'
