@@ -79,7 +79,7 @@ color: orange
 
 Вызывается после возврата результата от **specialist-агента** (compose-feature-expert, android-platform-expert, kmp-expert, kotlin-expert, react-ui-expert, nextjs-expert, design-expert, wasmjs-expert, test-expert). Это и есть «семантически значимая итерация» для подсчёта.
 
-**НЕ итерации (не вызывать UPDATE на них):** `/commit`, `/end-session`, `/install-emulator`, `/install-device`, `@knowledge-scout`, `@doc-writer` (INIT/COMPLETE — те же фазы doc-writer), проверки `git status`, чтение файлов, отчёты. Эти действия — служебные, они не двигают GOAL задачи.
+**НЕ итерации (не вызывать UPDATE на них):** `/commit`, `/task-gate`, `/install-emulator`, `/install-device`, `@knowledge-scout`, `@doc-writer` (INIT/COMPLETE — те же фазы doc-writer), проверки `git status`, чтение файлов, отчёты. Эти действия — служебные, они не двигают GOAL задачи.
 
 **Алгоритм:**
 1. Найди активный документ: `Glob("docs/active/*.md")` → читай последний по дате, или используй путь из промпта.

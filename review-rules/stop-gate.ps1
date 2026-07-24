@@ -2,7 +2,7 @@
 #
 # Runs the deterministic L1 static gate on EVERY agent stop, in the CURRENT project
 # repo, so recurring-bug findings surface 100% of sessions — not only when the user
-# remembers to run /end-session (historically 14%). It also logs every L1 run to
+# remembers to run /task-gate (historically 14%). It also logs every L1 run to
 # stats/review-rules-events.jsonl so the system's usefulness can be measured later.
 #
 # Behaviour (decided 2026-06-29):

@@ -17,7 +17,7 @@
 
 **Не коммитить без явной команды пользователя.** `/commit` запускать только когда пользователь явно попросил («закоммить», «commit», «сделай коммит») — никогда по своей инициативе после правок. То же для `git push` и других действий с историей.
 
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Полные правила — скилл `git-commit-conventions` (без `Co-Authored-By`, ≤50 символов, imperative, lowercase, без точки). Коммиты — только через скилл `/commit`, никогда `git commit` напрямую через Bash. Запрет — только на explicit `Bash("git commit ...")` главного агента; внутри `/commit`, hooks, `/end-session` auto-commit — нормально.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). Полные правила — скилл `git-commit-conventions` (без `Co-Authored-By`, ≤50 символов, imperative, lowercase, без точки). Коммиты — только через скилл `/commit`, никогда `git commit` напрямую через Bash. Запрет — только на explicit `Bash("git commit ...")` главного агента; внутри `/commit`, hooks, `/task-gate` auto-commit — нормально.
 
 ## Публичный репозиторий `~/.claude` (анти-утечка)
 
@@ -65,6 +65,10 @@ Pre-commit hook блокирует коммит при known-приватных 
 
 ## Выполнение задач
 
+### Git worktree — ДО первой правки (gate)
+
+Любая задача с правками файлов git-репозитория (код + доки задачи) начинается с отдельного worktree: `git worktree add .claude/worktrees/<slug> -b <branch>` от актуального транка (или tool `EnterWorktree`) — вся работа сессии только в нём. Основной checkout НЕ занимать веткой задачи: он остаётся на транке для параллельных сессий, hooks и dev-серверов. Ветка по ошибке создана в основном checkout → немедленно перенести (основной вернуть на транк, `git worktree add` с той же веткой, незакоммиченное забрать с собой). После создания скопировать gitignored-конфиги сборки (Android: `local.properties`/`secrets.properties`/`gradle.properties`) и при необходимости слинковать `node_modules`. **Исключения:** read-only анализ/вопросы; каталог вне git; пользователь явно попросил работать в текущем checkout. _(прецедент 2026-07-24: сессия начала fix-ветку в основном checkout — замечание пользователя)_
+
 ### Видимый todo-лист
 
 Поддерживать активный список через `TaskCreate`/`TaskUpdate`. **Триггеры:** 2+ шагов / 2+ инструкций в сообщении; новый комментарий в процессе («и ещё», «потом») — добавить до продолжения. Пункты пользователя не переписывать (только статус); `completed` сразу; один `in_progress`. **Не нужен** для одношагового запроса.
@@ -95,7 +99,7 @@ Standard+ с ясным доменом → профильный специали
 
 ### Definition of Done (gate перед завершением)
 
-**`/end-session` — императив для Standard+** (или Trivial×Medium+ с COMPLETE): запустить ДО финального ответа. Без него gate НЕ пройден. Trivial×Low — без `/end-session`, ответ напрямую.
+**`/task-gate` — императив для Standard+** (или Trivial×Medium+ с COMPLETE): запустить ДО финального ответа по задаче; несколько задач за сессию → по прогону на каждую. Без него gate НЕ пройден. Trivial×Low — без `/task-gate`, ответ напрямую. _(ранее `/end-session`, переименован 2026-07-24)_
 
 1. **Validation** — билд/тесты прошли.
 2. **Impact scan** — все зависимости обновлены.
@@ -106,9 +110,9 @@ Standard+ с ясным доменом → профильный специали
 7. **Solutions INDEX** — `INDEX_ROW:` → в `docs/solutions/INDEX.md` (создать с шапкой если нет).
 8. **Improvements log** — задача меняла `~/.claude/{CLAUDE.md,agents,skills,settings.json}` → improvement-файл + строка в README index.
 9. **Deferred work** — отложенный scope оформлен (`docs/todos/` + memory `## Deferred Work`); в ответе перечислить deferred-пункты. Оставшийся `// TODO:` — нарушение.
-10. **Bug-pattern gate** (`~/.claude/review-rules/`). Stop-хук гонит **L1** (static-гейт) автоматически + логирует. **L2:** вывод L1 непуст И задача Standard+ → заспавнить `@bug-pattern-reviewer` ПЕРЕД «готово». static-HIGH — блокер. **L3** (process-вопросы) — always-check на Standard+: молча ли удалена user-facing функция / тронут деплой (регион+smoke) / субагент в scope и не коммитил / патчишь невоспроизведённый баг. `/end-session` гонит `stats.py` → `~/.claude/stats/review-rules.md`. Trivial×Low без находок L1 → пропустить.
+10. **Bug-pattern gate** (`~/.claude/review-rules/`). Stop-хук гонит **L1** (static-гейт) автоматически + логирует. **L2:** вывод L1 непуст И задача Standard+ → заспавнить `@bug-pattern-reviewer` ПЕРЕД «готово». static-HIGH — блокер. **L3** (process-вопросы) — always-check на Standard+: молча ли удалена user-facing функция / тронут деплой (регион+smoke) / субагент в scope и не коммитил / патчишь невоспроизведённый баг. `/task-gate` гонит `stats.py` → `~/.claude/stats/review-rules.md`. Trivial×Low без находок L1 → пропустить.
 
-**Подсчёт `Шагов: N`** (для COMPLETE): шаг = одна попытка двинуть GOAL, ограниченная валидацией (build/test pass) или обнаружением неверного подхода. Edit→PASS=1; Edit→FAIL→fix→PASS=2; делегация (любое число правок внутри)=1; неверный подход переписан=+1. **НЕ шаг:** `/commit`, `/end-session`, скауты, doc-writer, git status/diff/log, чтение, отчёты, Task*.
+**Подсчёт `Шагов: N`** (для COMPLETE): шаг = одна попытка двинуть GOAL, ограниченная валидацией (build/test pass) или обнаружением неверного подхода. Edit→PASS=1; Edit→FAIL→fix→PASS=2; делегация (любое число правок внутри)=1; неверный подход переписан=+1. **НЕ шаг:** `/commit`, `/task-gate`, скауты, doc-writer, git status/diff/log, чтение, отчёты, Task*.
 
 **Отчёт Complex** — `docs/reports/<slug>-<date>.md`: название/дата/описание; исследовано и реализовано; результаты validation; проблемы и retry; статус `Done`/`Partially Done`.
 

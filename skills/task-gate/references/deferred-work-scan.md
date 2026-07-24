@@ -1,6 +1,6 @@
-# Deferred-Work Scan — Step 2.9 алгоритм и Bash-команды
+# Deferred-Work Scan — Step 2.8 алгоритм и Bash-команды
 
-Этот файл — extract из Step 2.9 `end-session/SKILL.md`. Алгоритм проверки `TODO`/`FIXME`/`STOPSHIP` в коде против `docs/todos/`. Правило-источник — глобальный `~/.claude/CLAUDE.md` → раздел «Отложенный функционал».
+Этот файл — extract из Step 2.8 `task-gate/SKILL.md`. Алгоритм проверки `TODO`/`FIXME`/`STOPSHIP` в коде против `docs/todos/`. Правило-источник — глобальный `~/.claude/CLAUDE.md` → раздел «Отложенный функционал».
 
 ## Цель
 
@@ -64,7 +64,7 @@ ls docs/todos/<YYYY-MM-DD>-<slug>.md   # для каждого упомянут�
 
 В финальный отчёт Step 5.2 вынести строку:
 ```
-2.9 Deferred-work integrity ⚠️ N unbacked TODOs
+2.8 Deferred-work integrity ⚠️ N unbacked TODOs
 ```
 с перечнем.
 
@@ -74,8 +74,8 @@ ls docs/todos/<YYYY-MM-DD>-<slug>.md   # для каждого упомянут�
 |---|---|
 | **Создать `docs/todos/<...>.md` и заменить TODO на Pending-anchor** (Recommended) | Скилл сам делает Write + Edit, затем продолжает с auto-commit |
 | **Удалить TODO из кода** | Мини-Edit, продолжить с auto-commit |
-| **Override (закоммитить с TODO)** | Пометка `2.9 ⚠️ override (N TODOs)`, продолжить с auto-commit, в commit body добавить `Refs: deferred-work-override <N> TODO(s)` со списком |
-| **Отложить решение** | `2.9 ⚠️ pending user`, **остановить** end-session, вернуть управление пользователю |
+| **Override (закоммитить с TODO)** | Пометка `2.8 ⚠️ override (N TODOs)`, продолжить с auto-commit, в commit body добавить `Refs: deferred-work-override <N> TODO(s)` со списком |
+| **Отложить решение** | `2.8 ⚠️ pending user`, **остановить** task-gate, вернуть управление пользователю |
 
 ### Шаг 4 — Проверка `docs/todos/INDEX.md` (если файл существует)
 
@@ -88,13 +88,13 @@ test -f docs/todos/INDEX.md && cat docs/todos/INDEX.md
 
 ### Шаг 5 — Не дублировать работу `/commit`
 
-Если в этой сессии уже был вызван `/commit` и он прошёл свой собственный deferred-work scan → Step 2.9 повторяет лишь нумерацию строки в финальном отчёте:
+Если в рамках текущей задачи уже был вызван `/commit` и он прошёл свой собственный deferred-work scan → Step 2.8 повторяет лишь нумерацию строки в финальном отчёте:
 
 ```
-2.9 Deferred-work integrity ✅ verified by /commit at <sha>
+2.8 Deferred-work integrity ✅ verified by /commit at <sha>
 ```
 
-Цель end-session — поймать ситуацию, когда `/commit` ещё не запускался либо запускался **до** появления новых TODO.
+Цель task-gate — поймать ситуацию, когда `/commit` ещё не запускался либо запускался **до** появления новых TODO.
 
 ## Создание `docs/todos/<...>.md` (если пользователь выбрал «Создать»)
 

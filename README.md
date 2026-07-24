@@ -34,7 +34,7 @@ clean.
 
 ### Skills (`skills/`)
 
-`commit`, `end-session`, `git-commit-conventions`, `git-worktree-env`,
+`commit`, `task-gate` (per-task Definition of Done gate; ранее `end-session`), `git-commit-conventions`, `git-worktree-env`,
 `gradle-deps-update`, `android-core-module-builder`, `android-feature-module-builder`,
 `ab-test-dashboard`, `amplitude-slack-payload`, `cloudflare-deploy-slack-notify`,
 `gitlab-release-slack-ci`, `jira-task-writer`, `test-firebase-function`,

@@ -1,6 +1,6 @@
 # Auto-Commit Rules — Step 5.1.1
 
-Этот файл — extract из Step 5.1.1 `end-session/SKILL.md`. Точные guard-условия для автоматического вызова `/commit` без участия пользователя.
+Этот файл — extract из Step 5.1.1 `task-gate/SKILL.md`. Точные guard-условия для автоматического вызова `/commit` без участия пользователя.
 
 ## Принцип
 

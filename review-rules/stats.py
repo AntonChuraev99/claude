@@ -15,7 +15,7 @@ the rule registry, and writes a human-readable digest to stats/review-rules.md:
                     one that persists = likely false-positive or intentional.
 
 Usage: python stats.py [--log PATH] [--out PATH]  (defaults to the standard paths)
-No API cost; safe to run on every /end-session.
+No API cost; safe to run on every /task-gate.
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 ---
 name: bug-pattern-reviewer
-description: Use to review the current diff against the recurring-bug rule registry (~/.claude/review-rules) — the L2 layer of the bug-pattern review system. Runs the deterministic L1 static gate (run.py), then adds a judgment pass over the runtime-mode red-flags for the touched areas (state/timing races, edge-to-edge/insets, animation, video, resize) which grep can flag but only a real run confirms, and reports which process-gate (режим C) questions this diff arms (silent feature removal, deploy-verify, repro-on-unreproduced, subagent scope). Returns a compact findings report with severity + confidence; does NOT fix, edit, or commit. Spawned from /end-session (Definition of Done) or on demand. DO NOT use for: generic correctness/security review (that is /code-review and the ce-* reviewers — this is the pattern-aware lens charged with the user's own incident history), writing fixes, or running builds.
+description: Use to review the current diff against the recurring-bug rule registry (~/.claude/review-rules) — the L2 layer of the bug-pattern review system. Runs the deterministic L1 static gate (run.py), then adds a judgment pass over the runtime-mode red-flags for the touched areas (state/timing races, edge-to-edge/insets, animation, video, resize) which grep can flag but only a real run confirms, and reports which process-gate (режим C) questions this diff arms (silent feature removal, deploy-verify, repro-on-unreproduced, subagent scope). Returns a compact findings report with severity + confidence; does NOT fix, edit, or commit. Spawned from /task-gate (Definition of Done) or on demand. DO NOT use for: generic correctness/security review (that is /code-review and the ce-* reviewers — this is the pattern-aware lens charged with the user's own incident history), writing fixes, or running builds.
 tools: Read, Grep, Glob, Bash
 model: opus
 color: red
@@ -71,7 +71,7 @@ NEW_RULE_CANDIDATE (опц.):
   - <одна строка-правило или 'нет'>
 TOP (что чинить первым): 1) ... 2) ... 3) ...
 VERIFY (1-3 пункта, как подтвердить runtime-находки прогоном)
-LOG_ROW: <та же JSON-строка L2-события, что ушла в events.jsonl — для главного/end-session>
+LOG_ROW: <та же JSON-строка L2-события, что ушла в events.jsonl — для главного/task-gate>
 ```
 
 Нет находок — так и скажи (`BLOCKERS: нет`, и т.д.), не выдумывай. Цель — чтобы главный за 10 секунд увидел: что блокирует, что проверить прогоном, на какие process-вопросы ответить.

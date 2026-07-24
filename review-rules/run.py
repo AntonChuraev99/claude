@@ -21,7 +21,7 @@ Usage:
     python run.py --staged        # review staged changes (for pre-commit)
     python run.py --base <ref>    # review everything since <ref> (e.g. origin/main)
     python run.py --json          # machine-readable output (for the L2 agent)
-    python run.py --warn-only     # never exit non-zero (advisory, for /end-session)
+    python run.py --warn-only     # never exit non-zero (advisory, for /task-gate)
     python run.py --area <name>   # restrict to one area file
     python run.py --install-hook <project-dir>   # drop a pre-commit hook into a repo
 
@@ -497,7 +497,8 @@ def main() -> int:
     ap.add_argument("--log", metavar="PATH",
                     help="append an L1 event (JSONL) to PATH for effectiveness tracking")
     ap.add_argument("--entry", default="manual",
-                    help="entry-point tag for the log (stop|precommit|endsession|manual)")
+                    help="entry-point tag for the log (stop|precommit|endsession|manual); "
+                         "'endsession' is the historic label used by /task-gate — do not rename")
     args = ap.parse_args()
 
     if args.check_hook is not None:

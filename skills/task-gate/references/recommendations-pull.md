@@ -1,4 +1,4 @@
-# End-session — Step 4: Recommendations Pull (детальная механика)
+# Task-gate — Step 4: Recommendations Pull (детальная механика)
 
 Полная процедура извлечения, 4-тестовой классификации, записи в queue и inline-вывода. Инварианты продублированы в SKILL.md → Step 4; здесь — механика 4.2–4.5.
 
@@ -36,7 +36,7 @@
 
 **Дополнительные red flags** (мгновенно → LOW relevance, не считая 4-х тестов):
 - **Out-of-scope** — рекомендация менять Anthropic-managed plugins/skills (`compound-engineering:*`, `vercel:*`, `cloudflare:*`, `figma:*`, `amplitude:*`). Мы не должны их трогать.
-- **Self-loop** — рекомендация менять `end-session/SKILL.md` правилом, которое **уже там есть** (`grep` по ключевым словам action).
+- **Self-loop** — рекомендация менять `task-gate/SKILL.md` правилом, которое **уже там есть** (`grep` по ключевым словам action).
 - **Возможный дубль** — `grep` по action keywords нашёл похожее правило в `CLAUDE.md` или соответствующем `agents/*.md`. Пометить `⚠️ возможный дубль с <path>:<line>` (не блокирующий, но видимый при review).
 
 Итоговая classification:
@@ -47,8 +47,8 @@
 
 ### 4.4 Запись в queue
 
-1. **Определить session slug** — приоритет: (a) имя активного doc из `docs/active/` без расширения; (b) `commit-<short-sha>` если был коммит; (c) topic из первого user message сессии (slugify первых ~6 слов).
-2. **Имя файла:** `~/.claude/recommendations/<YYYY-MM-DD>-<session-slug>.md`. Если файл уже есть для этой сессии (повторный end-session) — append рекомендации в существующий, не перезаписывать.
+1. **Определить task slug** — приоритет: (a) имя активного doc **этой задачи** из `docs/active/` без расширения; (b) `commit-<short-sha>` если был коммит; (c) topic из формулировки задачи (slugify первых ~6 слов запроса, породившего задачу — не первого сообщения сессии).
+2. **Имя файла:** `~/.claude/recommendations/<YYYY-MM-DD>-<task-slug>.md`. Повторный прогон gate **той же задачи** — append в существующий файл, не перезаписывать. Новая задача той же сессии — **новый файл** со своим slug (frontmatter-ключ `session_slug` оставлен для совместимости схемы, кладётся task slug).
 3. **Frontmatter:**
    ```yaml
    ---

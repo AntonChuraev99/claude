@@ -78,8 +78,8 @@
 !/skills/cloudflare-deploy-slack-notify/**
 !/skills/commit/
 !/skills/commit/**
-!/skills/end-session/
-!/skills/end-session/**
+!/skills/task-gate/
+!/skills/task-gate/**
 !/skills/git-commit-conventions/
 !/skills/git-commit-conventions/**
 !/skills/git-worktree-env/

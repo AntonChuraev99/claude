@@ -1,6 +1,6 @@
 # Baseline Calibration — алгоритм перекалибровки
 
-Этот файл — extract из Step 2.6 `end-session/SKILL.md`. Применяется, когда после очередного `STATS_ROW` нужно пересчитать `Baseline` колонку в `~/.claude/stats/doc-writer.md` → `## Compound Effect`.
+Этот файл — extract из Step 2.6 `task-gate/SKILL.md`. Применяется, когда после очередного `STATS_ROW` нужно пересчитать `Baseline` колонку в `~/.claude/stats/doc-writer.md` → `## Compound Effect`.
 
 ## Формула compound effect
 

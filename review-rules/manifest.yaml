@@ -9,7 +9,7 @@
 version: 1
 
 # Severity policy
-#   high   — static HIGH blocks a commit (pre-commit) and fails the /end-session gate.
+#   high   — static HIGH blocks a commit (pre-commit) and fails the /task-gate gate.
 #   medium — reported, never blocks; fix before shipping.
 #   low    — informational.
 # Mode
