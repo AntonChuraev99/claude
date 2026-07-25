@@ -1,8 +1,9 @@
 # model-overlay.ps1 — SessionStart hook: injects a model-specific behavioral overlay.
 # Reads the active model from the hook's stdin JSON (.model — ground truth from the runtime,
 # NOT the model's self-report) and returns the matching overlay file as additionalContext.
-#   fable*  -> fable.md
-#   else    -> opus.md   (Opus overlay AND the fallback for any non-fable / unknown / absent model)
+#   fable*   -> fable.md
+#   *opus-5* -> opus-5.md
+#   else     -> opus.md  (Opus 4.x overlay AND the fallback for any unknown / absent model)
 # Rationale: an instruction that must run at a fixed lifecycle point belongs in a hook, not
 # CLAUDE.md (Anthropic memory docs); the model field is exposed ONLY to SessionStart hooks, so
 # routing here is deterministic and does not depend on the model correctly self-identifying.
@@ -20,9 +21,11 @@ try {
     } catch {}
 
     # --- pick overlay by model family (case-insensitive substring); opus.md is the fallback ---
+    # '*opus-5*' matches claude-opus-5 / claude-opus-5[1m] / bedrock arns, but NOT claude-opus-4-5.
     switch -Wildcard ($model.ToLowerInvariant()) {
-        '*fable*' { $file = 'fable.md' }
-        default   { $file = 'opus.md' }
+        '*fable*'  { $file = 'fable.md' }
+        '*opus-5*' { $file = 'opus-5.md' }
+        default    { $file = 'opus.md' }
     }
 
     $dir = $env:CLAUDE_MODEL_OVERLAY_DIR

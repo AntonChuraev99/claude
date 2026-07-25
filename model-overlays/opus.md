@@ -1,5 +1,6 @@
 <!-- Injected by hooks/model-overlay.ps1 as SessionStart additionalContext when the active
-     model is Opus — AND as the fallback for any non-fable / unknown / absent model.
+     model is Opus 4.x — AND as the fallback for any unknown / absent model.
+     Opus 5 has its own overlay (opus-5.md): несколько правил там инвертированы.
      Model-neutral policy stays in the global CLAUDE.md; this file holds ONLY the
      Opus-4.8 behavioral calibration. -->
 
