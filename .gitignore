@@ -115,3 +115,6 @@ settings.local.json
 config/*.local.md
 *.log
 *.jsonl
+
+# --- 14. Work-in-progress, not for publication ------------------------------
+/layout-debug-mcp/
