@@ -462,3 +462,16 @@
   message: "JsScreenHost-фабрика (прозрачный overlay над Compose-canvas) добавляет loading-спиннер сразу на cold-boot, пока Compose boot-splash ещё гаснет -> два кольца / «лоудер + лого правее» в момент хэндовера Splash->контент (DOM overlay не наследует Compose nav-fade)."
   fix: "гейтить показ overlay-спиннера на globalThis.__<yourapp>BootSplashGone (из SplashScreen.onDispose), снимать на React-mount, форсить на error; live-verify на реальном cold-boot (headed, real DPR), не headless. Guest-фабрику (непрозрачный overlay) не трогать."
   source: "docs/active/web-boot-spinner-first-frame-2026-07-23.md (FS-1125 follow-up)"
+
+# === mined 2026-07-24 (runtime probation) ===
+- id: web-anon-link-isnewuser-false-onboarding-skip
+  mode: runtime
+  severity: high
+  stack: [wasmjs, web]
+  globs: ["**/wasmJsMain/resources/*.js", "**/authentication/**/*.kt"]
+  detect:
+    type: grep
+    has: 'linkWithCredential'
+  message: "Firebase linkWithCredential НИКОГДА не ставит _tokenResponse.isNewUser (anon-сессия «уже существовала») -> guest-signup репортится как login -> онбординг скипается для ВСЕХ новых web-юзеров + Sign Up Success type=login. Инверсно: хардкод isNewUser=true на link-мосте, которому добавили sign-in-fallback, покажет онбординг returning-user'у."
+  fix: "link без returning-user fallback -> isNewUser=true (+INVARIANT-коммент «не добавлять fallback»); путь с fallback -> `linkedInPlace || tokenResponse.isNewUser`, не голый tokenResponse. Регресс-гвард: test-web e2e проект signup (onboarding.signup.spec.mjs)."
+  source: "docs/active/onboarding-after-signup-2026-07-24.md; NEW_RULE_CANDIDATE L2"

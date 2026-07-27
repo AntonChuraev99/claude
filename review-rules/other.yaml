@@ -148,3 +148,17 @@
   message: 'Permission-result callback without a denied branch that gives VISIBLE feedback: deny (incl. permanent deny on Android 11+, where the callback fires instantly) makes the triggering button a forever-dead tap - no pixel of feedback, violating "response to every user action".'
   fix: 'Add an else branch: route the denial through the caller-visible failure channel (ShowTopBannerUseCase / onPickerLaunchFailed) and consider a settings redirect on permanent deny.'
   source: 'media-picker camera 9efba5fc8 2026-07-16 (fixed same session in 9dea29315) + LOCKED-button precedent 2026-07-16 - same silent-no-op class'
+
+- id: gate-precondition-faked-in-unit-test
+  area: other
+  mode: process
+  severity: medium
+  tags:
+  - analytics
+  - testing
+  - ab-test
+  globs:
+  - '**/*Test.kt'
+  message: 'Тест утверждает "событие/ветка срабатывает в ОБОИХ армах / для всех вариантов", но предусловие-гейт (persisted-флаг, маркер, кэш) выставляется прямо в фейке, а не производится реальным писателем из другого слоя. Тест закрепляет ДОПУЩЕНИЕ о предусловии, а не контракт — и остаётся зелёным, пока прод молчит.'
+  fix: 'Тест на кросс-армовое/кросс-ветвевое утверждение обязан покрывать ПИСАТЕЛЯ предусловия (или быть интеграционным через оба слоя); иначе переформулировать ассерт как "при заданном маркере" и завести отдельный тест на того, кто маркер ставит.'
+  source: 'сессия 2026-07-26 analytics-dead-instrumentation: ActivationCoordinatorImplTest годами был зелёным на ассерте "FIRST_AI_CHECKLIST_CREATED must fire in the control arm too", пока прод не эмитил его контролю ни разу — маркер ставил SplashViewModel, а тест подставлял его сам. Рифмуется с routed_layer (только unknown/FullChat) и csat_chip_toggled=0 при 25 рейтингах'

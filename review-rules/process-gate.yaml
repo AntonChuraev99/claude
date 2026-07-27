@@ -61,3 +61,12 @@
   message: Onboarding ViewModel forward-navigates out of the flow (Main/Home/ChecklistDetail/Analyze) without persisting the completion flag — onboarding re-shows next launch and the A/B 'completed' arm under-counts.
   fix: Call completeOnboardingUseCase() (writes isOnboardingPassed=true to DataStore) on EVERY exit path (chip-seed, AI-analyze, skip, default) and ALWAYS before the forward navigate*; order is load-bearing (complete -> navigate, never the reverse). Ordering/multi-path variants where the use case IS referenced but mis-ordered fall to the L2 runtime reviewer, not this static rule.
   source: docs/solutions/features/onboarding-none-variant-2026-05-10.md; docs/completed/onboarding-3-variants-2026-06-19.md; docs/completed/welcome-onboarding-final-polish-2026-06-22.md; docs/decisions/onboarding-multimodality-variant-selection-2026-06-22.md
+
+- id: remote-string-contract-assumed-not-captured
+  mode: process
+  severity: high
+  trigger: "клиентский фикс сравнивает/нормализует ТОЧНУЮ строку из ответа удалённого сервиса (LLM-классификатор, Cloud Function, стор-API), а тест подставляет её фейком."
+  question: "Снята ли эта строка с ЖИВОГО сервиса (или эхнута прод-копией/логом), или набор построен по догадке? Учтены ли вариации падежа/предлога/кавычек/регистра, которые сервис волен вернуть?"
+  message: "equals-матч по невзятой с сервиса строке зелёный локально и no-op в проде: unit-тест с фейком фиксирует ДОПУЩЕНИЕ о контракте, а не контракт. Прецедент 2026-07-25 (deictic checklistHint): строка подтвердилась прод-копией ошибки, но падежная форма «в этот чеклист» не покрывалась и прошла бы мимо."
+  fix: "снять реальный ответ на точный пользовательский текст (/test-firebase-function, firebase-functions/tests/) ЛИБО опереться на строку, которую прод уже эхает в ошибке/логе; нормализовать очевидные морфо-вариации, а не перечислять одну форму."
+  source: "сессия 2026-07-25 deictic checklistHint (L2 bug-pattern-reviewer) + [[gemini-model-allowlist-must-be-probed]] + L3 suggest->create 07-23 (7 прогонов, не воспроизвёлся)"

@@ -48,3 +48,24 @@
   message: 'A PHOTOSHOOT wasmJs export path (share/download/save) that exports the raw CDN url/bytes without a premium check lets non-premium users get the ORIGINAL, un-watermarked photoshoot — a monetization bypass. Already shipped on download, then re-appeared on photoshoot share (2026-07-06). Also watch the FAILURE fallback: copyToClipboard(rawUrl) / raw-url download on a share failure re-leaks the un-watermarked original even when the happy path is gated. NOTE: watermark is photoshoot-only — non-photoshoot media is intentionally NOT watermarked, so this concern does not extend to it.'
   fix: 'Gate every PHOTOSHOOT export surface on premium via UserDataRepository (userData.firstOrNull() -> isAuth() && userData.isPremium()); for non-premium, run WasmBitmapWatermark.apply BEFORE export (mirror WasmPhotoshootImageDownloadService.downloadWithWatermark). Cover ALL branches incl. the desktop download-fallback AND the share-failure fallback. Add an e2e/repro assert that non-premium photoshoot share/download yields watermarked bytes (not raw).'
   source: 'features/photoshoots/src/wasmJsMain/.../PhotoshootShareHandler.wasmJs.kt + WasmPhotoshootImageDownloadService.kt (commit 65652264b); docs/solutions/wasm-bugs/web-share-watermark-blob-url-2026-07-06.md'
+
+# Added 2026-07-24: SECOND Safari media incident in 2 days (after safari-webkit-media-cache
+# 2026-07-23). WebKit paints a frameless <video> as an OPAQUE dark box (Chromium keeps it
+# transparent), so a video mounted over a stacked poster blanks the tile for the whole clip
+# download. Grep detect is fragile (absence of a reveal handler is hard to match) — runtime
+# mode: the grep only flags video-over-poster stacks for an eyes-on check of the opacity gate.
+# Detect matches only real JSX <video tags (comment lines excluded) — the first cut flagged
+# every prose mention in the reference file (11 dupes in one commit = warning fatigue).
+- id: webkit-frameless-video-opaque-box-needs-opacity-gate
+  mode: runtime
+  severity: medium
+  stack:
+  - web
+  globs:
+  - 'web-react/src/**/*.tsx'
+  detect:
+    type: grep
+    has: '^(?![ \t]*(//|\*|/\*|\{/\*)).*<video\b'
+  message: 'A <video> stacked over a poster <img> that becomes visible before its first frame is decoded paints as an OPAQUE dark box on WebKit/Safari (Chromium renders it transparent) — the tile goes blank over the poster for the entire clip download. Playwright WebKit-Win rarely reproduces it (fast cache); real Safari macOS does.'
+  fix: 'Render the <video> at opacity 0 and reveal imperatively on the first PRESENTED frame: requestVideoFrameCallback -> style.opacity=1 (fallback engines: playing/loadeddata), and re-hide + re-arm on `emptied` (offscreen reaper / reload strips frames). Reveal via DOM, not React state (grid-wide re-render churn). Reference: web-react/src/components/PreviewVideo.tsx attachVideo.'
+  source: 'docs/active/catalog-video-poster-until-playback-2026-07-24.md; docs/solutions/safari-webkit-media-cache-range-requests-2026-07-23.md'

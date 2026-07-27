@@ -1,6 +1,26 @@
 # purchase-billing — RevenueCat / paywall / entitlement / anon-id recurring bugs.
 # Mined 2026-06-29 from project incident history; all runtime (probation) pending telemetry.
 # === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
+- id: rc-price-mapper-drops-intro-price
+  mode: static
+  severity: high
+  stack:
+  - android
+  - wasmjs
+  - web
+  - kmp
+  globs:
+  - '**/RcFlatDomainMappers.kt'
+  - '**/*OfferingExt*.kt'
+  - '**/init.js'
+  detect:
+    type: grep
+    has: (fun\s+RcFlatPackage\.toOfferPackage|fun\s+Package\.toOfferPackage|function\s+__rcFlattenProduct)
+    unless: ^\s*(//|\*)
+    lacks: introPrice|introPricePhase|subscriptionOptions
+  message: A RevenueCat product->OfferPackage mapper (or the JS flatten feeding it) builds the displayed price without referencing the intro-price source (introPrice/introPricePhase/subscriptionOptions). product.price/currentPrice in BOTH RC SDKs is the BASE renewal price, so intro offers (e.g. $3.99 first period / $7.99 renewal) show the full price and discount computes to 0%. Second occurrence of this class - Android regressed during the KMP migration (restored in 8d0df2f7), then web shipped the same gap (FS-1136).
+  fix: 'Carry the intro phase across every abstraction layer and display effectivePrice = introPhasePrice ?: basePrice. Android: subscriptionOptions.firstOrNull { !it.isBasePlan }.pricingPhases.first().price. Web: init.js __rcFlattenProduct must emit introPrice (Product.introPricePhase) -> RcFlatProduct.introPrice -> toOfferPackage(). Keep per-week/month/year rates on the base price. Verify on a live paywall with an intro offering (discountPercent > 0 in the [PremiumOffer] log).'
+  source: FS-1136 web intro price 2026-07-24; app git commit 8d0df2f7 fix(premium) use intro price from subscriptionOptions for discount calc; .claude/rules/purchase-analytics.md (intro section)
 - id: paywall-already-linked-skips-rc-sync
   mode: runtime
   severity: high
