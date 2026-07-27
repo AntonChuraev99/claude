@@ -408,9 +408,65 @@ def is_claude_home(repo: Path) -> bool:
     return repo in {(home / ".claude").resolve(), (home / ".claude-work").resolve()}
 
 
-def hook_status(repo: Path) -> tuple[str, Path]:
-    """Return (status, path): 'installed' | 'absent' | 'foreign'."""
-    target = repo / ".git" / "hooks" / "pre-commit"
+def hooks_dir(start: str | None) -> Path | None:
+    """Resolve the directory git actually reads hooks from.
+
+    Must NOT be built as `<toplevel>/.git/hooks`: inside a linked worktree `.git`
+    is a FILE (`gitdir: ...`), so that path never exists (hook_status wrongly
+    reports 'absent') and mkdir on it fails with WinError 183. Hooks are shared
+    across worktrees via the common dir.
+
+    Order matches git's own: `core.hooksPath` wins when set, otherwise
+    `--git-common-dir`/hooks. `--git-common-dir` is relative (".git") when run
+    from a toplevel, so it is resolved against the git invocation cwd, not the
+    toplevel.
+    """
+    cwd = start or "."
+
+    cfg = subprocess.run(
+        ["git", "-C", cwd, "config", "--get", "core.hooksPath"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if cfg.returncode == 0 and cfg.stdout.strip():
+        p = Path(cfg.stdout.strip())
+        return p.resolve() if p.is_absolute() else (Path(cwd) / p).resolve()
+
+    common = subprocess.run(
+        ["git", "-C", cwd, "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if common.returncode != 0 or not common.stdout.strip():
+        return None
+    p = Path(common.stdout.strip())
+    if not p.is_absolute():
+        p = Path(cwd) / p
+    return (p / "hooks").resolve()
+
+
+def repo_label(start: str | None, repo: Path) -> str:
+    """Name to show the user. Inside a linked worktree the toplevel name is the
+    worktree's ('push-token-dedup'), which misleads — the hook is shared, so name
+    the owning repo and mark the worktree."""
+    common = subprocess.run(
+        ["git", "-C", start or ".", "rev-parse", "--git-common-dir"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if common.returncode == 0 and common.stdout.strip():
+        p = Path(common.stdout.strip())
+        if not p.is_absolute():
+            p = Path(start or ".") / p
+        owner = p.resolve().parent
+        if owner != repo:
+            return f"{owner.name} [worktree: {repo.name}]"
+    return repo.name
+
+
+def hook_status(start: str | None) -> tuple[str, Path | None]:
+    """Return (status, path): 'installed' | 'absent' | 'foreign' | 'unknown'."""
+    hooks = hooks_dir(start)
+    if hooks is None:
+        return ("unknown", None)
+    target = hooks / "pre-commit"
     if not target.exists():
         return ("absent", target)
     try:
@@ -438,13 +494,16 @@ def check_hook(start: str | None) -> int:
     if is_claude_home(repo):
         print("review-rules: config repo — hook N/A")
         return 0
-    status, target = hook_status(repo)
+    status, target = hook_status(start)
+    label = repo_label(start, repo)
     if status == "installed":
-        print(f"review-rules: pre-commit hook installed ({repo.name})")
+        print(f"review-rules: pre-commit hook installed ({label})")
+    elif status == "unknown":
+        print(f"review-rules: cannot resolve hooks dir for {label} — hook state unknown")
     elif status == "absent":
-        print(f"review-rules: pre-commit hook NOT installed ({repo.name}) — run: python ~/.claude/review-rules/run.py --ensure-hook")
+        print(f"review-rules: pre-commit hook NOT installed ({label}) — run: python ~/.claude/review-rules/run.py --ensure-hook")
     else:
-        print(f"review-rules: foreign pre-commit in {repo.name} — add manually: python \"$HOME/.claude/review-rules/run.py\" --staged || exit 1")
+        print(f"review-rules: foreign pre-commit in {label} — add manually: python \"$HOME/.claude/review-rules/run.py\" --staged || exit 1")
     return 0
 
 
@@ -460,10 +519,15 @@ def ensure_hook(start: str | None, explicit: bool = False) -> int:
     repo = git_root(start)
     if repo is None or is_claude_home(repo):
         return 0  # not a project repo — nothing to configure
-    status, target = hook_status(repo)
+    status, target = hook_status(start)
+    label = repo_label(start, repo)
     if status == "installed":
         if explicit:
-            print(f"review-rules: pre-commit hook already installed ({repo.name})")
+            print(f"review-rules: pre-commit hook already installed ({label})")
+        return 0
+    if status == "unknown" or target is None:
+        if explicit:
+            print(f"review-rules: cannot resolve hooks dir for {label} — not installing")
         return 0
     if status == "foreign":
         # Don't break an existing hook — surface it so the user wires it in.
