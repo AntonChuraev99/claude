@@ -64,9 +64,9 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 Запущен ли COMPLETE и **получен ли результат**?
 
-**Матрица обязательности** (CLAUDE.md → «Когда звать doc-writer»): Complex × любой / Standard × Medium-High / Trivial × Medium-High → **обязательно**; Trivial × Low → нет, **кроме спец-условий** (2+ итерации, 5+ файлов, новый модуль, миграция, recurring bug, performance fix, нетривиальный инфраструктурный фикс).
+**Матрица обязательности** (`~/.claude/clauderules/task-classification.md` → «Документирование нетривиальных решений»): Complex × любой / Standard × Medium-High / Trivial × Medium-High → **обязательно**; Trivial × Low → нет, **кроме спец-условий** (2+ итерации, 5+ файлов, новый модуль, миграция, recurring bug, performance fix, нетривиальный инфраструктурный фикс).
 
-**Запустить** при необходимости: `Agent(subagent_type="doc-writer", run_in_background=true)`. **В prompt передать:** GOAL; путь к активному документу; путь к project memory; hard scope guard; **`Шагов: N`** (правила — CLAUDE.md → «Подсчёт реальных шагов задачи»; считать шаги **этой задачи**, от BASE_SHA, не всей сессии); готовый `git diff --name-only <BASE_SHA>..HEAD -- ':(exclude)docs/*'`; 3–5 строк key-findings; **инструкцию финальной архивации (Шаг 7):** «после сбора метрик перемести активный документ в `docs/completed/` и верни `ARCHIVED:` путь» — только при статусе `Done` (Partially Done / Deferred → остаётся в `docs/active/`). Скилл оценивает `N` по transcript: code-edit + build/test + делегации, исключая `/commit`, `/task-gate`, `@knowledge-scout`, `@doc-writer` фазы, todo updates, чтение файлов. Не нужен → `✅ skipped (rule)`.
+**Запустить** при необходимости: `Agent(subagent_type="doc-writer", run_in_background=true)`. **В prompt передать:** GOAL; путь к активному документу; путь к project memory; hard scope guard; **`Шагов: N`** (правила подсчёта — `references/calibration.md` → «Источник `iterations`»; считать шаги **этой задачи**, от BASE_SHA, не всей сессии); готовый `git diff --name-only <BASE_SHA>..HEAD -- ':(exclude)docs/*'`; 3–5 строк key-findings; **инструкцию финальной архивации (Шаг 7):** «после сбора метрик перемести активный документ в `docs/completed/` и верни `ARCHIVED:` путь» — только при статусе `Done` (Partially Done / Deferred → остаётся в `docs/active/`). Скилл оценивает `N` по transcript: code-edit + build/test + делегации, исключая `/commit`, `/task-gate`, `@knowledge-scout`, `@doc-writer` фазы, todo updates, чтение файлов. Не нужен → `✅ skipped (rule)`.
 
 **Why `Шагов: N`:** без поля counter падает на fallback `grep -c "### Итерация "` (частота делегирования, не сложность). Аудит 2026-05-11 → Trivial compound effect = −90%.
 
@@ -88,7 +88,7 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 Если COMPLETE написал постоянный документ (`docs/solutions/...` или `docs/decisions/...`), он возвращает префикс `INDEX_ROW:` со строкой.
 
-Действие: извлечь `INDEX_ROW: ...`; открыть `docs/solutions/INDEX.md` (создать с шапкой если нет — формат в CLAUDE.md пункт 7 gate); дописать строку **наверх** таблицы (после `|---|---|---|---|`); обновить `_Last updated:_`.
+Действие: извлечь `INDEX_ROW: ...`; открыть `docs/solutions/INDEX.md` (нет — создать с шапкой: заголовок `# Solutions INDEX`, `_Last updated:_`, таблица `| Дата | Задача | Документ | Кратко |`); дописать строку **наверх** таблицы (после `|---|---|---|---|`); обновить `_Last updated:_`.
 
 `INDEX_ROW:` нет → постоянный документ не создавался, `✅ N/A`.
 
@@ -117,6 +117,10 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 - **Hook setup `[once]` (self-config):** раз за сессию, на первом прогоне gate: `python ~/.claude/review-rules/run.py --check-hook`. SessionStart обычно уже поставил pre-commit автоматически; `NOT installed` → подсветить `⚠️` + строку `--ensure-hook`; `foreign` (чужой pre-commit) → подсветить + дать строку для ручной вставки (auto не клобберит чужой hook).
 
 Статус: `✅ clean` / `❌ N static HIGH` / `⚠️ N runtime + M process armed` / `⚠️ pre-commit not set`.
+
+### 2.10 Improvements log
+
+Задача меняла `~/.claude/CLAUDE.md`, `~/.claude/agents/*`, `~/.claude/skills/*` или `~/.claude/settings.json` → должен существовать `~/.claude/improvements/<YYYY-MM-DD>-<slug>.md` + строка в index-таблице `improvements/README.md`. Нет → `⚠️ improvement log missing` (не блокер, но в отчёт). Правила и шаблон — `~/.claude/CLAUDE.md` → «Изменения глобальных правил» + `improvements/README.md`. Ничего из перечисленного не менялось → `✅ N/A`.
 
 ---
 
