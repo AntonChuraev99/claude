@@ -18,7 +18,6 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 | `agents/` | 12 specialist subagents (see below). |
 | `skills/` | 15 authored skills (see below). |
 | `commands/` | 6 slash commands. |
-| `output-styles/anti-slop-ru.md` | An output style that strips "AI slop" tells from Russian prose. |
 | `*.ps1`, `statusline.sh`, `*.vbs` | Hook & status-line scripts wired up in `settings.example.json`. |
 | `references/` | Long-form reference docs the skills/commands point to. |
 | `settings.example.json` | Template for `~/.claude/settings.json` (hooks, permissions, plugins, status line). Copy it, fill in your key, drop the `.example`. |
@@ -52,7 +51,6 @@ clean.
 ├── agents/                    # 12 subagents
 ├── skills/                    # 15 authored skills
 ├── commands/                  # 6 slash commands
-├── output-styles/
 ├── references/
 ├── config/                    # *.example.md templates → *.local.md
 ├── notify.ps1                 # Windows toast notifications (Stop / Notification hooks)
