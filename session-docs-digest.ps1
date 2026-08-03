@@ -1,6 +1,7 @@
 # SessionStart hook: дайджест доков задач текущего проекта.
 # - docs/active/*.md  — «в работе»: шапка `**Статус:**` != Done/Complete/Resolved
 # - docs/todos/*.md   — «отложено»: YAML frontmatter status: deferred (TEMPLATE/INDEX пропускаются)
+# - docs/backlog/*.md — «бэклог»: YAML frontmatter status: backlog (done/cancelled скрыты)
 # Вывод: JSON c systemMessage (видит пользователь, top-N свежих, box-drawing оформление)
 #        + additionalContext (видит модель, ПОЛНЫЙ список компактно).
 # systemMessage намеренно ограничен top-N: терминал persist'ит вывод >~10KB в файл,
@@ -21,15 +22,34 @@ try {
 } catch {}
 if (-not $cwd) { $cwd = (Get-Location).Path }
 
-$activeDir = Join-Path $cwd 'docs/active'
-$todosDir  = Join-Path $cwd 'docs/todos'
-if (-not (Test-Path $activeDir) -and -not (Test-Path $todosDir)) { exit 0 }
+$activeDir  = Join-Path $cwd 'docs/active'
+$todosDir   = Join-Path $cwd 'docs/todos'
+$backlogDir = Join-Path $cwd 'docs/backlog'
+if (-not (Test-Path $activeDir) -and -not (Test-Path $todosDir) -and -not (Test-Path $backlogDir)) { exit 0 }
 
 function Clip([string]$s, [int]$max = 160) {
     if (-not $s) { return '' }
     $s = ($s -replace '\s+', ' ').Trim()
     if ($s.Length -gt $max) { return $s.Substring(0, $max - 1) + [char]0x2026 }
     return $s
+}
+
+# YAML frontmatter первых строк файла; $null — файла нет, шапки нет или она не открывается '---'
+function Read-Frontmatter([string]$path, [int]$head = 30) {
+    $lines = Get-Content $path -TotalCount $head -Encoding UTF8
+    if (-not $lines -or $lines[0].Trim() -ne '---') { return $null }
+    $fm = @{}
+    foreach ($l in ($lines | Select-Object -Skip 1)) {
+        if ($l.Trim() -eq '---') { break }
+        if ($l -match '^([A-Za-z_]+):\s*(.*)$') {
+            $k = $Matches[1]
+            $v = $Matches[2].Trim()
+            # YAML-кавычки вокруг значения; $Matches перезаписывается — ключ уже сохранён в $k
+            if ($v -match '^"(.*)"$' -or $v -match "^'(.*)'$") { $v = $Matches[1] }
+            $fm[$k] = $v
+        }
+    }
+    return $fm
 }
 
 # --- docs/active: markdown-шапка (# Title, **Статус:**, **Дата старта:**, ## Цель) ---
@@ -74,14 +94,8 @@ $todos = @()
 if (Test-Path $todosDir) {
     foreach ($f in Get-ChildItem $todosDir -Filter '*.md' -File) {
         if ($f.Name -in @('TEMPLATE.md', 'INDEX.md')) { continue }
-        $lines = Get-Content $f.FullName -TotalCount 30 -Encoding UTF8
-        if (-not $lines -or $lines[0].Trim() -ne '---') { continue }
-        $fm = @{}
-        foreach ($l in ($lines | Select-Object -Skip 1)) {
-            if ($l.Trim() -eq '---') { break }
-            if ($l -match '^([A-Za-z_]+):\s*(.*)$') { $fm[$Matches[1]] = $Matches[2].Trim() }
-        }
-        if ($fm['status'] -ne 'deferred') { continue }
+        $fm = Read-Frontmatter $f.FullName
+        if (-not $fm -or $fm['status'] -ne 'deferred') { continue }
         $title = if ($fm['title']) { $fm['title'] } else { $f.BaseName }
         $todos += [pscustomobject]@{
             Title  = Clip $title 100
@@ -94,7 +108,25 @@ if (Test-Path $todosDir) {
     $todos = @($todos | Sort-Object Date -Descending)
 }
 
-if (-not $active -and -not $todos) { exit 0 }
+# --- docs/backlog: YAML frontmatter (title, date, status, area); done/cancelled скрыты ---
+$backlog = @()
+if (Test-Path $backlogDir) {
+    foreach ($f in Get-ChildItem $backlogDir -Filter '*.md' -File) {
+        if ($f.Name -in @('TEMPLATE.md', 'INDEX.md')) { continue }
+        $fm = Read-Frontmatter $f.FullName
+        if (-not $fm -or $fm['status'] -ne 'backlog') { continue }
+        $title = if ($fm['title']) { $fm['title'] } else { $f.BaseName }
+        $backlog += [pscustomobject]@{
+            Title = Clip $title 100
+            Path  = "docs/backlog/$($f.Name)"
+            Date  = Clip $fm['date'] 24
+            Area  = Clip $fm['area'] 40
+        }
+    }
+    $backlog = @($backlog | Sort-Object Date -Descending)
+}
+
+if (-not $active -and -not $todos -and -not $backlog) { exit 0 }
 
 # --- оформление (box-drawing) ---
 $proj   = Split-Path $cwd -Leaf
@@ -109,7 +141,7 @@ $Dot    = [char]0x00B7                # ·
 # --- systemMessage: top-N свежих, с разделителями ---
 $sb = [System.Text.StringBuilder]::new()
 [void]$sb.AppendLine($Heavy)
-[void]$sb.AppendLine("  ДОКИ ЗАДАЧ $($proj.ToUpper())  $Dot  в работе: $($active.Count)  $Dot  отложено: $($todos.Count)")
+[void]$sb.AppendLine("  ДОКИ ЗАДАЧ $($proj.ToUpper())  $Dot  в работе: $($active.Count)  $Dot  отложено: $($todos.Count)  $Dot  бэклог: $($backlog.Count)")
 [void]$sb.AppendLine($Heavy)
 
 if ($active) {
@@ -150,11 +182,29 @@ if ($todos) {
         [void]$sb.AppendLine("  $Dot$Dot$Dot и ещё $($todos.Count - $MaxPretty) — docs/todos/INDEX.md (полный список в контексте сессии)")
     }
 }
+
+if ($backlog) {
+    [void]$sb.AppendLine('')
+    $shown = [Math]::Min($backlog.Count, $MaxPretty)
+    $label = if ($backlog.Count -gt $shown) { " (свежие $shown из $($backlog.Count))" } else { '' }
+    [void]$sb.AppendLine("$Arrow БЭКЛОГ — docs/backlog$label")
+    [void]$sb.AppendLine('')
+    foreach ($b in ($backlog | Select-Object -First $MaxPretty)) {
+        [void]$sb.AppendLine("$Bullet $($b.Title)")
+        $meta = @($b.Date, $b.Area) | Where-Object { $_ }
+        if ($meta) { [void]$sb.AppendLine("  $Tee $($meta -join "  $Dot  ")") }
+        [void]$sb.AppendLine("  $End $($b.Path)")
+        [void]$sb.AppendLine($Thin)
+    }
+    if ($backlog.Count -gt $MaxPretty) {
+        [void]$sb.AppendLine("  $Dot$Dot$Dot и ещё $($backlog.Count - $MaxPretty) — docs/backlog/INDEX.md (полный список в контексте сессии)")
+    }
+}
 $pretty = $sb.ToString().TrimEnd()
 
 # --- additionalContext: полный список, компактно (без рамок — экономия токенов) ---
 $cb = [System.Text.StringBuilder]::new()
-[void]$cb.AppendLine("Дайджест доков задач проекта (docs/active + docs/todos):")
+[void]$cb.AppendLine("Дайджест доков задач проекта (docs/active + docs/todos + docs/backlog):")
 if ($active) {
     [void]$cb.AppendLine('')
     [void]$cb.AppendLine("В РАБОТЕ ($($active.Count)):")
@@ -178,8 +228,19 @@ if ($todos) {
         if ($t.Resume) { [void]$cb.AppendLine("  resume: $($t.Resume)") }
     }
 }
+if ($backlog) {
+    [void]$cb.AppendLine('')
+    [void]$cb.AppendLine("БЭКЛОГ ($($backlog.Count)) — берётся руками, внешней блокировки нет:")
+    foreach ($b in $backlog) {
+        $head = "- $($b.Title)"
+        $meta = @($b.Date, $b.Area) | Where-Object { $_ }
+        if ($meta) { $head += " ($($meta -join ', '))" }
+        [void]$cb.AppendLine($head)
+        [void]$cb.AppendLine("  $($b.Path)")
+    }
+}
 [void]$cb.AppendLine('')
-[void]$cb.AppendLine("Это фоновая справка о незавершённых/отложенных задачах проекта — не начинай работу по этим докам без явного запроса пользователя. Пользователю в терминале показаны только $MaxPretty свежих записей каждой секции — на вопрос «что в работе/отложено?» отвечай из этого полного списка.")
+[void]$cb.AppendLine("Это фоновая справка о незавершённых/отложенных задачах проекта — не начинай работу по этим докам без явного запроса пользователя. Пользователю в терминале показаны только $MaxPretty свежих записей каждой секции — на вопрос «что в работе/отложено/в бэклоге?» отвечай из этого полного списка.")
 $ctx = $cb.ToString().TrimEnd()
 
 @{

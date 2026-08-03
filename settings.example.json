@@ -231,7 +231,7 @@
             "type": "command",
             "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\session-docs-digest.ps1\"",
             "timeout": 30,
-            "statusMessage": "Собираю дайджест docs/active + docs/todos…"
+            "statusMessage": "Собираю дайджест docs/active + docs/todos + docs/backlog…"
           },
           {
             "type": "command",

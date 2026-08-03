@@ -64,7 +64,7 @@ credential registry that guards against deploying with another project's account
 ├── config/                    # *.example.md templates → *.local.md
 ├── notify.ps1                 # Windows toast notifications (Stop / Notification hooks)
 ├── statusline.sh              # status line (model · branch · context · cost · device)
-├── session-docs-digest.ps1    # SessionStart: digest of in-progress / deferred task docs
+├── session-docs-digest.ps1    # SessionStart: digest of in-progress / deferred / backlog task docs
 ├── doc-writer-update-reminder.ps1
 ├── toast-action.ps1 / .vbs    # toast button actions (open folder / focus terminal)
 └── LICENSE
