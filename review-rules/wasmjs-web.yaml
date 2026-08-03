@@ -475,3 +475,18 @@
   message: "Firebase linkWithCredential НИКОГДА не ставит _tokenResponse.isNewUser (anon-сессия «уже существовала») -> guest-signup репортится как login -> онбординг скипается для ВСЕХ новых web-юзеров + Sign Up Success type=login. Инверсно: хардкод isNewUser=true на link-мосте, которому добавили sign-in-fallback, покажет онбординг returning-user'у."
   fix: "link без returning-user fallback -> isNewUser=true (+INVARIANT-коммент «не добавлять fallback»); путь с fallback -> `linkedInPlace || tokenResponse.isNewUser`, не голый tokenResponse. Регресс-гвард: test-web e2e проект signup (onboarding.signup.spec.mjs)."
   source: "docs/active/onboarding-after-signup-2026-07-24.md; NEW_RULE_CANDIDATE L2"
+
+# === mined 2026-08-03 (runtime probation) ===
+- id: global-over-video-overlay-without-hostzindex
+  mode: runtime
+  severity: high
+  probation: '2026-08-03'
+  stack: [wasmjs, web]
+  globs: ["**/ui/AppContent.kt"]
+  detect:
+    type: grep
+    has: 'ComposeOverVideoContent\('
+    lacks: 'hostZIndex'
+  message: "Глобальный over-video overlay (диалог/шторка в app-хосте выше NavHost) обёрнут в ComposeOverVideoContent, но БЕЗ hostZIndex. CMP 1.11 упорядочивает interop-хосты (<video>, nested viewport) по порядку ОТРИСОВКИ Compose-дерева (WebInteropContainer.place -> countInteropComponentsBelow -> traverseDescendantsInDrawOrder), а не по времени создания DOM: overlay, эмитируемый выше NavHost, получает индекс НИЖЕ <video> экрана и тонет под видео пейвола/онбординга, сколько бы позже он ни смонтировался. Обёртка сама по себе тут не спасает."
+  fix: "Overlay внутри экрана -> достаточно эмитить его ПОСЛЕ VideoSurface в том же дереве. Overlay глобальный (хостится выше NavHost) -> обязателен hostZIndex: z-index на CMP-wrapper выводит хост из tree-order (interop-хосты - siblings под <body>, положительный z-index бьёт auto). Новое значение сверять с ОБЕИМИ половинами лестницы: Compose-константы (*HostZIndex) И body-level DOM-слои из init.js (RC-checkout 2_100_000, JS-экраны/React-шелл 2_147_483_600, wasm-gc 2_147_483_647). Подняв один хост, поднять и соседей по файлу, которые обязаны быть выше (канал уведомлений - App Top Banner) - иначе они молча уходят под него. ВНИМАНИЕ: детект здесь файлового уровня и замолкает, как только в файле появился хоть один hostZIndex; построчный enforcement живёт в fs-гварде проекта (test-web/e2e/overlay-zorder.static.spec.mjs) - каждый ComposeOverVideoContent в глобальном хосте обязан нести hostZIndex."
+  source: "web paywall purchase-error dialog under <video> (2026-08-03); rules/wasmjs-web-video-css.md §Диалоги/overlay поверх видео"
