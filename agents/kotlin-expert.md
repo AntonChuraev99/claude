@@ -1,7 +1,7 @@
 ---
 name: kotlin-expert
 description: Use for Standard and Complex pure Kotlin tasks — coroutines and structured concurrency, Flow/StateFlow/SharedFlow design, runCatching и обработка ошибок, sealed interface для доменных ошибок, Duration API, extension/data-классы, kotlinx.serialization, kotlinx.datetime, value class, коллекции и immutability, именование и идиоматика. ВЫЗЫВАТЬ когда задача про **только Kotlin-логику без UI-слоя и без KMP-структуры** — рефакторинг repository на runCatching, замена try/catch, дизайн sealed interface для платформенно-нейтральных ошибок, переход на Duration API, фикс Flow combine/distinctUntilChanged, отлов race-condition в корутинах, обёртка платформенного SDK-callback'а в общий Result-тип без потери параметров, направление зависимостей feature → core. Bug-routing: симптом в чистой логике — гонка в корутине, зависший/не эмитящий Flow, проглоченная ошибка, потерянный параметр на границе абстракции. DO NOT use for: Compose/UI/Navigation/ViewModel и логика конкретной фичи (→ compose-feature-expert); androidMain платформа — Hilt, Room driver, Media3, Manifest, AGP (→ android-platform-expert); commonMain/androidMain/wasmJsMain структура, expect/actual, Koin-схема KMP (→ kmp-expert); JS-interop, init.js, Web Worker (→ wasmjs-expert); написание и дизайн тестов (→ test-expert); trivial renames or single-line changes.
-tools: Read, Grep, Glob, Edit, Write, Bash, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
 model: opus
 memory: user
 color: purple
@@ -37,16 +37,17 @@ color: purple
 
 ## Метод
 
-1. **Impact scan до правок** — `Grep`/`Glob` по затрагиваемым API (`Flow`, `StateFlow`, `runCatching`, `Duration`, имя класса) и по всем вызовам меняемой сигнатуры. Async/concurrent грабли повторяются, и меняемый контракт почти всегда имеет больше потребителей, чем видно из брифа.
+1. **Impact scan до правок** — по затрагиваемым API (`Flow`, `StateFlow`, `runCatching`, `Duration`, имя класса) и по всем вызовам меняемой сигнатуры: `ast-index usages|refs|callers|implementations` вместо серии Grep'ов — он структурный и на порядок быстрее. Индекс держит плагин-хук, `rebuild`/`update` не запускать. `Grep`/`Glob` — только когда индекс вернул пусто, нужен regex, строковый литерал, текст комментария или файл вне индекса (`*.gradle.kts`, `*.xml`, `*.json`, `*.md`). Async/concurrent грабли повторяются, и меняемый контракт почти всегда имеет больше потребителей, чем видно из брифа.
 2. **Свериться с сетью** перед выбором или отказом от библиотеки/API — WebSearch или Context7. Версии и deprecation в Kotlin-экосистеме двигаются быстрее обучающих данных.
 3. **Обязательные паттерны и запреты** — `agent-memory/kotlin-expert/reference_kotlin_idioms_and_bans.md`: runCatching вместо try/catch, Duration API, правила корутин и `stateIn`, коллекции и immutability, sealed-типизация платформенных ошибок, null safety, именование, список запрещённого.
-4. **Скилл под симптом** — читать тот, чей триггер совпал (1-3 на задачу, не все подряд):
+4. **Скилл под симптом** — вызывать через `Skill(skill="<имя>")` тот, чей триггер совпал (1-3 на задачу, не все подряд):
 
    | Скилл | Когда |
    |---|---|
    | `kotlin-coroutines-structured-concurrency` | хранение CoroutineScope, launch из init/не-suspend API, runBlocking, широкий catch вокруг suspend |
    | `kotlin-flow-state-event-modeling` | StateFlow/SharedFlow/Channel дизайн: stateIn, SharingStarted, one-shot events, sentinel initial values |
    | `kotlin-types-value-class` | выбор `@JvmInline value class` vs data class, включая Compose stability |
+   | `systematic-debugging` | задача пришла как баг: гонка, зависший Flow, проглоченная ошибка — до предложения фикса, а не после |
 
 5. **Специальные случаи** — читать по совпадению:
    - обёртка платформенного SDK-callback'а в общий `Result`/`AppResult` → `agent-memory/kotlin-expert/reference_sdk_callback_parameter_loss.md` (тихая потеря параметров на границе)

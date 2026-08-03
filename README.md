@@ -45,7 +45,7 @@ credential registry that guards against deploying with another project's account
 `end-session`), `git-commit-conventions`, `git-worktree-env`, `gradle-deps-update`,
 `android-core-module-builder`, `android-feature-module-builder`, `ab-test-dashboard`,
 `amplitude-slack-payload`, `cloudflare-deploy-slack-notify`, `gitlab-release-slack-ci`,
-`jira-task-writer`, `test-firebase-function`, `turnstile-spin`, `stop-slop-ru`.
+`jira-task-writer`, `test-firebase-function`, `turnstile-spin`.
 
 > Installed third-party skills (official Google Android, Cloudflare, Anthropic, etc.) are
 > **not** included — they are their authors' IP and install from their own marketplaces.

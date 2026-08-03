@@ -32,7 +32,7 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 ## Workflow
 
-5 шагов **последовательно**, статус (`✅`/`⚠️`/`❌`) после каждой проверки, финальный отчёт в конце: Step 1 — Task Snapshot; Step 2 — Definition of Done Checks (10 пунктов gate); Step 3 — Sub-agent Sanity Check; Step 4 — Recommendations Pull; Step 5 — Final Report.
+5 шагов **последовательно**, статус (`✅`/`⚠️`/`❌`) после каждой проверки, финальный отчёт в конце: Step 1 — Task Snapshot; Step 2 — Definition of Done Checks (11 пунктов gate); Step 3 — Sub-agent Sanity Check; Step 4 — Recommendations Pull; Step 5 — Final Report.
 
 ---
 
@@ -46,7 +46,7 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 ## Step 2 — Definition of Done Checks
 
-9 пунктов CLAUDE.md → «Definition of Done» + п. 2.9 (bug-pattern review). Прогоняй по порядку, статус одной строкой.
+9 пунктов CLAUDE.md → «Definition of Done» + п. 2.3b (diff review двумя осями) + п. 2.9 (bug-pattern review). Прогоняй по порядку, статус одной строкой.
 
 ### 2.1 Validation
 
@@ -54,11 +54,26 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 ### 2.2 Impact Scan
 
-Все зависимости обновлены: импорты, использования, тесты. `Grep` по именам ключевых сущностей, изменённых **в этой задаче** (дифф от BASE_SHA). Правка в одном файле без новых или переименованных символов — отметить, что сканировать нечего.
+Все зависимости обновлены: импорты, использования, тесты. Проверять через `ast-index` по именам ключевых сущностей, изменённых **в этой задаче** (дифф от BASE_SHA): `ast-index changed --base <BASE_SHA>` даёт список изменённых символов, дальше `usages` / `refs` / `implementations` по каждому. `Grep` — fallback на regex, строковые литералы и файлы вне индекса; `rebuild`/`update` не запускать. Правка в одном файле без новых или переименованных символов — отметить, что сканировать нечего.
 
 ### 2.3 Self-check vs FAILURE
 
 Результат соответствует FAILURE-критериям Prompt Contract (архитектура, хардкод, error handling). Контракт не озвучивался → `⚠️ no Prompt Contract` + попросить подтвердить.
+
+### 2.3b Diff review свежим агентом (Standards + Spec)
+
+Инвариант CLAUDE.md → «Роль главного агента»: перед «готово» дифф ревьюит **свежий субагент** — он видит только дифф и критерий, не видит рассуждений, которые к нему привели. Метод — две независимые оси (скилл `code-review`):
+
+- **Standards** — соответствует ли код документированным правилам проекта + smell baseline (12 смелов Фаулера).
+- **Spec** — реализует ли дифф то, о чём просили (активный документ задачи / Prompt Contract): пропущенные требования, scope creep, неверно понятые требования.
+
+**Когда запускать:** дифф от BASE_SHA непуст и трогает код или конфигурацию. Правка только в `docs/`, только в `~/.claude/*.md`, либо `/code-review` уже прогонялся по этой задаче → `✅ N/A` / `✅ verified by /code-review`.
+
+**Как:** fail fast (`git rev-parse <BASE_SHA>`, непустой `git diff --stat <BASE_SHA>...HEAD`) → два вызова `Agent(subagent_type="general-purpose")` **одним сообщением**, параллельно. Отчёты печатать **раздельно**, не сливая и не переранжируя между осями.
+
+Полные промпты, smell baseline, порядок поиска Spec-источника, правила «проект перекрывает baseline» и «пропускать то, что ловит линтер» → [`references/diff-review-axes.md`](references/diff-review-axes.md).
+
+Статус: `✅ clean (2 axes)` / `⚠️ N standards + M spec findings` / `❌ spec: требование не реализовано` (блокер — задача не делает того, о чём просили). Standards-находки уровня суждения gate не блокируют; их место — в отчёт.
 
 ### 2.4 `@doc-writer` COMPLETE
 
@@ -208,7 +223,7 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 ### 5.2 Final Report
 
-Табличка `TASK GATE` со всеми пунктами 2.1–2.9 + 3 + 4 + 5.1 + статусами, завершить `VERDICT: <READY|READY WITH WARNINGS|NOT READY>`. После — обязательно секция Recommendations (5.2.1).
+Табличка `TASK GATE` со всеми пунктами 2.1–2.10 (включая 2.3b) + 3 + 4 + 5.1 + статусами, завершить `VERDICT: <READY|READY WITH WARNINGS|NOT READY>`. После — обязательно секция Recommendations (5.2.1).
 
 Маркеры: `4 Recommendations` → `✅ N queued (H/M/L)`. `5.1 Commit`: `✅` / `✅ auto` (SHA в ответ) / `⚠️ deferred` / `❌ uncommitted`.
 
@@ -228,7 +243,7 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 ## Что скилл НЕ делает
 
-Не делает код-ревью (`/review`/`compound-engineering:ce-review`); security-аудит (`/security-review`); не вызывает `git commit` через Bash (только `/commit` или auto через 5.1.1); не пишет документацию (проверяет `@doc-writer`); не оптимизирует субагентов (записывает рекомендации в queue, Step 4).
+Не делает **глубокое** код-ревью (`/review`/`compound-engineering:ce-review`) — 2.3b это две узкие оси на диффе задачи, не полный аудит; не делает security-аудит (`/security-review`); не вызывает `git commit` через Bash (только `/commit` или auto через 5.1.1); не пишет документацию (проверяет `@doc-writer`); не оптимизирует субагентов (записывает рекомендации в queue, Step 4).
 
 ## Edge cases
 
@@ -241,4 +256,5 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 - `~/.claude/stats/doc-writer.md` — глобальная статистика (`STATS_ROW`).
 - `docs/solutions/INDEX.md` — per-project индекс (`INDEX_ROW`).
 - `@doc-writer` — субагент INIT/UPDATE/COMPLETE.
-- `references/` — calibration, deferred-work-scan, auto-commit-rules, edge-cases.
+- `code-review` — скилл-источник метода двух осей (2.3b); отдельно от gate применим к произвольной базовой точке.
+- `references/` — calibration, deferred-work-scan, auto-commit-rules, edge-cases, diff-review-axes.
