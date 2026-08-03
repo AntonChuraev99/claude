@@ -14,9 +14,10 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 
 | Path | What it is |
 |------|------------|
-| `CLAUDE.md` | The global system prompt — task classification, a Prompt Contract, delegation rules tuned for Opus 4.x, git/commit policy, documentation workflow. The core of the setup. |
-| `agents/` | 12 specialist subagents (see below). |
-| `skills/` | 15 authored skills (see below). |
+| `CLAUDE.md` | The global system prompt — the main agent's operating mode (research → plan → delegate → verify), a Prompt Contract, git/commit policy, Definition of Done. Kept under 200 lines on purpose; everything procedural lives in skills or path-scoped rules. |
+| `rules/` | Path-scoped rules (`paths:` frontmatter) that load only when Claude touches matching files — `docs/**`, `*.kt`, etc. Zero context cost until they match. |
+| `agents/` | 15 specialist subagents (see below). Authored against the `subagent-authoring` skill. |
+| `skills/` | Authored skills: domain workflows plus the process skills migrated out of `CLAUDE.md` (see below). |
 | `commands/` | 6 slash commands. |
 | `*.ps1`, `statusline.sh`, `*.vbs` | Hook & status-line scripts wired up in `settings.example.json`. |
 | `references/` | Long-form reference docs the skills/commands point to. |
@@ -33,11 +34,18 @@ clean.
 
 ### Skills (`skills/`)
 
-`commit`, `task-gate` (per-task Definition of Done gate; ранее `end-session`), `git-commit-conventions`, `git-worktree-env`,
-`gradle-deps-update`, `android-core-module-builder`, `android-feature-module-builder`,
-`ab-test-dashboard`, `amplitude-slack-payload`, `cloudflare-deploy-slack-notify`,
-`gitlab-release-slack-ci`, `jira-task-writer`, `test-firebase-function`,
-`turnstile-spin`, `stop-slop-ru`.
+**Process skills** — deliberately only three. A skill earns its place when it is needed rarely,
+carries commands the model can't guess, and isn't already covered by an agent `description`, a
+plugin skill, or a condensed rule in `CLAUDE.md`: `instruction-routing` (where a new instruction
+belongs — CLAUDE.md vs rules vs skill vs hook), `subagent-authoring` (how to write and review a
+subagent), `claude-profiles` (multi-account profiles, linking rules, and the per-project
+credential registry that guards against deploying with another project's account).
+
+**Workflow skills:** `commit`, `task-gate` (per-task Definition of Done gate; formerly
+`end-session`), `git-commit-conventions`, `git-worktree-env`, `gradle-deps-update`,
+`android-core-module-builder`, `android-feature-module-builder`, `ab-test-dashboard`,
+`amplitude-slack-payload`, `cloudflare-deploy-slack-notify`, `gitlab-release-slack-ci`,
+`jira-task-writer`, `test-firebase-function`, `turnstile-spin`, `stop-slop-ru`.
 
 > Installed third-party skills (official Google Android, Cloudflare, Anthropic, etc.) are
 > **not** included — they are their authors' IP and install from their own marketplaces.
@@ -46,10 +54,11 @@ clean.
 
 ```
 .claude/
-├── CLAUDE.md                  # global system prompt
+├── CLAUDE.md                  # global system prompt (< 200 lines)
 ├── settings.example.json      # → copy to settings.json
-├── agents/                    # 12 subagents
-├── skills/                    # 15 authored skills
+├── rules/                     # path-scoped rules, loaded on matching file access
+├── agents/                    # 15 subagents
+├── skills/                    # authored skills (process + workflow)
 ├── commands/                  # 6 slash commands
 ├── references/
 ├── config/                    # *.example.md templates → *.local.md

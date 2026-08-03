@@ -1,7 +1,7 @@
 # claude-md-size-guard.ps1 — SessionStart hook.
 # Enforcement для правила «CLAUDE.md ≤200 строк» (improvement 2026-05-28 replay: лимит без
 # механизма не самоподдерживается). Варнит когда глобальный ИЛИ проектный CLAUDE.md > лимита,
-# чтобы detail вынесли в clauderules/ до регресса adherence. Не блокирует, только additionalContext.
+# чтобы detail вынесли в rules/ или skills/ до регресса adherence. Не блокирует, только additionalContext.
 # Запуск: pwsh 7+ (UTF-8 без BOM), stdin = hook JSON ({cwd, source, ...}).
 $ErrorActionPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -36,7 +36,7 @@ foreach ($t in $targets) {
 
 if ($over.Count -eq 0) { exit 0 }
 
-$ctx = "WARNING: CLAUDE.md > ~$limit строк (Anthropic: >200 снижает adherence + раздувает per-turn/per-subagent контекст). Вынеси detail-блоки в ~/.claude/clauderules/*.md с триггером+указателем в CLAUDE.md; инварианты (security/git/DoD-gate/scope) оставляй inline.`n" + ($over -join "`n")
+$ctx = "WARNING: CLAUDE.md > ~$limit строк (Anthropic: >200 снижает adherence + раздувает per-turn/per-subagent контекст). Вынеси detail-блоки: правило по типу файлов -> ~/.claude/rules/*.md с paths:, процедура -> ~/.claude/skills/<name>/SKILL.md; в CLAUDE.md оставь триггер+указатель. Инварианты (security/git/DoD-gate/scope) оставляй inline. Маршрутизация - скилл instruction-routing.`n" + ($over -join "`n")
 
 @{
     systemMessage      = $ctx

@@ -108,7 +108,7 @@ status: deferred
 parent_task: <slug активного doc-а>
 blocking_reason: <user-deferred|waiting-for-backend|waiting-for-decision|waiting-for-data|partial-platform-coverage>
 resume_trigger: <что должно случиться, чтобы возобновить>
-estimated_complexity: <Trivial|Standard|Complex>
+scope: <что именно отложено, одной строкой>
 keywords: [<ключевые слова для поиска>]
 ---
 

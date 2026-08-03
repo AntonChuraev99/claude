@@ -57,6 +57,15 @@
 !/model-overlays/
 !/model-overlays/**
 
+# --- 7c. Path-scoped rules (auto-loaded when Claude touches matching files) ---
+!/rules/
+!/rules/**
+
+# --- 7d. Backlog for this repo (deliberately deferred config/agent work) -----
+!/docs/
+!/docs/backlog/
+!/docs/backlog/**
+
 # --- 8. Toast icons (used by notify.ps1) ------------------------------------
 !/assets/
 !/assets/events/
@@ -98,6 +107,14 @@
 !/skills/android-core-module-builder/**
 !/skills/android-feature-module-builder/
 !/skills/android-feature-module-builder/**
+
+# --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
+!/skills/claude-profiles/
+!/skills/claude-profiles/**
+!/skills/subagent-authoring/
+!/skills/subagent-authoring/**
+!/skills/instruction-routing/
+!/skills/instruction-routing/**
 
 # --- 12. Re-exclude junk inside otherwise-allowed skills ---------------------
 /skills/jira-task-writer/evals/

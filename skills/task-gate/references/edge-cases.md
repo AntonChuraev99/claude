@@ -80,7 +80,7 @@
 
 Ожидаемый формат:
 ```
-STATS_ROW: | YYYY-MM-DD | project | complexity | iterations | effect_% | doc-link |
+STATS_ROW: | YYYY-MM-DD | project | task_title | iterations | solutions_read | memory_hits | errors_avoided | files_edited |
 ```
 
 Если формат отличается (например, отсутствует pipe-разделитель, не хватает колонок, лишние поля):

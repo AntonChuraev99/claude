@@ -238,6 +238,12 @@
             "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
             "timeout": 10,
             "statusMessage": "model-overlay: промпт под активную модель…"
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
+            "timeout": 10,
+            "statusMessage": "креды проекта…"
           }
         ]
       }
@@ -275,6 +281,19 @@
           {
             "type": "command",
             "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\doc-writer-update-reminder.ps1\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard.ps1\"",
+            "timeout": 10,
+            "statusMessage": "creds guard"
           }
         ]
       }
