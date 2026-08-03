@@ -214,3 +214,21 @@
   message: A Ktor HttpClient that POSTs to a credit/charging endpoint (server reserve_credits deducts) installs HttpRequestRetry/retryOnExceptionIf without an idempotency key — retrying a transport-drop after the server already succeeded double-charges the user; refund only covers a server-5xx, not an abandoned-success.
   fix: Send a client request_id (UUID) per AI action and dedup reserve_credits on (user_id, request_id) in a TTL server-side; OR narrow retry to retryOnServerErrors only (refund-safe) and never retryOnExceptionIf a charging POST. Verify on a real flaky-network run (proxy killing the socket post-send), not headless.
   source: docs/todos/2026-07-09-ai-credit-retry-idempotency.md; docs/solutions/features/ai-analyze-failure-decomposition-fix-2026-07-09.md; session ef63f67d
+- id: analytics-event-rebuild-drops-context-params
+  mode: runtime
+  severity: high
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/BuyPremiumUseCase.kt'
+  - '**/*PurchaseAnalytics*.kt'
+  - '**/usecase/**/*Premium*.kt'
+  detect:
+    type: grep
+    has: AnalyticsEvent\(\s*(type\s*=\s*)?"(Premium|premium_)[^"]*"
+    unless: ^\s*(//|\*)
+    lacks: buildEvent\(|base\.extras|\.copy\(
+  message: An existing purchase event is rebuilt with its own extras list in a file that already has a build*Event helper — every call site that previously went through the helper silently loses its context params (offer, location, timer, video-background, Firebase currency/price). Analytics looks alive, dashboards get nulls.
+  fix: Build on top of the shared helper (buildEvent(name, ...).copy(extras = base.extras + specifics)) instead of a fresh listOf. When refactoring an event, diff the parameter-key sets BEFORE/AFTER per call site.
+  source: '2026-07-29 purchase-error-analytics (webBilling onDismiss lost 9 params + 2 firebase extras, caught by L2); docs/solutions/kmp/kmp-abstraction-callback-parameter-loss-2026-05-13.md'

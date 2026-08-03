@@ -186,3 +186,14 @@
   message: 'Diff меняет payload-ключи / model-whitelist / enum, уходящие в Cloud callable (build*Payload put-ключи, VIDEO_MODELS, engine.backendModel), контракт «принятые ключи + сериализация» заявлен только in-code комментарием -> backend rejects (invalid-argument) или тихо дропает->дефолт.'
   fix: 'Верифицировать против ФАКТИЧЕСКИ задеплоенного callable реальным прод-путём; инструментировать обе стороны границы (продюсер+консьюмер) за один прогон.'
   source: 'portal-контракт рекуррентно: 07-07 durationSec drop, 07-09, 07-10, 07-14 (>=4 итерации, commit 34d0e908a); deferred_portal_video_generation_backend.md'
+- id: error-body-leaks-exception-text
+  mode: static
+  severity: high
+  stack: [firebase, gcp, backend]
+  globs: ["**/firebase-functions/**/*.py", "**/functions/**/*.py"]
+  detect:
+    type: grep
+    has: '(jsonify|create_error_response|make_response)\([^)]*(str\(e\)|repr\(e\)|\{e\}|\{str\(e\)\})'
+  message: 'Тело error-ответа встраивает текст исключения -> внутренности Firestore/genai уезжают клиенту. Парная беда — 500 без logger.exception: восстановить причину постфактум нечем, в Cloud Logging остаётся голый «500».'
+  fix: 'Статический текст в теле + logger.exception(...) первой строкой handler-а. Инвариант закреплять AST-guard-ом, ПОДКЛЮЧЁННЫМ к CI/pre-commit — не списком handler-ов: перечисление и есть механизм рецидива.'
+  source: 'Рецидив 3x: 07-27 link_google_account (500 без логов, инцидент), 07-28 фикс 8 handler-ов пропустил register_user + verify_firebase_token, 07-29 закрыты последние три (PR #17, b7efdede). Guard: firebase-functions/test_main_structure.py + .github/workflows/functions-guard.yml'

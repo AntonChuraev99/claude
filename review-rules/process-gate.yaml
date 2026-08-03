@@ -70,3 +70,12 @@
   message: "equals-матч по невзятой с сервиса строке зелёный локально и no-op в проде: unit-тест с фейком фиксирует ДОПУЩЕНИЕ о контракте, а не контракт. Прецедент 2026-07-25 (deictic checklistHint): строка подтвердилась прод-копией ошибки, но падежная форма «в этот чеклист» не покрывалась и прошла бы мимо."
   fix: "снять реальный ответ на точный пользовательский текст (/test-firebase-function, firebase-functions/tests/) ЛИБО опереться на строку, которую прод уже эхает в ошибке/логе; нормализовать очевидные морфо-вариации, а не перечислять одну форму."
   source: "сессия 2026-07-25 deictic checklistHint (L2 bug-pattern-reviewer) + [[gemini-model-allowlist-must-be-probed]] + L3 suggest->create 07-23 (7 прогонов, не воспроизвёлся)"
+
+- id: rc-fallback-arm-must-preserve-monetization-path
+  mode: process
+  severity: high
+  trigger: "дифф меняет, в какой арм резолвится пустой/неизвестный Remote Config сентинел (fallback-ветка when/else в *VariantUseCase), ЛИБО меняет дефолтный арм онбординга/пейвола."
+  question: "Сравнил ли ты НАБОРЫ пользовательских поверхностей старого и нового арма — пейвол, триал, авто-создание, — а не только имена значений? Если наборы расходятся, вынесена ли потеря через AskUserQuestion ДО реализации?"
+  message: "Смена фолбэк-арма молча переносит ВСЮ RC-fail популяцию на другой пользовательский путь (в этом проекте это заметная доля новых юзеров). Если у армов разный набор монетизационных/активационных поверхностей, это revenue-решение, отгружаемое под лейблом fix(). Прецедент 2026-07-28 (79901ab5): EMPTY -> AI_WELCOME снял onboarding_trial-пейвол у ~89% популяции rc_activated=false, потому что WelcomeOnboardingViewModel не имеет ни одного navigateToPaywall; поймано только на L2, уже после реализации."
+  fix: "Перед сменой фолбэка сделать дифф поверхностей обоих флоу: grep navigateToPaywall / PaywallViewModel / parametersOf(\"onboarding_trial\") / completeOnboarding по обеим веткам. Расхождение -> AskUserQuestion ДО кода + ADR. Отдельно проверить, что новый арм НЕ зависит от подсистемы, чей отказ и включает фолбэк (RC-fail -> App Check -> серверный AI-вызов)."
+  source: "L2 review 2026-07-28 (79901ab5); docs/decisions/2026-07-28-rc-fallback-ai-welcome-drops-onboarding-paywall.md"

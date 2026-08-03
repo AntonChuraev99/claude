@@ -106,3 +106,73 @@
   message: 'Новый параметр-колбэк общего @Composable с no-op дефолтом (= {}) при 2+ живых call-site: компонент рендерится на N поверхностях (dock/full/вложенный экран), опциональный колбэк молча отключает фичу на забытой поверхности — компилятор молчит, ловится только прогоном на КАЖДОЙ поверхности.'
   fix: 'Делать параметр обязательным (без дефолта) — новая поверхность не соберётся, пока колбэк не проведён; либо source-parsing-тест всех call-site (образец ChatMessageKeyResolutionTest).'
   source: 'D1 2026-07-15 (2 регрессии, SHA 3371fc75); D2 AiChoiceResponse.onMemoryToggle; NEW_RULE_CANDIDATE bug-pattern-reviewer L2'
+- id: derived-state-mirror-initial-emission-refires-host-oneshot
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - kmp
+  globs:
+  - '**/commonMain/**/*.kt'
+  detect:
+    type: grep
+    has: LaunchedEffect\((\w+)\)\s*\{\s*on\w+Changed\(\1\)
+    unless: ^\s*(//|\*)
+  message: 'Производный boolean-миррор (targetValue == X), репортящийся хосту через LaunchedEffect(mirror), эмитит и своё НАЧАЛЬНОЕ нейтральное значение; если хост держит one-shot (analytics/screenView/seed) на ключе того же флага, предварительно выставленный true сбрасывается в false и ставится заново — one-shot стреляет ДВАЖДЫ за одно открытие.'
+  fix: 'Репортить только переходы (snapshotFlow{state}.first{it==X} / .drop(1)) плюс терминальный DisposableEffect.onDispose; либо заменить boolean-ключ хоста на Channel(CONFLATED). Маунт-время миррор не должен писать состояние хоста.'
+  source: 'todoist-nav-v2 iter2 2026-07-27 (V2ChatDockOverlay.onExpandedChanged -> ai_chat_opened x2, ломало метрику живого A/B); родственно csat-one-shot-channel-pattern-2026-07-27'
+# === added 2026-07-29 (web restore banner shipped with empty text; 2nd occurrence of the class) ===
+- id: banner-text-from-captured-stringresource
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - kmp
+  - wasmjs
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/androidMain/**/*.kt'
+  - '**/wasmJsMain/**/*.kt'
+  detect:
+    type: grep
+    has: (SuccessWithText|InfoWithText|ErrorWithText)\(\s*(?!")[a-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)*\s*[,)]
+    unless: getString\(|stringResource\(|rememberUpdatedState\(|\(\s*it\.|^\s*(//|\*)
+  message: 'App Top Banner text is passed as a captured variable. Compose Resources load ASYNCHRONOUSLY on every target: the FIRST composition returns "" — so any value read from stringResource and then frozen (LaunchedEffect(Unit){collect}, remember without that value in its keys, a handler/VM that outlives the composition) shows the banner with NO text at all, forever.'
+  fix: 'Resolve the copy at the moment it is shown, not at composition time: inside a coroutine use suspend getString(Res.string.x); for an object that outlives the composition pass a provider () -> Texts built with rememberUpdatedState. A lambda recreated on every composition (onClick = { showTopBanner(msg) }) is safe, and so is a local resolved by getString a few lines above inside the same collect — that shape is a known false positive of this line-level grep. Verify live — an empty banner from a frozen string looks IDENTICAL to the nested-viewport font bug, tell them apart by logging text.length at send time.'
+  source: 'app: docs/solutions/wasm-bugs/app-top-banner-empty-text-stale-string-capture-2026-07-29.md; .claude/rules/app-top-banner.md'
+- id: stringresource-snapshot-into-outliving-object
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - kmp
+  globs:
+  - '**/*Handler*.kt'
+  - '**/*Service*.kt'
+  - '**/*Manager*.kt'
+  - '**/*Launcher*.kt'
+  - '**/*Controller*.kt'
+  detect:
+    type: grep
+    has: =\s*stringResource\(
+    unless: ^\s*(//|\*)
+    lacks: rememberUpdatedState\(|getString\(
+  message: 'stringResource value is snapshotted inside a handler/service/manager file — these objects are typically built once (remember(...) / Koin scope) and outlive the composition, so they keep the EMPTY first-composition strings that Compose Resources return before the async load finishes.'
+  fix: 'Hand the object a provider instead of a snapshot: val current by rememberUpdatedState(texts); remember(key) { Impl(texts = { current }) }. Alternatively resolve with suspend getString(Res.string.x) inside the coroutine that actually shows the copy.'
+  source: 'app: docs/solutions/wasm-bugs/app-top-banner-empty-text-stale-string-capture-2026-07-29.md (ShareHandler.android.kt DownloadBannerTexts)'
+
+- id: alpha-zero-hides-node-but-keeps-infinite-animation
+  mode: runtime
+  severity: medium
+  stack:
+  - compose
+  - kmp
+  globs:
+  - '**/*.kt'
+  detect:
+    type: grep
+    has: \.alpha\(\s*if\s*\(
+    unless: ^\s*(//|\*)
+  message: 'Замена условного снятия узла (AnimatedVisibility / early return) на Modifier.alpha(0f) оставляет поддерево скомпонованным: шиммер-плейсхолдер / rememberInfiniteTransition внутри продолжает инвалидировать draw вечно и невидимо (на Skiko = постоянный repaint канваса), а прежний disposal-путь по onError исчезает.'
+  fix: 'Прятать отсутствием узла (early return по state) там, где состояние конечное (blank data, error); alpha(0f) оставлять только для loading-фазы, где узел обязан жить, чтобы запрос стартовал — и убедиться, что внутри нет infinite-анимаций.'
+  source: 'app: docs/solutions/profile-face-badge-flicker-2026-07-31.md (FaceAvatarBadge; AppPlaceholder = rememberInfiniteTransition, прецедент 376 рекомпозиций/сек)'
