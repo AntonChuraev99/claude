@@ -6,9 +6,12 @@
 # (шаблон — protected-branches.example.json). Реестра нет / репозитория в нём нет
 # => применяются defaults.
 #
-# Решение — `ask` (подтверждение пользователя), а не `deny`: hotfix и разовая правка
-# на транке остаются возможны одним подтверждением. PreToolUse-`ask` форсирует
-# запрос даже при defaultMode=bypassPermissions (docs: code.claude.com/docs/en/permissions).
+# Решение — `deny`, а не `ask`. Проверено вживую 2026-08-04: при
+# `defaultMode: bypassPermissions` (плюс skipAutoPermissionPrompt) CLI молча
+# проглатывает `ask` — хук отрабатывает, печатает решение, запись всё равно
+# проходит. `deny` в той же конфигурации блокирует. Документация обещает
+# обратное, поэтому менять обратно только после нового живого прогона.
+# Разовые исключения покрывает escape-hatch внизу, а не мягкость решения.
 #
 # No-op (тихий exit 0), если: инструмент не пишет файл · путь вне git-репозитория ·
 # репозиторий самого профиля Claude (~/.claude, ~/.claude-work — их правки должны
@@ -33,6 +36,11 @@
 # имён проектов и логинов в коде.
 
 $ErrorActionPreference = 'SilentlyContinue'
+
+# Сообщение хука — русское; без явного UTF-8 на stdout CLI получает mojibake
+# (в консоли Windows кодировка по умолчанию OEM). Собственный try: падение
+# установки кодировки не должно убивать весь хук.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 function ConvertTo-WindowsPath([string]$p) {
     if ([string]::IsNullOrWhiteSpace($p)) { return $p }
@@ -206,11 +214,14 @@ try {
   # убедиться, что сборка стартует из нового каталога — ДО первой правки
   # повторить правку уже по пути внутри worktree
 
-Подтверждать только если правка сознательно делается на транке: hotfix, правка конфига,
-который обязан примениться сразу, или явная просьба работать в текущем checkout.
+Правка сознательно делается в транке (hotfix, конфиг, который обязан примениться сразу,
+явная просьба работать в текущем checkout)? Это решает пользователь, не агент: попроси
+его подтвердить и снять блокировку — `setx CLAUDE_ALLOW_PROTECTED_BRANCH 1` на сессию
+либо файл-флаг "$repoRoot\.claude\.allow-protected-branch-edits". Самостоятельно
+выставлять их нельзя — это обход правила, а не его исполнение.
 "@
 
-    @{ hookSpecificOutput = @{ hookEventName = 'PreToolUse'; permissionDecision = 'ask'; permissionDecisionReason = $msg } } |
+    @{ hookSpecificOutput = @{ hookEventName = 'PreToolUse'; permissionDecision = 'deny'; permissionDecisionReason = $msg } } |
         ConvertTo-Json -Depth 5 -Compress
     exit 0
 }

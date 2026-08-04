@@ -1,7 +1,7 @@
 {
   "_readme": [
     "Реестр защищённых веток — шаблон. Скопировать в protected-branches.local.json (gitignored) и заполнить своими проектами.",
-    "Читает hooks/protected-branch-guard.ps1 перед Write/Edit/NotebookEdit: если ветка целевого файла защищена, хук требует подтверждения и напоминает завести worktree + ветку под MR/PR.",
+    "Читает hooks/protected-branch-guard.ps1 перед Write/Edit/NotebookEdit: если ветка целевого файла защищена, хук блокирует правку (deny) и печатает готовую команду worktree + ветку под MR/PR.",
     "Ключ в repos — абсолютный путь к корню репозитория ЛИБО его хвост (сравнение по вхождению, регистр не важен).",
     "protected — список веток; поддерживаются шаблоны PowerShell -like: release/*, hotfix/*.",
     "trunk — от какой ветки отводить новую. mrTarget — куда потом MR/PR. label — как назвать репозиторий в тексте подтверждения.",

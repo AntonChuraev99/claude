@@ -6,6 +6,9 @@
 
 $ErrorActionPreference = 'SilentlyContinue'
 
+# Дайджест русский; без явного UTF-8 на stdout он приходит в сессию mojibake.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 try {
     $cwd = $null
     try {
