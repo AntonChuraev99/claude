@@ -18,38 +18,77 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 # Запуск читающей команды сверки с жёстким таймаутом: хук не имеет права
 # висеть дольше своего timeout в settings.json. Через ComSpec, потому что
 # gcloud/firebase/wrangler на Windows — .cmd-шимы, напрямую не стартуют.
-function Get-CmdOutput([string]$command, [string]$workDir, [int]$timeoutMs = 6000) {
+# Общий дедлайн на ВСЕ пробы. Раньше таймауты были per-проба (8+8+9+5 с) и суммарно
+# перекрывали "timeout": 10 у самого хука в settings.json — убитый PreToolUse-хук
+# решения не выносит, и команда исполнялась. То есть fail-open ровно на тех командах,
+# где сверка дороже всего.
+$script:Deadline = [datetime]::UtcNow.AddSeconds(6)
+function Get-Budget {
+    $left = [int]([datetime]::UtcNow - $script:Deadline).TotalMilliseconds * -1
+    if ($left -lt 300) { return 300 }
+    if ($left -gt 4000) { return 4000 }
+    return $left
+}
+
+function Deny([string]$reason) {
+    @{ hookSpecificOutput = @{ hookEventName = 'PreToolUse'; permissionDecision = 'deny'; permissionDecisionReason = $reason } } |
+        ConvertTo-Json -Depth 5 -Compress
+    exit 0
+}
+
+function Get-CmdOutput([string]$command, [string]$workDir, [int]$timeoutMs = 3000) {
+    $p = $null
     try {
+        if (-not $env:ComSpec) { return $null }
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName = $env:ComSpec
         $psi.Arguments = "/c $command"
         if ($workDir -and (Test-Path -LiteralPath $workDir -PathType Container)) { $psi.WorkingDirectory = $workDir }
         $psi.RedirectStandardOutput = $true
         $psi.RedirectStandardError = $true
+        $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
         $psi.UseShellExecute = $false
         $psi.CreateNoWindow = $true
         $p = [System.Diagnostics.Process]::Start($psi)
+        # Читать ОБА потока асинхронно: нечитаемый stderr переполняет буфер пайпа
+        # и вешает болтливый CLI намертво (firebase/wrangler пишут туда охотно).
         $stdout = $p.StandardOutput.ReadToEndAsync()
-        if (-not $p.WaitForExit($timeoutMs)) { try { $p.Kill() } catch { }; return $null }
-        $out = ($stdout.Result).Trim()
+        [void]$p.StandardError.ReadToEndAsync()
+        if (-not $p.WaitForExit($timeoutMs)) { try { $p.Kill($true) } catch { }; return $null }
+        # WaitForExit ждёт только сам процесс; .cmd-шимы порождают внуков, которые
+        # держат хендл пайпа — без своего таймаута .Result висит после выхода cmd.
+        if (-not $stdout.Wait($timeoutMs)) { return $null }
         if ($p.ExitCode -ne 0) { return $null }
-        return $out
+        return ($stdout.Result).Trim()
     } catch { return $null }
+    finally { if ($p) { try { $p.Dispose() } catch { } } }
 }
 
-# Сверка «фактическое vs ожидаемое»: значения приходят из разных источников
-# (ssh-remote против https в реестре, вывод CLI с префиксом), поэтому вхождение,
-# а не строгое равенство. Пустое фактическое совпадением НЕ считается.
-function Test-CredMatch([string]$actual, [string]$expected) {
+# Сверка «фактическое vs ожидаемое». По умолчанию — СТРОГОЕ равенство: project id
+# и account_id точные, а вхождение подстроки пропускало деплой в соседний проект
+# того же семейства (`myapp` внутри `myapp-staging`) — то есть ровно самую частую
+# необратимую ошибку. -Loose нужен там, где фактическое приходит сырым выводом CLI
+# или в другой форме записи (ssh-remote против https); там вхождение проверяется
+# по границе токена. Пустое фактическое совпадением НЕ считается никогда.
+function Test-CredMatch([string]$actual, [string]$expected, [switch]$Loose) {
     if ([string]::IsNullOrWhiteSpace($actual) -or [string]::IsNullOrWhiteSpace($expected)) { return $false }
     $a = $actual.Trim().ToLowerInvariant()
-    $e = $expected.Trim().ToLowerInvariant() -replace '\.git$', ''
+    $e = ($expected.Trim().ToLowerInvariant() -replace '\.git$', '').Trim()
+    if ([string]::IsNullOrWhiteSpace($e)) { return $false }   # '.git' в реестре иначе давал universal-pass
     if ($a -eq $e) { return $true }
-    if ($a.Contains($e)) { return $true }
-    # git remote: сравнить по «org/repo», чтобы ssh и https формы сошлись
-    if ($e -match '[:/]([^:/]+/[^/]+?)(\.git)?$') {
-        $tail = $Matches[1]
-        if ($tail -and $a.Contains($tail)) { return $true }
+    if (-not $Loose) { return $false }
+
+    # Вхождение только по границе: сосед справа/слева не должен быть частью имени.
+    $bounded = "(^|[^\w-])$([regex]::Escape($e))($|[^\w-])"
+    if ($a -match $bounded) { return $true }
+
+    # git remote: сравнить «org/repo», чтобы ssh и https формы сошлись. Хвост
+    # сравнивается равенством, иначе evil-org/repo совпадал с org/repo.
+    if ($e -match '[:/]([^:/]+/[^/]+?)$' ) {
+        $tailE = $Matches[1]
+        if ($a -match '[:/]([^:/]+/[^/]+?)(\.git)?$') {
+            if ($Matches[1] -eq $tailE) { return $true }
+        }
     }
     return $false
 }
@@ -69,28 +108,54 @@ try {
     #    блокировалось всё, где слово встречается внутри строки: `echo "firebase deploy"`,
     #    `git commit -m "fix wrangler deploy"`, тексты отчётов. До перевода на deny эти
     #    ложные срабатывания были не видны — CLI проглатывал ask.
+    #    Позицию команды открывают и обёртки: `npx wrangler deploy` — канонический вызов
+    #    wrangler, и без этого он обходил guard целиком (как и `pnpm dlx`, `bash -c`,
+    #    префикс `VAR=1 gcloud ...`). Паттерн один на детект и на разбор сервисов —
+    #    два разных выражения тихо расходились бы при правке.
     $tool = 'gcloud|wrangler|firebase|gh|adb|gsutil'
     $verb = 'deploy|publish|release\s+create|secret\s+(set|put)|functions\s+deploy|hosting:channel:deploy|pages\s+deploy|apps\s+release|repo\s+delete|uninstall|rm\s+-r'
-    if ($cmd -notmatch "(?m)(^|[;&|]\s*|^\s*)\s*($tool)\b" -or $cmd -notmatch "\b($verb)") { exit 0 }
+    $wrap = '(?:(?:npx|pnpm|yarn|bunx|sudo|env|command|time|nice)\s+(?:dlx\s+|exec\s+|-\S+\s+)*|\w+=\S+\s+|bash\s+-c\s+["'']?|sh\s+-c\s+["'']?)*'
+    $posRe = "(?m)(?:^|[;&|(]|&&|\|\|)\s*$wrap"
+    if ($cmd -notmatch "$posRe($tool)\b" -or $cmd -notmatch "\b($verb)") { exit 0 }
 
     # Какие именно сервисы задействованы — от этого зависит, что сверять.
     $services = @()
     foreach ($t in $tool.Split('|')) {
-        if ($cmd -match "(?m)(^|[;&|]\s*|^\s*)\s*$t\b") { $services += $t }
+        if ($cmd -match "$posRe$t\b") { $services += $t }
     }
     $services = @($services | Select-Object -Unique)
+    # gsutil сверяется тем же GCP-проектом, что и gcloud — не гонять пробу дважды.
+    if ($services -contains 'gcloud' -and $services -contains 'gsutil') {
+        $services = @($services | Where-Object { $_ -ne 'gsutil' })
+    }
+
+    # --- Дальше опасность команды уже установлена. Отсюда fail-open недопустим:
+    #     исключение на этом участке (залоченный реестр, битый JSON, сбой пробы)
+    #     раньше уходило в общий catch и молча пропускало деплой.
+    try {
 
     # 2. Реестр.
+    if (-not $env:USERPROFILE) { Deny "Не удалось определить профиль пользователя — реестр кредов не прочитан. Сверь аккаунт вручную и покажи пользователю." }
     $registry = Join-Path $env:USERPROFILE '.claude\config\project-credentials.local.md'
     $cwd = [string]$payload.cwd
     if (-not $cwd) { $cwd = (Get-Location).Path }
 
-    # `cd <path> && deploy` — сверять надо каталог команды, а не каталог сессии,
-    # иначе деплой из сессии, открытой в другом репозитории, ложно уходит в блок.
-    if ($cmd -match '(?i)^\s*cd\s+"?([^"&|;]+?)"?\s*(&&|;)') {
-        $cdTarget = $Matches[1].Trim()
-        if (-not [System.IO.Path]::IsPathRooted($cdTarget)) { $cdTarget = Join-Path $cwd $cdTarget }
-        if (Test-Path -LiteralPath $cdTarget -PathType Container) { $cwd = (Resolve-Path -LiteralPath $cdTarget).Path }
+    # `cd <path> && deploy` — сверять надо каталог команды, а не каталог сессии, иначе
+    # деплой из сессии, открытой в другом репозитории, ложно уходит в блок. Берётся
+    # ПОСЛЕДНЯЯ смена каталога в цепочке (`cd A && cd B && deploy` деплоит из B), учтены
+    # pushd и cmd-флаг `/d`, кавычная и голая формы пути. Смена каталога есть, но не
+    # разобралась — это не повод молча сверять каталог сессии: тогда deny.
+    $cdHits = [regex]::Matches($cmd, '(?i)(?:^|[;&|]|&&)\s*(?:cd|pushd|set-location|sl)\s+(?:/d\s+)?(?:"([^"]+)"|([^\s&|;]+))')
+    if ($cdHits.Count -gt 0) {
+        $last = $cdHits[$cdHits.Count - 1]
+        $cdTarget = if ($last.Groups[1].Success) { $last.Groups[1].Value } else { $last.Groups[2].Value }
+        $cdTarget = $cdTarget.Trim()
+        if ($cdTarget -and -not [System.IO.Path]::IsPathRooted($cdTarget)) { $cdTarget = Join-Path $cwd $cdTarget }
+        if ($cdTarget -and (Test-Path -LiteralPath $cdTarget -PathType Container)) {
+            $cwd = (Resolve-Path -LiteralPath $cdTarget).Path
+        } else {
+            Deny "Команда меняет каталог перед деплоем, но целевой каталог не разобран или не существует ('$cdTarget'). Сверить креды не с чем — выполни деплой из каталога проекта явно, либо попроси пользователя разрешить разово (CLAUDE_ALLOW_DEPLOY=1)."
+        }
     }
 
     if (-not (Test-Path $registry)) {
@@ -103,16 +168,21 @@ try {
         exit 0
     }
 
-    # 3. Строка реестра для текущего cwd: ищем ту, чей repo_path входит в cwd.
+    # 3. Строка реестра: выбираем САМЫЙ ДЛИННЫЙ подходящий repo_path и сравниваем по
+    #    границе сегмента пути. Прежнее двустороннее вхождение подстрок давало и
+    #    захват соседа (`C:\dev\app` подхватывал `C:\dev\app-web`), и обратный матч
+    #    короткого cwd на произвольную строку — сверка шла по чужому проекту.
+    $cwdKey = ($cwd -replace '/', '\').TrimEnd('\').ToLowerInvariant() + '\'
     $row = $null
-    foreach ($line in (Get-Content $registry)) {
+    $bestLen = -1
+    foreach ($line in (Get-Content -LiteralPath $registry -Encoding UTF8)) {
         if ($line -notmatch '^\s*\|') { continue }
         $cells = ($line -split '\|') | ForEach-Object { $_.Trim() }
         $repoPath = $cells[1]
         if (-not $repoPath -or $repoPath -eq 'repo_path' -or $repoPath -match '^-+$') { continue }
-        if ($cwd.ToLower().Contains($repoPath.ToLower()) -or $repoPath.ToLower().Contains($cwd.ToLower())) {
-            $row = $cells
-            break
+        $key = ($repoPath -replace '/', '\').TrimEnd('\').ToLowerInvariant() + '\'
+        if ($cwdKey -eq $key -or $cwdKey.StartsWith($key) -or $cwdKey.Contains('\' + $key)) {
+            if ($key.Length -gt $bestLen) { $bestLen = $key.Length; $row = $cells }
         }
     }
 
@@ -135,13 +205,13 @@ try {
     foreach ($svc in $services) {
         switch ($svc) {
             { $_ -in @('gcloud', 'gsutil') } {
-                if (-not $row[3]) { $checks += @{ label = 'GCP project'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
-                $actual = Get-CmdOutput 'gcloud config get-value project' $cwd 8000
-                $checks += @{ label = 'GCP project'; expected = $row[3]; actual = $actual
-                              ok = ($actual -and (Test-CredMatch $actual $row[3])) }
+                if (-not $row[3]) { $checks += @{ svc = $svc; label = 'GCP project'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
+                $actual = Get-CmdOutput 'gcloud config get-value project' $cwd (Get-Budget)
+                $checks += @{ svc = $svc; label = 'GCP project'; expected = $row[3]; actual = $actual
+                              ok = (Test-CredMatch $actual $row[3]) }
             }
             'firebase' {
-                if (-not $row[5]) { $checks += @{ label = 'Firebase project'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
+                if (-not $row[5]) { $checks += @{ svc = $svc; label = 'Firebase project'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
                 # Локальные источники читаются мгновенно; `firebase use` (CLI, может лезть
                 # в сеть) — последний резерв. Порядок: .firebaserc, затем google-services.json
                 # модуля приложения (Android-проект может не иметь .firebaserc вовсе).
@@ -159,12 +229,15 @@ try {
                         }
                     }
                 }
-                if (-not $actual) { $actual = Get-CmdOutput 'firebase use' $cwd 8000 }
-                $checks += @{ label = 'Firebase project'; expected = $row[5]; actual = $actual
-                              ok = ($actual -and (Test-CredMatch $actual $row[5])) }
+                # Локальные источники дают точное значение; вывод CLI — сырой текст,
+                # его сверяем по границе токена (-Loose).
+                $loose = $false
+                if (-not $actual) { $actual = Get-CmdOutput 'firebase use' $cwd (Get-Budget); $loose = $true }
+                $checks += @{ svc = $svc; label = 'Firebase project'; expected = $row[5]; actual = $actual
+                              ok = (Test-CredMatch $actual $row[5] -Loose:$loose) }
             }
             'wrangler' {
-                if (-not $row[4]) { $checks += @{ label = 'Cloudflare account'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
+                if (-not $row[4]) { $checks += @{ svc = $svc; label = 'Cloudflare account'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
                 # Явный account_id в конфиге — источник правды: при нём деплой из-под чужого
                 # логина падает сам. Нет его — только тогда платим за сетевой whoami.
                 $actual = $null
@@ -175,35 +248,47 @@ try {
                         if ($t -match '"?account_id"?\s*[:=]\s*"([0-9a-fA-F]{16,})"') { $actual = $Matches[1]; break }
                     }
                 }
-                if (-not $actual) { $actual = Get-CmdOutput 'wrangler whoami' $cwd 9000 }
-                $checks += @{ label = 'Cloudflare account'; expected = $row[4]; actual = $actual
-                              ok = ($actual -and (Test-CredMatch $actual $row[4])) }
+                $loose = $false
+                if (-not $actual) { $actual = Get-CmdOutput 'wrangler whoami' $cwd (Get-Budget); $loose = $true }
+                $checks += @{ svc = $svc; label = 'Cloudflare account'; expected = $row[4]; actual = $actual
+                              ok = (Test-CredMatch $actual $row[4] -Loose:$loose) }
             }
             'gh' {
-                if (-not $row[7]) { $checks += @{ label = 'git remote'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
-                $actual = Get-CmdOutput 'git remote get-url origin' $cwd 5000
-                $checks += @{ label = 'git remote'; expected = $row[7]; actual = $actual
-                              ok = ($actual -and (Test-CredMatch $actual $row[7])) }
+                if (-not $row[7]) { $checks += @{ svc = $svc; label = 'git remote'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
+                $actual = Get-CmdOutput 'git remote get-url origin' $cwd (Get-Budget)
+                # ssh и https формы одного remote — сверка по org/repo, поэтому -Loose.
+                $checks += @{ svc = $svc; label = 'git remote'; expected = $row[7]; actual = $actual
+                              ok = (Test-CredMatch $actual $row[7] -Loose) }
             }
             'adb' {
-                if ($row[6] -and $cmd -match '([a-zA-Z][\w]*(\.[\w]+){2,})') {
-                    $pkg = $Matches[1]
-                    $checks += @{ label = 'Play package'; expected = $row[6]; actual = $pkg
-                                  ok = (Test-CredMatch $pkg $row[6]) }
-                }
+                # Пакет берётся из аргумента самой adb-команды, а не первым dotted-токеном
+                # всей строки: иначе подхватывался путь к apk или --set-env-vars=a.b.c.
+                $pkg = $null
+                if ($cmd -match '(?i)\badb\b[^;&|]*\b(?:uninstall|install|shell\s+pm\s+\w+)\s+(?:-\S+\s+)*([a-zA-Z][\w]*(?:\.[\w]+)+)') { $pkg = $Matches[1] }
+                $checks += @{ svc = $svc; label = 'Play package'
+                              expected = $(if ($row[6]) { $row[6] } else { '(в реестре не задан)' })
+                              actual = $pkg; ok = ($row[6] -and (Test-CredMatch $pkg $row[6])) }
             }
         }
     }
 
+    # Пропускаем молча, только если КАЖДЫЙ задействованный сервис реально проверен и сошёлся.
+    # Раньше хватало одного успешного чека: `gcloud ... deploy && adb uninstall com.foo`
+    # проходил целиком, потому что ветка adb могла не добавить чек вовсе.
     $failed = @($checks | Where-Object { -not $_.ok })
-    if ($checks.Count -gt 0 -and $failed.Count -eq 0) { exit 0 }   # всё сошлось — молча пропускаем
+    $covered = @($checks | ForEach-Object { $_.svc } | Select-Object -Unique).Count
+    if ($checks.Count -gt 0 -and $failed.Count -eq 0 -and $covered -ge $services.Count) { exit 0 }
 
     $lines = @()
     foreach ($c in $checks) {
         $mark = if ($c.ok) { 'OK  ' } else { 'НЕТ ' }
-        $act = if ($c.actual) { $c.actual } else { '(не удалось определить)' }
+        # Вывод CLI бывает многострочной таблицей (wrangler whoami) — в reason нужна суть.
+        $act = if ($c.actual) { (([string]$c.actual) -split "`r?`n")[0].Trim() } else { '(не удалось определить)' }
+        if ($act.Length -gt 200) { $act = $act.Substring(0, 200) + '…' }
         $lines += "$mark $($c.label): ожидается '$($c.expected)', фактически '$act'"
     }
+    $missing = @($services | Where-Object { $_ -notin @($checks | ForEach-Object { $_.svc }) })
+    foreach ($m in $missing) { $lines += "НЕТ  $($m): сверка не выполнена (нет данных в реестре или инструмент не разобран)" }
     if ($row[2]) { $lines += "Аккаунт по реестру: $($row[2])" }
 
     $head = if ($checks.Count -eq 0) {
@@ -218,10 +303,17 @@ try {
            "аккаунт/реестр (~/.claude/config/project-credentials.local.md), либо разрешает разово через " +
            "CLAUDE_ALLOW_DEPLOY=1."
 
-    @{ hookSpecificOutput = @{ hookEventName = 'PreToolUse'; permissionDecision = 'deny'; permissionDecisionReason = $msg } } |
-        ConvertTo-Json -Depth 5 -Compress
-    exit 0
+    Deny $msg
+
+    }
+    catch {
+        # Опасность уже установлена выше — здесь fail-CLOSED.
+        Deny ("Внутренняя ошибка credentials-guard при сверке кредов: " + $_.Exception.Message +
+              "`nСверь активный аккаунт вручную и покажи результат пользователю; блокировку себе не снимай.")
+    }
 }
 catch {
+    # Сюда попадают только сбои разбора stdin и детекта опасности — команда ещё
+    # не признана опасной, поэтому fail-open (хук не должен ломать сессию).
     exit 0
 }
