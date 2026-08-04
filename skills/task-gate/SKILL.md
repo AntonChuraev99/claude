@@ -213,9 +213,13 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 **Никогда** не вызывать `git commit` через Bash — только `/commit`.
 
+**5.1a Ветка и MR/PR.** Коммит — не конец: задача закрывается вливанием через MR/PR (`CLAUDE.md` → «Защищённая ветка и worktree»). Проверить: (1) `git rev-parse --abbrev-ref HEAD` — не защищённая ветка (иначе `⚠️ committed to trunk` в отчёт); (2) ветка запушена — `git rev-parse --abbrev-ref '@{u}'`, апстрима нет → `⚠️ branch not pushed`; (3) MR/PR открыт — `gh pr view --json url -q .url` либо `glab mr list --source-branch <branch>`; нет → `⚠️ MR not opened` + строка с готовой командой создания. Warning, не блокер: момент открытия MR выбирает пользователь. Репозиторий самого профиля (`~/.claude`, `~/.claude-work`) и работа в транке по согласованию → `✅ N/A`.
+
 ### 5.1.1 Auto-commit (когда коммит — единственный блокер)
 
-Скилл вызывает `/commit` автоматически, **если все 5 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.8 без unbacked TODO.
+Скилл вызывает `/commit` автоматически, **если все 6 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.8 без unbacked TODO; (6) `git rev-parse --abbrev-ref HEAD` — **не защищённая ветка** (`main`/`master`/`develop`/`release/*`, реестр `~/.claude/config/protected-branches.local.json`), кроме репозиториев самого профиля (`~/.claude`, `~/.claude-work`).
+
+Условие (6) не выполнено → auto-commit НЕ запускать, статус `⚠️ protected branch`: правки лежат в транке, решение (перенести в ветку через `git stash` + worktree / признать согласованным hotfix) принимает пользователь через `AskUserQuestion`.
 
 Выполнены → `Skill(skill="commit")`, перепроверить `git status`. Чисто → `✅ commit auto-created`, SHA в отчёт. Не чисто → `❌ auto-commit failed`, stderr в отчёт, передать пользователю.
 

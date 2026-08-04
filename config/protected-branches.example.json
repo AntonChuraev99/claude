@@ -1,0 +1,31 @@
+{
+  "_readme": [
+    "Реестр защищённых веток — шаблон. Скопировать в protected-branches.local.json (gitignored) и заполнить своими проектами.",
+    "Читает hooks/protected-branch-guard.ps1 перед Write/Edit/NotebookEdit: если ветка целевого файла защищена, хук требует подтверждения и напоминает завести worktree + ветку под MR/PR.",
+    "Ключ в repos — абсолютный путь к корню репозитория ЛИБО его хвост (сравнение по вхождению, регистр не важен).",
+    "protected — список веток; поддерживаются шаблоны PowerShell -like: release/*, hotfix/*.",
+    "trunk — от какой ветки отводить новую. mrTarget — куда потом MR/PR. label — как назвать репозиторий в тексте подтверждения.",
+    "enabled: false — выключить проверку для конкретного репозитория. ignoreRepos — то же списком путей.",
+    "Репозитория нет в реестре => применяются defaults. Реестра нет вовсе => defaults зашиты в хуке (main/master/develop).",
+    "Разовое отключение без правки файла: env CLAUDE_ALLOW_PROTECTED_BRANCH=1 либо файл <repo>/.claude/.allow-protected-branch-edits"
+  ],
+  "defaults": {
+    "protected": ["main", "master", "develop"],
+    "mrTarget": "develop"
+  },
+  "repos": {
+    "C:\\Users\\YOUR_USERNAME\\StudioProjects\\<your-project>": {
+      "label": "<your-project>",
+      "trunk": "develop",
+      "mrTarget": "develop",
+      "protected": ["main", "develop", "release/*"]
+    },
+    "<another-project>": {
+      "label": "<another-project>",
+      "trunk": "main",
+      "mrTarget": "main",
+      "protected": ["main"]
+    }
+  },
+  "ignoreRepos": []
+}

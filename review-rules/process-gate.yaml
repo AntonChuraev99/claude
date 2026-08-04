@@ -79,3 +79,12 @@
   message: "Смена фолбэк-арма молча переносит ВСЮ RC-fail популяцию на другой пользовательский путь (в этом проекте это заметная доля новых юзеров). Если у армов разный набор монетизационных/активационных поверхностей, это revenue-решение, отгружаемое под лейблом fix(). Прецедент 2026-07-28 (79901ab5): EMPTY -> AI_WELCOME снял onboarding_trial-пейвол у ~89% популяции rc_activated=false, потому что WelcomeOnboardingViewModel не имеет ни одного navigateToPaywall; поймано только на L2, уже после реализации."
   fix: "Перед сменой фолбэка сделать дифф поверхностей обоих флоу: grep navigateToPaywall / PaywallViewModel / parametersOf(\"onboarding_trial\") / completeOnboarding по обеим веткам. Расхождение -> AskUserQuestion ДО кода + ADR. Отдельно проверить, что новый арм НЕ зависит от подсистемы, чей отказ и включает фолбэк (RC-fail -> App Check -> серверный AI-вызов)."
   source: "L2 review 2026-07-28 (79901ab5); docs/decisions/2026-07-28-rc-fallback-ai-welcome-drops-onboarding-paywall.md"
+
+- id: no-code-on-protected-branch
+  mode: process
+  severity: high
+  trigger: "в сессии были правки файлов git-репозитория (не ~/.claude), ЛИБО в сессии сработал хук protected-branch-guard, ЛИБО задача завершается коммитом."
+  question: "`git rev-parse --abbrev-ref HEAD` в рабочем каталоге — не защищённая ветка (main/master/develop/release/*)? Работа шла в отдельном worktree, а результат уходит в транк через MR/PR, а не локальным merge? Если правка сознательно сделана в транке — это одно из зафиксированных исключений (hotfix по согласованию, конфиг ~/.claude, явная просьба пользователя), а не обход хука на автопилоте?"
+  message: "прямая правка транка ломает ревью и откат: изменение попадает в main/develop без MR, без diff-ревью и без возможности отменить одной кнопкой. Хук protected-branch-guard ловит только Write/Edit главного агента — фоновые субагенты (run_in_background) PreToolUse НЕ наследуют, их правки в основном checkout ловятся только `git -C <main> status`."
+  fix: "правки в транке -> `git stash` -> вернуть основной checkout на транк -> `git worktree add .claude/worktrees/<slug> -b <type>/<slug>` -> `git stash pop` в worktree -> push + MR/PR. Проект без строки в ~/.claude/config/protected-branches.local.json — завести её, иначе хук работает на дефолте."
+  source: "CLAUDE.md «Защищённая ветка и worktree» + improvements/2026-08-04-protected-branch-guard.md + improvements/2026-07-20-worktree-guard-auto-register.md (4 прецедента записи субагентов в главный checkout)"

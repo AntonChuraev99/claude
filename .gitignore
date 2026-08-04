@@ -74,6 +74,7 @@
 # --- 9. Config templates: only *.example.* (never *.local.*) -----------------
 !/config/
 !/config/*.example.md
+!/config/*.example.json
 
 # --- 11. Authored skills (each whitelisted; installed/3rd-party stay ignored)-
 !/skills/
@@ -128,6 +129,7 @@
 settings.json
 settings.local.json
 config/*.local.md
+config/*.local.json
 *.log
 *.jsonl
 

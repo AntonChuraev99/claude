@@ -12,6 +12,7 @@ allowed-tools: Bash(git rev-parse:*), Bash(git status:*), Bash(git rev-list:*), 
 
 1. **Git-репо?** `git rev-parse --is-inside-work-tree`. Не репозиторий → сообщи и стоп.
 2. **Текущая ветка** = `git rev-parse --abbrev-ref HEAD`. Если она совпадает с веткой-источником → «уже на `<src>`, синхронизировать нечего» и стоп.
+2a. **Текущая ветка защищена?** Сверь её со списком из `~/.claude/config/protected-branches.local.json` (репозитория нет в реестре → `main`/`master`/`develop`/`release/*`). Совпала → **стоп, merge не делать**: влить что-либо в транк локально запрещает `CLAUDE.md` → «Защищённая ветка и worktree». Сообщи, что синхронизировать транк нужно через `git pull` от remote либо через MR/PR, и предложи перейти в рабочую ветку.
 3. **Источник существует локально?** `git rev-parse --verify --quiet refs/heads/<src>`. Нет → сообщи, что локальной ветки `<src>` нет; **НЕ делай fetch сам**; предложи `/sync-local-develop <имя-ветки>` или ручной `git fetch`, и стоп.
 4. **Что вольётся** = `git rev-list --count HEAD..<src>`. Если 0 → «уже синхронизировано с локальным `<src>`» и стоп. Иначе покажи `git log --oneline --no-decorate HEAD..<src>` (до ~15 строк).
 5. **Merge** = `git merge <src>`.

@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Create a Conventional Commits compliant git commit. Use this skill whenever the user says "commit", "create a commit", "git commit", "зафиксируй изменения", "сделай коммит", or asks to commit staged or unstaged changes. Stages relevant files and crafts a properly scoped commit message automatically.
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git stash:*), Bash(git worktree:*)
 ---
 
 # Git Commit — Conventional Commits
@@ -9,6 +9,12 @@ allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git a
 Create a well-formed git commit following the [Conventional Commits](https://www.conventionalcommits.org/) specification.
 
 ## Steps
+
+0. **Защищённая ветка — до всего остального.** `git rev-parse --abbrev-ref HEAD`. Ветка защищена (`main`, `master`, `develop`, `release/*`; точный список проекта — `~/.claude/config/protected-branches.local.json`, ключ `repos.<путь>.protected`) → **не коммитить**, вынести развилку через `AskUserQuestion`:
+   - *(Recommended)* перенести правки в отдельную ветку: `git stash` → `git worktree add .claude/worktrees/<slug> -b <type>/<slug>` → `git stash pop` в worktree → коммит там → push + MR/PR;
+   - согласованный hotfix — коммитить в транк как есть.
+
+   Без вопроса продолжать, если: репозиторий самого `~/.claude` / `~/.claude-work`; каталог вне git; ветка не защищена; пользователь уже в этой сессии подтвердил работу в транке.
 
 1. Run `git status` to see what has changed.
 2. Run `git diff` (unstaged) and `git diff --staged` (staged) to understand the actual changes.

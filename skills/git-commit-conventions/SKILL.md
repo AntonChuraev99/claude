@@ -5,6 +5,8 @@ description: Правила оформления git-коммитов по Conve
 
 # Git Commit Conventions
 
+Здесь — только оформление сообщения. Условие, при котором коммит вообще допустим (не на защищённой ветке — см. шаг 0 скилла `/commit` и `CLAUDE.md` → «Защищённая ветка и worktree»), проверяется до применения этих правил.
+
 Формат: [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
 ```

@@ -27,6 +27,8 @@ color: orange
 
 **Разрешено:** read-only git (`rev-parse`, `log`, `diff`, `show`, `status`), `Read`/`Grep`/`Glob`, запись в `docs/{active,archive,solutions,decisions}/`, `mv` внутри `docs/`, project memory.
 
+**Перед первой записью в `docs/` проектного репозитория — проверить ветку:** `git rev-parse --abbrev-ref HEAD`. Ветка защищена (`main`/`master`/`develop`/`release/*`; список проекта — `~/.claude/config/protected-branches.local.json`) → ничего не писать, вернуть `STATUS: NEEDS_INPUT — protected branch <branch>, документ уехал бы мимо MR`. Ты работаешь фоном, а фоновые агенты PreToolUse-хуки не наследуют — `protected-branch-guard` тебя не остановит, эта проверка твоя. Репозиторий `~/.claude*` и project memory — исключение, там пиши как обычно.
+
 Задача требует выйти за границы — `STATUS: REJECTED — out of scope (engineering work)` плюс рекомендация специалиста.
 
 ## Что должно прийти в брифе

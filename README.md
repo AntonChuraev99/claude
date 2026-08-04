@@ -22,7 +22,8 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 | `*.ps1`, `statusline.sh`, `*.vbs` | Hook & status-line scripts wired up in `settings.example.json`. |
 | `references/` | Long-form reference docs the skills/commands point to. |
 | `settings.example.json` | Template for `~/.claude/settings.json` (hooks, permissions, plugins, status line). Copy it, fill in your key, drop the `.example`. |
-| `config/*.example.md` | Templates for machine-local skill config (copy to `*.local.md`, which stays gitignored). |
+| `config/*.example.{md,json}` | Templates for machine-local config (copy to `*.local.*`, which stays gitignored): per-project credentials and the protected-branch registry. |
+| `hooks/` | Guard hooks wired up in `settings.example.json`: `credentials-guard` (deploy with the wrong account), `protected-branch-guard` (writing code straight onto `main`/`develop` instead of a branch + MR), `ensure-worktree-guard`, `model-overlay`, `credentials-digest`. |
 
 ### Subagents (`agents/`)
 
