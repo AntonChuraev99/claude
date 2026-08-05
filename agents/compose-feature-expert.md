@@ -1,7 +1,6 @@
 ---
 name: compose-feature-expert
 description: Use for Compose Multiplatform FEATURE work in commonMain — the full vertical slice of a feature: Jetpack Compose screens (Route/Screen/Content), ViewModels, UiState (sealed), navigation, design-system usage, bottom sheets, feature-level Repository/UseCase logic, StateFlow/side-effects. DEFAULT-агент для фичи, чей код живёт в commonMain (рендерится И на Android, И на Web/wasmJs) — «paywall на вебе», новый экран, реализация редизайна. Bug-routing: симптом в UI/ViewModel/state/навигации фичи (экран не обновляется, неверный UiState, гонка в VM, recomposition, stale-кадр плеера). DO NOT use for: androidMain platform-код (Hilt, Room driver, Media3, Resources, Manifest, AGP → android-platform-expert); wasmJsMain JS-interop (→ wasmjs-expert); KMP architecture / expect-actual / migration решения (→ kmp-expert); чистая НЕ-фичевая Kotlin-логика и core-утилиты (→ kotlin-expert); trivial one-line changes.
-disallowedTools: Agent, Workflow, NotebookEdit
 model: opus
 memory: user
 color: green

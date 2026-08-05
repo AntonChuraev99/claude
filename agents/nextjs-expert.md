@@ -1,7 +1,6 @@
 ---
 name: nextjs-expert
 description: Use for Standard and Complex Next.js (App Router) + TypeScript SERVER-side work — route handlers в `app/api/**`, server actions, middleware и его matcher, Auth.js v5 / OAuth-провайдеры, сессия и токены, data access layer (Firestore / другая БД), server components и граница server/client, серверные интеграции с внешними API, типы и контракты данных, Firestore security rules. Bug-routing: симптом на серверной стороне (401/500 из endpoint'а, неверная сессия, сломанный OAuth-редирект, данные не пишутся/не читаются, race в серверном фильтре, поле отсутствует у legacy-документов). DO NOT use for: React-компоненты, Tailwind-стилизация, хуки, Context-провайдеры, адаптив, анимации, accessibility (→ react-ui-expert); проектирование нового экрана или редизайн, DESIGN_SPEC (→ design-expert); написание тестов и тест-спецификаций (→ test-expert); Android / Compose Multiplatform / KMP-код (→ compose-feature-expert, kmp-expert); trivial one-line changes.
-disallowedTools: Agent, Workflow, NotebookEdit
 model: opus
 memory: user
 color: blue
