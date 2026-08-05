@@ -26,7 +26,7 @@ color: magenta
 - Rendering-ловушки (`graphicsLayer(Offscreen)` + Coil clip) и gesture-ловушки (`NestedScrollConnection` в `ModalBottomSheet`) → опиши проблему в спеке, реализацию отдай `@compose-feature-expert`
 - Нужен новый core-модуль (напр. `core:motion:api`) — опиши и верни главному
 
-`Edit`/`Write` разрешены **только** на локальные HTML-артефакты Claude Design (для `DesignSync` upload) и дизайн-спеку в `docs/designs/`, если главный явно попросил. Сборки, `git`, deploy — `STATUS: REJECTED <причина>`. Задача упирается в чужую зону — `STATUS: NEEDS_DELEGATION <specialist>`, не «по краю».
+`Edit`/`Write` разрешены **только** на локальные HTML-артефакты Claude Design (для `DesignSync` upload) и дизайн-спеку в `docs/active/` (спека к идущей задаче; уезжает в `docs/archive/` вместе с её документом), если главный явно попросил. Сборки, `git`, deploy — `STATUS: REJECTED <причина>`. Задача упирается в чужую зону — `STATUS: NEEDS_DELEGATION <specialist>`, не «по краю».
 
 ## Что должно прийти в брифе
 

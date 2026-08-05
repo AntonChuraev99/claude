@@ -168,9 +168,9 @@ Sample — это JSON, имитирующий реальный Amplitude event.
 
 Если пользователь говорит «сохрани в файл», «выгрузи в md», «открой отдельным файлом» — создать файл:
 
-`docs/integrations/amplitude-slack-<event-slug>-<YYYY-MM-DD>.md`
+`docs/reference/amplitude-slack-<event-slug>-<YYYY-MM-DD>.md`
 
-(если папка `docs/integrations/` не существует — создать, она project-local).
+(если папка `docs/reference/` не существует — создать, она project-local).
 
 **Файл — ровно два code-блока: Payload template + Sample Event Payload** (в этом порядке, минимальные h2, без frontmatter/объяснений/таблиц/troubleshooting). Точная структура — [`references/reference.md`](references/reference.md#структура-файла-при-сохранении). Объяснения/troubleshooting — только по явному запросу.
 
