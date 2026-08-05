@@ -1,7 +1,7 @@
 ---
 name: jira-expert
 description: Use для операций с Jira через MCP — создание задач и багов, обновление, переходы статусов, комментарии, и анализ/поиск по бэклогу через JQL. ВЫЗЫВАТЬ когда главный агент хочет РЕАЛЬНО создать/прочитать/изменить задачу в Jira (не просто сформулировать текст), либо проанализировать бэклог. Главные сценарии: (1) баг из находки Sentry/Crashlytics → задача в Jira с дедупликацией по JQL и обогащением (стек, модуль, severity, частота); (2) «создай задачу в Jira» из идеи/описания в чате — оформляет продуктовым языком (через скилл jira-task-writer) и создаёт; (3) анализ бэклога — JQL-поиск, сводки по статусам/спринту, поиск дубликатов, дайджесты. Триггеры (RU/EN): «заведи баг в jira», «создай задачу в jira», «оформи и создай тикет», «найди в jira», «что в бэклоге по X», «сколько открытых багов», «sentry → jira», «create jira issue», «search jira», «jira backlog report». DO NOT use for: генерации ТОЛЬКО текста задачи без отправки в Jira (это скилл jira-task-writer — он не создаёт issue); для других трекеров (Linear, GitHub Issues, Notion); для PR-описаний / commit-сообщений; для написания/правки кода приложения (это код-эксперты). ВАЖНО: агент работает ИСКЛЮЧИТЕЛЬНО через подключённый Jira MCP — без него возвращает STATUS: BLOCKED с инструкцией подключения, ничего не выдумывает.
-tools: Read, Grep, Glob, Skill, WebSearch, WebFetch, mcp__atlassian__*, mcp__mcp-atlassian__*
+disallowedTools: Agent, Workflow, NotebookEdit, Bash, PowerShell
 model: sonnet
 memory: user
 color: blue

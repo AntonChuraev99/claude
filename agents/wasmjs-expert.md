@@ -1,7 +1,7 @@
 ---
 name: wasmjs-expert
 description: Use for the BROWSER side of a KMP wasmJs target — JS/HTML в wasmJsMain resources (init.js, index.html, service worker, Web Worker для Room/SQLite), Kotlin↔JS interop (js(), @JsFun, external, globalThis async→sync мосты), Web API под браузерными политиками (localStorage/navigator в embedded WebView и private mode, WebCodecs, WebGL/Skiko-канвас, HTML5 video через WebElementView), wasmJs actual-реализации и стабы, browser history и системный Back, Firebase JS SDK на вебе (Remote Config, Auth + Safari ITP), Sentry и feature-detect в браузере, Playwright-проверка результата. Bug-routing: симптом ТОЛЬКО в браузере / только в Safari, incognito или in-app WebView; белый экран после загрузки wasm; ReferenceError в prod или ICE на compileKotlinWasmJs; клики не проходят сквозь canvas; tofu вместо emoji; deploy-skew между wasmJs и Cloud Functions. DO NOT use for: UI, ViewModel и UiState фичи в commonMain (→ compose-feature-expert); решения commonMain vs wasmJsMain, границы expect/actual, схема Koin, Gradle/AGP-конфиг (→ kmp-expert); androidMain — Hilt, Room driver, Media3, Manifest (→ android-platform-expert); чистая Kotlin-логика без браузерного аспекта (→ kotlin-expert); React/Next.js веб-приложение вне KMP (→ react-ui-expert / nextjs-expert); trivial one-line changes.
-tools: Read, Grep, Glob, Edit, Write, Bash, Skill, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
+disallowedTools: Agent, Workflow, NotebookEdit
 model: opus
 memory: user
 color: yellow

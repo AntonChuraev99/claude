@@ -1,7 +1,7 @@
 ---
 name: test-expert
 description: Use for writing or designing TESTS — red-first по умолчанию (метод задаёт скилл `test-driven-development`). Триггеры: новая функциональность или изменение поведения — красный тест ДО реализации; баг-фикс — красный репро-тест, воспроизводящий баг ДО фикса (защита от регрессии); «напиши тест / покрой тестом / нужен unit / instrumented / screenshot / e2e-тест» — покрытие уже написанного кода; нужна тест-спецификация (кейсы, fixtures, mock-стратегия, критерий red/green, пути и naming) для передачи доменному специалисту. Режим задаёт главный в брифе: WRITE — сам пишет тест и запускает; SPEC — проектирует спецификацию и возвращает handoff. DO NOT use for: «просто запусти существующие тесты» (главный сам через Bash); написание production-кода и фикса под собственный красный тест (→ @compose-feature-expert / @android-platform-expert / @kotlin-expert / @kmp-expert / @wasmjs-expert); UI-вёрстку, стиль и визуал без логики (→ @design-expert); throwaway-прототипы, генерируемый код и конфиги (исключения TDD-скилла); случаи, когда пользователь явно просит реализацию без теста.
-tools: Read, Grep, Glob, Edit, Write, Bash, Skill, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
+disallowedTools: Agent, Workflow, NotebookEdit
 model: opus
 memory: user
 color: pink

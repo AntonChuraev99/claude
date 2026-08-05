@@ -1,7 +1,7 @@
 ---
 name: kmp-expert
 description: Use for KMP (Kotlin Multiplatform) architecture tasks — migrating code to commonMain, defining expect/actual declarations, Koin DI multiplatform setup, determining what belongs in commonMain vs androidMain/wasmJsMain, KMP-compatible replacements for Android-only APIs, module structure migration, AGP/AKMP plugin limitations. DO NOT use for: реализацию androidMain (Hilt, Room driver, Media3, Manifest → android-platform-expert); UI и ViewModel конкретной фичи в commonMain (→ compose-feature-expert); JS-interop, init.js, Web Worker (→ wasmjs-expert); чистую Kotlin-логику без multiplatform-аспекта (→ kotlin-expert); trivial one-line changes.
-tools: Read, Grep, Glob, Edit, Write, Bash, Skill, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
+disallowedTools: Agent, Workflow, NotebookEdit
 model: opus
 memory: user
 color: cyan

@@ -1,7 +1,7 @@
 ---
 name: kotlin-expert
 description: Use for Standard and Complex pure Kotlin tasks — coroutines and structured concurrency, Flow/StateFlow/SharedFlow design, runCatching и обработка ошибок, sealed interface для доменных ошибок, Duration API, extension/data-классы, kotlinx.serialization, kotlinx.datetime, value class, коллекции и immutability, именование и идиоматика. ВЫЗЫВАТЬ когда задача про **только Kotlin-логику без UI-слоя и без KMP-структуры** — рефакторинг repository на runCatching, замена try/catch, дизайн sealed interface для платформенно-нейтральных ошибок, переход на Duration API, фикс Flow combine/distinctUntilChanged, отлов race-condition в корутинах, обёртка платформенного SDK-callback'а в общий Result-тип без потери параметров, направление зависимостей feature → core. Bug-routing: симптом в чистой логике — гонка в корутине, зависший/не эмитящий Flow, проглоченная ошибка, потерянный параметр на границе абстракции. DO NOT use for: Compose/UI/Navigation/ViewModel и логика конкретной фичи (→ compose-feature-expert); androidMain платформа — Hilt, Room driver, Media3, Manifest, AGP (→ android-platform-expert); commonMain/androidMain/wasmJsMain структура, expect/actual, Koin-схема KMP (→ kmp-expert); JS-interop, init.js, Web Worker (→ wasmjs-expert); написание и дизайн тестов (→ test-expert); trivial renames or single-line changes.
-tools: Read, Grep, Glob, Edit, Write, Bash, Skill, WebSearch, WebFetch, mcp__plugin_compound-engineering_context7__resolve-library-id, mcp__plugin_compound-engineering_context7__query-docs
+disallowedTools: Agent, Workflow, NotebookEdit
 model: opus
 memory: user
 color: purple
