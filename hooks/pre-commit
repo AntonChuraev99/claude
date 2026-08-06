@@ -32,7 +32,10 @@ while IFS= read -r f; do
   [ -z "$f" ] && continue
   # Skip files that legitimately contain denylist/secret-pattern STRINGS
   # (this hook template, .gitignore, .gitattributes) — they hold regexes, not data.
-  case "$f" in hooks/*|.gitignore|.gitattributes) continue;; esac
+  # NB: exclusion is this template alone, not hooks/* as a whole. Blanket `hooks/*`
+  # left every other published hook script unscanned — they are ordinary code and
+  # must go through the same anti-leak net as the rest of the repo.
+  case "$f" in hooks/pre-commit|.gitignore|.gitattributes) continue;; esac
   match=$(git show ":$f" 2>/dev/null | grep -nEi "$pattern")
   if [ -n "$match" ]; then
     if [ "$fail" -eq 0 ]; then
