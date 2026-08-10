@@ -19,7 +19,7 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 | `agents/` | 15 specialist subagents (see below). Authored against the `subagent-authoring` skill. |
 | `skills/` | Authored skills: domain workflows plus the process skills migrated out of `CLAUDE.md` (see below). |
 | `commands/` | 6 slash commands. |
-| `*.ps1`, `statusline.sh`, `*.vbs` | Hook & status-line scripts wired up in `settings.example.json`. |
+| `*.ps1`, `statusline.py`, `*.sh`, `*.vbs` | Hook & status-line scripts wired up in `settings.example.json`. |
 | `references/` | Long-form reference docs the skills/commands point to. |
 | `settings.example.json` | Template for `~/.claude/settings.json` (hooks, permissions, plugins, status line). Copy it, fill in your key, drop the `.example`. |
 | `config/*.example.{md,json}` | Templates for machine-local config (copy to `*.local.*`, which stays gitignored): per-project credentials and the protected-branch registry. |
@@ -64,7 +64,9 @@ credential registry that guards against deploying with another project's account
 ├── references/
 ├── config/                    # *.example.md templates → *.local.md
 ├── notify.ps1                 # Windows toast notifications (Stop / Notification hooks)
-├── statusline.sh              # status line (model · branch · context · cost · device)
+├── statusline.py              # status line (branch · context · cost · device · state · task)
+├── statusline-adb.sh          # detached ADB device probe feeding the status line
+├── statusline.sh              # shim → statusline.py (for sessions started before the switch)
 ├── session-docs-digest.ps1    # SessionStart: digest of in-progress / deferred / backlog task docs
 ├── doc-writer-update-reminder.ps1
 ├── toast-action.ps1 / .vbs    # toast button actions (open folder / focus terminal)

@@ -24,7 +24,9 @@
 
 # --- 3. Hook & status-line scripts (referenced from settings.example.json) --
 !/notify.ps1
+!/statusline.py
 !/statusline.sh
+!/statusline-adb.sh
 !/graphify-pretool.ps1
 !/session-docs-digest.ps1
 !/doc-writer-update-reminder.ps1

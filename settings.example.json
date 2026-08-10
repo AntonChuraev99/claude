@@ -323,7 +323,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "bash /c/Users/YOUR_USERNAME/.claude/statusline.sh"
+    "command": "python C:/Users/YOUR_USERNAME/.claude/statusline.py"
   },
   "enabledPlugins": {
     "code-simplifier@claude-plugins-official": true,
