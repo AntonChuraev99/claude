@@ -8,6 +8,7 @@
 
 | дата | запись | область | суть |
 |---|---|---|---|
+| 2026-08-04 | [protected-branch-bash-writes](protected-branch-bash-writes.md) | hooks | PreToolUse-гард видит только файловые инструменты: запись в транк через `Bash` (`cat >`, `sed -i`, `git apply`) и правки фоновых субагентов проходят мимо |
 | 2026-08-03 | [review-rules-noise-reduction](review-rules-noise-reduction.md) | review-rules | 98 runtime-правил дают тысячи срабатываний при est-FP 88-100%; прополоть, сменить триггер L2 с «L1 непуст», добавить автогигиену в stats.py |
 
 ## Done

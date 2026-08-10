@@ -229,9 +229,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\session-docs-digest.ps1\"",
+            "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\session-docs-digest.py\"",
             "timeout": 30,
             "statusMessage": "Собираю дайджест docs/active + docs/todos + docs/backlog…"
+          },
+          {
+            "type": "command",
+            "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\claude-md-size-guard.py\"",
+            "timeout": 10,
+            "statusMessage": "CLAUDE.md: проверяю лимит строк…"
           },
           {
             "type": "command",

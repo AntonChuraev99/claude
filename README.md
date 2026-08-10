@@ -23,7 +23,8 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 | `references/` | Long-form reference docs the skills/commands point to. |
 | `settings.example.json` | Template for `~/.claude/settings.json` (hooks, permissions, plugins, status line). Copy it, fill in your key, drop the `.example`. |
 | `config/*.example.{md,json}` | Templates for machine-local config (copy to `*.local.*`, which stays gitignored): per-project credentials and the protected-branch registry. |
-| `hooks/` | Guard hooks wired up in `settings.example.json`: `credentials-guard` (deploy with the wrong account), `protected-branch-guard` (writing code straight onto `main`/`develop` instead of a branch + MR), `ensure-worktree-guard`, `model-overlay`, `credentials-digest`. |
+| `hooks/` | Hooks wired up in `settings.example.json`: `credentials-guard` (deploy with the wrong account), `protected-branch-guard` (writing code straight onto `main`/`develop` instead of a branch + MR), `ensure-worktree-guard`, `model-overlay`, `credentials-digest`, `session-docs-digest`, `claude-md-size-guard`. Hooks that print to the terminal share one output shape — see `lib/hookout.py`. |
+| `lib/` | Shared by the status line and the hooks: `term.py` (console width, display width, truncation) and `hookout.py` (the common SessionStart output shape). Required — a clone without it has a broken status line and silent hooks. |
 
 ### Subagents (`agents/`)
 
@@ -63,11 +64,16 @@ credential registry that guards against deploying with another project's account
 ├── commands/                  # 6 slash commands
 ├── references/
 ├── config/                    # *.example.md templates → *.local.md
+├── hooks/                     # hook scripts (SessionStart / PreToolUse / PostToolUse / Stop)
+│   ├── session-docs-digest.py # SessionStart: digest of in-progress / deferred / backlog task docs
+│   └── claude-md-size-guard.py # SessionStart: warns when a CLAUDE.md passes 200 lines
+├── lib/                       # shared by the status line and the hooks
+│   ├── term.py                # console width, display width, truncation, ANSI
+│   └── hookout.py             # one output shape for every hook that prints
 ├── notify.ps1                 # Windows toast notifications (Stop / Notification hooks)
 ├── statusline.py              # status line (branch · context · cost · device · state · task)
 ├── statusline-adb.sh          # detached ADB device probe feeding the status line
 ├── statusline.sh              # shim → statusline.py (for sessions started before the switch)
-├── session-docs-digest.ps1    # SessionStart: digest of in-progress / deferred / backlog task docs
 ├── doc-writer-update-reminder.ps1
 ├── toast-action.ps1 / .vbs    # toast button actions (open folder / focus terminal)
 └── LICENSE

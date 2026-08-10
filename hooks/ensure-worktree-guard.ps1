@@ -16,6 +16,12 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Сообщение хука содержит «⚠» и русский текст; без явного UTF-8 на stdout консоль
+# Windows отдаёт их в OEM-кодировке и CLI показывает mojibake (поймано smoke-тестом
+# 2026-08-10: байт 0xa3 вместо U+26A0). Свой try: падение установки кодировки не
+# должно убивать регистрацию гарда.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
 try {
     $cwd = $null
     try {
@@ -74,7 +80,25 @@ try {
 
     $settings | ConvertTo-Json -Depth 20 | Set-Content -Path $settingsPath -Encoding UTF8
 
-    Write-Output "worktree-guard: registered PreToolUse main-repo write guard for worktree '$worktreeName' (was missing). Restart or /hooks reload if writes to the main checkout are still not blocked."
+    # Тот же формат, что у остальных печатающих SessionStart-хуков (см. lib/hookout.py):
+    # `⚠ суть` плюс детали с отступом, без рамок — CLI сам префиксит и отбивает вывод.
+    # Голый Write-Output сюда не годится: stdout SessionStart-хука уезжает в контекст
+    # МОДЕЛИ, а пользователь на экране не видит ничего — при том что действие нужно
+    # именно от него (рестарт сессии).
+    $screen = @"
+$([char]0x26A0) worktree guard: PreToolUse-гард записи в главный checkout не был зарегистрирован
+  зарегистрирован для worktree '$worktreeName'
+  нужен рестарт сессии или /hooks reload, иначе записи в главный checkout не блокируются
+"@
+    $ctx = "worktree-guard: registered PreToolUse main-repo write guard for worktree " +
+           "'$worktreeName' (was missing). Restart or /hooks reload if writes to the main " +
+           "checkout are still not blocked."
+
+    @{
+        suppressOutput     = $true
+        systemMessage      = $screen.Trim()
+        hookSpecificOutput = @{ hookEventName = 'SessionStart'; additionalContext = $ctx }
+    } | ConvertTo-Json -Depth 5 -Compress
 } catch {
     # fail-open: a broken guard installer must never block a session from starting
     exit 0

@@ -28,10 +28,17 @@
 !/statusline.sh
 !/statusline-adb.sh
 !/graphify-pretool.ps1
-!/session-docs-digest.ps1
 !/doc-writer-update-reminder.ps1
 !/toast-action.ps1
 !/toast-action-launcher.vbs
+
+# --- 3a. Shared library for the status line and the hooks -------------------
+#  Not optional: statusline.py and hooks/session-docs-digest.py import from
+#  here, so a clone without lib/ starts with a broken status line and silent
+#  hooks.
+!/lib/
+!/lib/**
+lib/__pycache__/
 
 # --- 4. Subagents -----------------------------------------------------------
 !/agents/
@@ -67,6 +74,8 @@
 !/docs/
 !/docs/backlog/
 !/docs/backlog/**
+!/docs/decisions/
+!/docs/decisions/**
 
 # --- 8. Toast icons (used by notify.ps1) ------------------------------------
 !/assets/
