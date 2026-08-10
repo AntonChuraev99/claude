@@ -33,8 +33,9 @@ Any error is swallowed — an informational hook must never break session start.
 
 Env
     CLAUDE_DIGEST_LINES  — line budget for the visible block (default 14)
-    CLAUDE_DIGEST_COLOR  — 1/on/true to emit ANSI dim; default off until the
-                           CLI is confirmed to pass escapes through untouched
+    CLAUDE_DIGEST_COLOR  — 0/off/false to drop the ANSI dim on the fixed columns;
+                           on by default (the CLI forwards escapes to the
+                           terminal — verified live 2026-08-10)
     NO_COLOR             — wins over the above
     CLAUDE_TERM_COLS     — width override (shared with the status line)
 
@@ -265,9 +266,11 @@ def index_drift(root, folder, entries):
 # --------------------------------------------------------------------------
 
 def use_color():
+    """Dim on by default — verified 2026-08-10 that the CLI passes escapes through
+    to the terminal untouched. `CLAUDE_DIGEST_COLOR=0` (or NO_COLOR) turns it off."""
     if os.environ.get("NO_COLOR"):
         return False
-    return (os.environ.get("CLAUDE_DIGEST_COLOR") or "").lower() in ("1", "on", "true", "yes")
+    return (os.environ.get("CLAUDE_DIGEST_COLOR") or "").lower() not in ("0", "off", "false", "no")
 
 
 def render_row(entry, age_w, meta_w, width, color):

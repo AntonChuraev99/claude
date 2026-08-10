@@ -85,12 +85,17 @@ def make_index(root, folder, entries):
 # hook driver
 # --------------------------------------------------------------------------
 
-def run_hook(cwd, source="startup", cols="100", env_extra=None):
+def run_hook(cwd, source="startup", cols="100", env_extra=None, color=False):
+    """`color=False` (the default here) renders plain text so structural
+    assertions read cleanly; `color=None` leaves the env alone and therefore
+    exercises the hook's own default, which is dim ON."""
     env = dict(os.environ)
     env["CLAUDE_TERM_COLS"] = cols
     env["PYTHONIOENCODING"] = "utf-8"
     env.pop("CLAUDE_DIGEST_COLOR", None)
     env.pop("NO_COLOR", None)
+    if color is False:
+        env["CLAUDE_DIGEST_COLOR"] = "0"
     if env_extra:
         env.update(env_extra)
     payload = json.dumps({"cwd": cwd, "source": source})
@@ -270,13 +275,40 @@ def case_column_alignment(root):
 
 
 def case_color_flag(root):
+    """Dim is ON by default — confirmed 2026-08-10 that the CLI forwards escapes
+    to the terminal instead of printing them literally."""
     make_backlog(root, "b.md", "Запись", days=1)
-    _, parsed, _ = run_hook(root)
-    check("no ANSI by default", "\033[" not in (sysmsg(parsed) or ""), repr(sysmsg(parsed)))
-    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_COLOR": "1"})
-    check("ANSI when opted in", "\033[" in (sysmsg(parsed) or ""), repr(sysmsg(parsed)))
-    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_COLOR": "1", "NO_COLOR": "1"})
-    check("NO_COLOR wins", "\033[" not in (sysmsg(parsed) or ""), repr(sysmsg(parsed)))
+    _, parsed, _ = run_hook(root, color=None)
+    check("ANSI by default", "\033[" in (sysmsg(parsed) or ""), repr(sysmsg(parsed)))
+    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_COLOR": "0"})
+    check("CLAUDE_DIGEST_COLOR=0 turns it off", "\033[" not in (sysmsg(parsed) or ""),
+          repr(sysmsg(parsed)))
+    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_COLOR": "off"})
+    check("`off` also turns it off", "\033[" not in (sysmsg(parsed) or ""), repr(sysmsg(parsed)))
+    _, parsed, _ = run_hook(root, color=None, env_extra={"NO_COLOR": "1"})
+    check("NO_COLOR wins over the default", "\033[" not in (sysmsg(parsed) or ""),
+          repr(sysmsg(parsed)))
+
+
+def case_color_does_not_break_width(root):
+    """Escape sequences occupy no cells — clipping must happen before colouring,
+    or a coloured row silently overflows a narrow terminal."""
+    make_backlog(root, "long1.md",
+                 "Очень длинный заголовок записи бэклога, заведомо не влезающий "
+                 "в узкий терминал и обязанный быть обрезанным", days=2, area="review-rules")
+    make_backlog(root, "long2.md",
+                 "Второй столь же длинный заголовок для проверки выравнивания колонок "
+                 "при включённом цвете", days=40, area="ci")
+    from term import dwidth, strip_ansi
+    for cols in ("60", "100"):
+        _, parsed, _ = run_hook(root, cols=cols, color=None)   # hook default: dim on
+        lines = (sysmsg(parsed) or "").splitlines()
+        limit = int(cols) - 3
+        over = [(dwidth(strip_ansi(l)), l) for l in lines if dwidth(strip_ansi(l)) > limit]
+        check("coloured rows fit at cols=%s" % cols, not over, repr(over))
+        check("every escape is closed at cols=%s" % cols,
+              all(l.count("\033[2m") == l.count("\033[0m") for l in lines),
+              repr([l for l in lines if l.count("\033[2m") != l.count("\033[0m")]))
 
 
 def case_active_statuses(root):
@@ -322,7 +354,8 @@ CASES = [
     case_silent_without_docs, case_silent_when_all_done, case_backlog_only,
     case_source_aware, case_line_budget, case_priority_and_sections,
     case_hot_resume_trigger, case_index_drift, case_index_in_sync, case_width,
-    case_column_alignment, case_color_flag, case_active_statuses, case_malformed_input,
+    case_column_alignment, case_color_flag, case_color_does_not_break_width,
+    case_active_statuses, case_malformed_input,
     case_no_title_fallback,
 ]
 
