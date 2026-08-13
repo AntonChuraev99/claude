@@ -1,0 +1,42 @@
+package com.example.{{FEATURE_PACKAGE}}.ui.screens.{{SCREEN_FOLDER}}
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
+import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import com.example.designsystem.theme.AppTheme
+
+/**
+ * Состояния для скриншот-цикла (скилл `screenshot-driven-ui`).
+ *
+ * Граничные состояния — не украшение: вёрстка ломается именно на них,
+ * а ручной прогон на живых данных их не показывает. Заполнить минимум:
+ * типовое · самый длинный текст · максимум элементов · пусто.
+ */
+internal class {{SCREEN_CLASS}}PreviewStates :
+    PreviewParameterProvider<{{SCREEN_CLASS}}UiState.Success> {
+
+    override val values: Sequence<{{SCREEN_CLASS}}UiState.Success> = sequenceOf(
+        {{SCREEN_CLASS}}UiState.Success(title = "{{SCREEN_CLASS}}"),
+        // Заполнить: граничное — самый длинный заголовок / максимум элементов
+        // Заполнить: граничное — пустой список
+    )
+}
+
+// @PreviewFontScale добавлять точечно: он множит матрицу на ~7.
+// Превью — internal, не private: приватные сканер превью по умолчанию не берёт.
+@PreviewScreenSizes
+@PreviewLightDark
+@Composable
+internal fun {{SCREEN_CLASS}}ContentPreview(
+    @PreviewParameter({{SCREEN_CLASS}}PreviewStates::class)
+    state: {{SCREEN_CLASS}}UiState.Success,
+) {
+    AppTheme {
+        {{SCREEN_CLASS}}Content(
+            state = state,
+            onBackPressed = {},
+        )
+    }
+}

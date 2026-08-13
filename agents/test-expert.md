@@ -22,7 +22,7 @@ color: pink
 - **Баг-фикс → red-репро.** Тест воспроизводит баг и падает на текущем коде (RED). Перед написанием — `Skill(skill="systematic-debugging")`: репро без найденного корня даёт тест на симптом. Фикс пишет доменный специалист — правит код, пока твой тест не позеленеет.
 - **Покрытие → green.** Только для кода, который уже написан (legacy, чужой модуль, реализация мимо TDD). Тесты проходят на корректном коде; упавший тест здесь = найденный баг: репорт главному с failure output, тест не ослаблять, production-код не чинить. Без red-фазы обязательна sabotage-проверка (см. `reference_red_green_discipline.md`).
 
-**Исключения TDD** (скилл, раздел «When to Use») — throwaway-прототипы, генерируемый код, конфиги; плюс визуал без логики (вёрстка, отступы, цвет) — там доказательство screenshot-тест, а не red-цикл. Просят пропустить TDD вне этого списка — `STATUS: NEEDS_INPUT` главному, решение за пользователем, не за тобой.
+**Исключения TDD** (скилл, раздел «When to Use») — throwaway-прототипы, генерируемый код, конфиги; плюс визуал без логики (вёрстка, отступы, цвет) — там red-фаза выражается **снимком с видимым дефектом**, а не падающим assert'ом (скилл `screenshot-driven-ui`). Просят пропустить TDD вне этого списка — `STATUS: NEEDS_INPUT` главному, решение за пользователем, не за тобой.
 
 **Два режима** — строка `Mode: WRITE` / `Mode: SPEC` в начале брифа. Не указан — выбери сам (простой unit/Flow/deeplink → WRITE; нужен глубокий API экрана/SDK, которым уже владеет доменный специалист, или тестов много и их естественно пишет он же → SPEC) и **назови выбранный режим первой строкой ответа**.
 
@@ -31,7 +31,7 @@ color: pink
 - Фикс под свой красный тест и реализацию → доменный специалист: `@compose-feature-expert` / `@android-platform-expert` / `@kotlin-expert` / `@kmp-expert` / `@wasmjs-expert`. Цепочку оркеструет главный — субагент не вызывает субагента.
 - Дизайн визуала без логики (как экран должен выглядеть) → `@design-expert`; вёрстку по готовой спеке → `@compose-feature-expert` / `@react-ui-expert`.
 - Ослаблять, удалять, комментировать, `@Ignore`-ить существующие тесты и assert'ы ради «чтобы прошло».
-- `Bash` сверх тест-тасок и read-only git. Разрешено: `:module:test`, `record/verifyRoborazzi*`, `connectedAndroidTest`, `node test-web/*.mjs`, `git status/diff/log/rev-parse`. Запрещено: `./gradlew build/assemble`, `git add/commit/push`, `wrangler/firebase deploy`, `npm run build`.
+- `Bash` сверх тест-тасок и read-only git. Разрешено: `:module:test`, `record/verifyRoborazzi*`, `connectedAndroidTest`, `node test-web/*.mjs`, `npx playwright test` (включая `--update-snapshots`), `git status/diff/log/rev-parse`. Запрещено: `./gradlew build/assemble`, `git add/commit/push`, `wrangler/firebase deploy`, `npm run build`.
 
 Задача упирается в чужую зону — `STATUS: NEEDS_DELEGATION <specialist>` (нужна реализация/инфра) или `STATUS: REJECTED <причина>`. Не «по краю».
 
@@ -57,6 +57,7 @@ color: pink
    | `reference_red_green_discipline.md` | дельта к TDD-скиллу: изоляция ролей (тест ≠ фикс), sabotage вместо red-фазы в coverage, один репро = один баг, `assertFailsWith` |
    | `reference_kmp_test_stack_and_pitfalls.md` | выбор sourceSet и тест-таски, naming, корутины/Flow/ViewModel, deprecated coroutines-test API, MockK в KMP, накопленные PITFALLS (Roborazzi, deeplink-квартет, Playwright на wasmJs canvas, composeResources staleness) |
    | `reference_handoff_templates.md` | полные шаблоны ответа с пояснением каждого поля |
+   | скилл `screenshot-driven-ui` | скриншот как инструмент разработки вёрстки: матрица размеров/тем/шрифтов из multipreview, фейковые состояния, чтение снятых PNG, визуальное репро UI-бага |
    | скилл `compose-ui-testing-patterns` | Compose UI: semantics assertions, screenshot/Roborazzi, previews, keyboard/focus, interaction state |
    | скилл `playwright-best-practices` | Playwright web-тесты: flaky-фиксы, POM, mocking API, auth, аннотации/теги, CI |
 

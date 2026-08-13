@@ -119,6 +119,8 @@ lib/__pycache__/
 !/skills/android-core-module-builder/**
 !/skills/android-feature-module-builder/
 !/skills/android-feature-module-builder/**
+!/skills/screenshot-driven-ui/
+!/skills/screenshot-driven-ui/**
 
 # --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
 !/skills/claude-profiles/

@@ -79,6 +79,12 @@ For a single-screen feature module, generate these files in order:
    - Location: `features/{{FEATURE_PACKAGE}}/src/main/java/com/example/{{FEATURE_PACKAGE}}/ui/screens/{{SCREEN_FOLDER}}/{{SCREEN_CLASS}}Content.kt`
    - Отдельный файл — Content (internal) для переиспользования и независимого тестирования
 
+7. **Previews** from `assets/templates/FeaturePreviews.kt.template`
+   - Location: `features/{{FEATURE_PACKAGE}}/src/main/java/com/example/{{FEATURE_PACKAGE}}/ui/screens/{{SCREEN_FOLDER}}/{{SCREEN_CLASS}}Previews.kt`
+   - `PreviewParameterProvider` с состояниями + multipreview-аннотации (размеры, темы, fontScale) — вход в скриншот-цикл, скилл `screenshot-driven-ui`
+   - Заглушки «Заполнить:» в провайдере заменяются реальными граничными состояниями экрана, а не остаются как есть
+   - Требует `androidx.compose.ui:ui-tooling-preview` на compile-classpath модуля: не даёт его convention plugin — добавить в `build.gradle.kts` модуля, иначе файл не компилируется
+
 ### Step 5: Register Module
 
 After generating files, complete these registration steps:
@@ -109,10 +115,14 @@ After scaffolding, run validation:
 
 ```bash
 ./gradlew :features:{{FEATURE_PACKAGE}}:assembleDebug
+./gradlew :features:{{FEATURE_PACKAGE}}:recordRoborazziDebug   # если скриншот-инфраструктура заведена
 ```
+
+Снятые PNG **открыть `Read`'ом и посмотреть** — процедура и чек-лист дефектов в скилле `screenshot-driven-ui`. Инфраструктуры в проекте нет: превью всё равно генерируются (они и есть матрица), а заведение Roborazzi предложить главному отдельно.
 
 Verify:
 - [ ] Module compiles without errors
+- [ ] `{{SCREEN_CLASS}}Previews.kt` создан, провайдер заполнен реальными состояниями (типовое + граничные), заглушки «Заполнить:» убраны
 - [ ] All composables follow Route/Screen/Content pattern
 - [ ] Visibility matrix is correct (Route=internal, Screen=private, Content=private)
 - [ ] ViewModel is `@HiltViewModel internal class`
