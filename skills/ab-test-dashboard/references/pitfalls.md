@@ -451,3 +451,100 @@ All series are empty (all-`(none)`) until the release rolls out → a ratio/form
 ✅ For charts keyed on an event-property that shipped later than the experiment: `start` = **release rollout date of the property**, stated in the chart description and glossary. Keep the experiment launch date in the glossary for context; pre-rollout events are unrecoverable (`(none)`).
 
 **Action**: in Step 2 diagnostics, when the marked share is a small fraction of total volume, find when the property actually started flowing (daily uniques of the property vs `(none)`) and anchor `start` there. This complements pitfall 18 (exact launch moment): launch moment bounds the cohort, rollout date bounds the *usable* data.
+
+---
+
+## 22. `interval` silently extends the window backwards — and the variant param may have no impression event
+
+Two traps found on the same run (2026-08-13, web paywall user-video test).
+
+**22a — bucket boundary eats your start date.** `start` is honoured, but the *bucket* is aligned to
+the calendar: `interval: 30` on a test launched **Aug 10** returns a single datapoint stamped
+**Aug 1**, and its total silently includes the pre-test days.
+
+```
+interval: 30 → "Premium Try Purchase, False" = 64   ← Aug 1–13, NOT the test
+interval: 7  → "Premium Try Purchase, False" = 11   ← Aug 10–13, the real number  (launch was a Monday)
+```
+
+A 6× inflation that reads as perfectly plausible data. ✅ Use `interval: 1` for A/B charts (`7` only
+when launch day *is* the week boundary), and check the first datapoint's `xValue` against `start`
+in every diagnostic response.
+
+**22b — the param is usually missing from the impression event.** A variant param added to purchase
+events does not make the *paywall shown* event carry it. Real case: `isUserVideoBackgroundEnabled`
+exists on `Premium Try Purchase` and `Premium Purchase`, but `Go To Premium View` rejects it
+outright (`Property "…" does not exist on event type "Go To Premium View"`). Consequence: **there is
+no per-variant exposure denominator**, so "conversion rate of variant B" cannot be computed at all —
+only (1) a funnel *between* two marked events, (2) a B/A ratio on the earliest marked event judged
+against the split-implied baseline, (3) the same cut on a "was actually shown" param.
+
+Do not paper over this by picking an unmarked event as the funnel's first step and splitting the
+*later* step by variant — the first step then contains both arms and the "rate" is meaningless.
+
+**Action**: in Step 2, enumerate which events carry the param (`get_properties` per event) BEFORE
+choosing the metric; if the impression event is unmarked, say so in the glossary and file the
+instrumentation gap as follow-up work — it's the single change that would make the test properly
+measurable next time.
+
+---
+
+## 23. AI-built charts and dashboards are private until you share them
+
+`save_chart_edits` states it plainly: charts are saved **unpublished, in your personal space**,
+pending human review. `create_dashboard` inherits that — the link you hand over renders for the
+author and looks empty/inaccessible to everyone else. The failure is silent and lands on whoever
+opens it, usually hours later.
+
+✅ Either `share_object` (`objectType: "CHART" | "DASHBOARD"`, `userIds` = login emails) as the last
+build step, or state in the report that publishing to a shared space is a manual UI action. When
+the user did not name recipients, ask rather than guessing emails.
+
+---
+
+## 24. Don't fall back to a second account when the primary's token is stale
+
+When `gcloud` / `firebase` return an auth error, switching to whatever other account is logged in
+does not recover access — it silently returns a *different, smaller* view (e.g. a project list
+without the project you need), which then reads as "the project doesn't exist" or "the API is
+gone". Re-auth is interactive, so an agent cannot perform it.
+
+✅ `firebase login:list` → if the correct account exists but is stale, switching to it with
+`firebase login:use <acct>` is right; the re-auth itself (`firebase login --reauth`,
+`gcloud auth login`) goes into the user's manual-steps block. Never treat a personal account as a
+fallback for an org project, and never conclude an endpoint is dead from an auth failure.
+
+---
+
+## 25. Saved-chart quota can block the whole build at the last step
+
+`save_chart_edits` can return `"Chart limit reached"` — a plan-level cap on saved charts. **On the
+Free plan that cap is 10 charts for the WHOLE ORGANIZATION**, not per project
+([docs](https://amplitude.com/docs/get-started/create-a-chart)) — so an org with years of saved
+charts is permanently at the ceiling, and deleting a handful frees nothing. Verified 2026-08-13 on
+`starter_v4`: five charts deleted, save still refused. It fails at the *end*, after every query is built and validated, and
+`create_dashboard` then has nothing to place: dashboards accept only permanent `chartId`s, never
+`chartEditId`s. There is no delete-chart tool in this MCP, so the agent cannot free space itself.
+
+✅ Check the plan early — `get_amplitude_context` returns `org.plan` — and on a capped plan say
+up-front that saving may need quota freed. When it does hit:
+
+1. **Deliver the analysis anyway**: `render_chart` works on `chartEditId` without saving, so the
+   user sees every chart and the numbers. Report the findings in text too — a `chartEditId` is
+   ephemeral, don't present it as a permanent link.
+1b. **Hand over the chart in Amplitude's own UI**: a `chartEditId` opens directly at
+   `https://app.amplitude.com/analytics/<org-url>/chart/new/<chartEditId>` — fully built, with the
+   real Save button. The user saves it themselves (their click, their quota decision), and can
+   tweak it live first. With Claude-in-Chrome you can even open it and type the chart's title so
+   only Save is left. This is the best workaround when quota, permissions, or publishing rules
+   block the API path — the analysis lands in the product, not in chat.
+2. Point the user at **Settings → Organization Settings → Chart Cleanup** — the only place showing
+   the true org-wide count (plus charts unviewed in 60 days) and offering bulk delete. A
+   `search`-derived list is a poor substitute: search ranks by relevance and won't enumerate
+   everything. Say how many slots are needed and that **archiving is not deleting** — archived
+   charts still occupy the quota.
+3. Re-run `save_chart_edits` + `create_dashboard` with the same `chartEditId`s once freed
+   (same session — the edits expire).
+
+**Never delete charts to make room on your own**: they belong to other people, deletion is
+irreversible, and the quota is the user's call.

@@ -316,6 +316,89 @@ For "events per user" (frequency) on the same chart: change `metric` to `"averag
 
 ---
 
+## 7. Downstream funnel split by variant event-property (no exposure denominator)
+
+**Use when**: the variant param exists only on downstream (purchase-ish) events, so there is no
+marked impression event to serve as the denominator (pitfall 22b). Both funnel steps must be events
+that carry the param — that's what makes the rate honest.
+
+Split via `byProp` (NOT two segments) so the legend renders the property's own values
+automatically — no UI rename needed (see SKILL Step 4).
+
+```json
+{
+  "type": "funnels",
+  "app": "<projectId>",
+  "name": "A/B <test> — <stepA> → <stepB> CR by variant",
+  "params": {
+    "start": <launch_unix_seconds>,
+    "end": "now",
+    "mode": "ordered",
+    "events": [
+      {"event_type": "<markedEntryEvent>", "filters": [], "group_by": []},
+      {"event_type": "<markedSuccessEvent>", "filters": [], "group_by": []}
+    ],
+    "metric": "CONVERSION",
+    "byProp": "<variantPropertyName>",
+    "byPropIndex": 0,
+    "byPropType": "event",
+    "interval": 1,
+    "countGroup": "User",
+    "conversionSeconds": 86400,
+    "segments": [{"time_type": "all", "conditions": [
+      {"op": "is", "prop": "platform", "type": "property", "values": ["<Platform>"], "prop_type": "user", "group_type": "User"},
+      {"op": "is not", "prop": "gp:userRole", "type": "property", "values": ["User_Team_Member"], "prop_type": "user", "group_type": "User"}
+    ]}]
+  }
+}
+```
+
+`byPropIndex` = index of the funnel step whose property does the splitting (0 = first step).
+Filter the `(none)` series out of the reading — it's users the param never reached.
+
+---
+
+## 8. Intent ratio B/A against the split-implied baseline
+
+**Use when**: you need a single "is B pulling ahead" number on the earliest marked event, with no
+denominator available. Compare the plotted value against the baseline the traffic split implies:
+50/50 → **1.0**, 67/33 → **0.49**, 80/20 → **0.25**.
+
+```json
+{
+  "type": "eventsSegmentation",
+  "app": "<projectId>",
+  "name": "A/B <test> — intent ratio B/A (baseline <X>)",
+  "params": {
+    "start": <launch_unix_seconds>,
+    "end": "now",
+    "interval": 1,
+    "events": [
+      {"event_type": "<markedEvent>", "filters": [{"group_type": "User", "subprop_key": "<variantPropertyName>", "subprop_op": "is", "subprop_type": "event", "subprop_value": ["<testValue>"]}], "group_by": []},
+      {"event_type": "<markedEvent>", "filters": [{"group_type": "User", "subprop_key": "<variantPropertyName>", "subprop_op": "is", "subprop_type": "event", "subprop_value": ["<controlValue>"]}], "group_by": []}
+    ],
+    "metric": "formula",
+    "formula": "UNIQUES(A)/UNIQUES(B)",
+    "groupBy": [],
+    "countGroup": "User",
+    "eventAbstraction": "Event",
+    "segments": [{"time_type": "all", "conditions": [
+      {"op": "is", "prop": "platform", "type": "property", "values": ["<Platform>"], "prop_type": "user", "group_type": "User"},
+      {"op": "is not", "prop": "gp:userRole", "type": "property", "values": ["User_Team_Member"], "prop_type": "user", "group_type": "User"}
+    ]}]
+  }
+}
+```
+
+On thin daily volume this ratio is violently noisy (a day with 1 and 0 gives ∞ or 0) — read the
+cumulative/period value, not the daily line, and say so in the glossary.
+
+**Treatment-on-treated variant**: same definition with `<variantPropertyName>` swapped for the
+"was actually shown" param. The gap between the two is the dilution — report it as a number
+(e.g. "9 flagged, only 5 actually saw the feature → 44% of the treatment arm is untreated").
+
+---
+
 ## Common to all chart types
 
 - `start`: Unix seconds at launch moment (00:00 UTC of launch date is fine if launched same day).
@@ -325,17 +408,12 @@ For "events per user" (frequency) on the same chart: change `metric` to `"averag
 - Always two segments minimum (A, B) for Templates 1–5. Template 6 uses one segment + `groupBy` on event-property.
 - Multi-arm tests (A/B/C/D): add more segments, but limit to ≤4 for readability.
 
-### Unix timestamp reference (00:00 UTC, for `start` parameter)
+### Unix timestamp for `start` — compute it, don't look it up
 
-| Date | Unix seconds |
-|---|---|
-| 2026-01-01 | 1767225600 |
-| 2026-04-01 | 1775001600 |
-| 2026-05-01 | 1777593600 |
-| 2026-05-22 | 1779408000 |
-| 2026-05-26 | 1779753600 |
-| 2026-05-27 | 1779840000 |
-| 2026-06-01 | 1780272000 |
-| 2026-07-01 | 1782864000 |
+A hardcoded table rots (this one did). Anchor: **2026-01-01 00:00 UTC = 1767225600**, +86400/day.
+Or just pass an ISO string — `start` accepts `"2026-08-10T00:00:00Z"` and coerces it (and
+`"now-7d"` style relatives). Prefer the exact experiment launch second when you have it
+(pitfall 18).
 
-Add 86400 per day. Always verify in `query_dataset` response — `"YYYY-MM-DD to YYYY-MM-DD"` should match what you intended.
+Always verify against the response: the first datapoint's `xValue` must equal your intended start.
+If it's *earlier*, `interval` snapped the bucket backwards — see pitfall 22a.

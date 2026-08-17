@@ -28,11 +28,38 @@ Goal: build an Amplitude dashboard that answers a single question — **is this 
 Most tests live in **Firebase A/B Testing** (Remote Config) or **RevenueCat Experiments**. Pulling the definition gives you launch moment, split, variants, and the primary objective without guessing:
 
 - **Firebase A/B Testing** — ⚠️ these are **NOT** in the Firebase MCP and **NOT** in `remoteconfig_get_template` (that template only has base conditions: platform/version/country/staging). The experiment list is a separate REST endpoint:
-  - List: `GET https://firebaseremoteconfig.googleapis.com/v1/projects/{projectNumber}/namespaces/firebase/experiments?pageSize=300` → `definition.displayName`, `state` (RUNNING/DONE), `startTime`.
+  - List: `GET https://firebaseremoteconfig.googleapis.com/v1/projects/{projectNumber}/namespaces/firebase/experiments?pageSize=300` → `definition.displayName`, `state` (RUNNING/DONE), `startTime`. Endpoint verified working 2026-08-13, post-migration.
+  - **Experiment ids changed with the migration**: new experiments come back as `abt_<N>`
+    (`…/experiments/abt_63`), older ones keep a bare number (`…/experiments/61`). Take the id from
+    the `name` field, never assume it's numeric.
+  - **Token**: `gcloud auth print-access-token` may fail here with `PERMISSION_DENIED … local
+    Application Default Credentials` (no quota project). The reliable route is the Firebase CLI
+    refresh-token exchange below. Parse the JSON with an explicit `encoding='utf-8'` — on Windows
+    the default cp1251 decode blows up on experiment names.
   - Detail: `GET …/experiments/{N}` → `definition.variants[]` (name + weight = split, e.g. `1:1` = 50/50) and `definition.objectives.eventObjectives[]` (`systemObjectiveDetails.objective`: `total_revenue` / `retention_7`; or `customObjectiveDetails`). **Match your primary chart to the experiment's own primary objective.**
   - **Auth** (when gcloud token is stale / wrong project): exchange the Firebase CLI refresh token — `~/.config/configstore/firebase-tools.json` → `tokens.refresh_token` → POST `https://oauth2.googleapis.com/token` with the public Firebase-CLI `client_id <FIREBASE_CLI_CLIENT_ID>` / `client_secret <FIREBASE_CLI_CLIENT_SECRET>` (the well-known public Firebase CLI OAuth client — look it up in the firebase-tools source). Never print tokens.
   - The variant **RC-parameter overrides are NOT returned** — only variant names. Which parameter/offering/product/price differs you discover **empirically in Step 2**. Firebase A/B variant assignment is **not pushed to Amplitude** as a user-property → split by an **event-property** (pitfall 13/17), not a `gp:` segment.
   - Your Firebase project number: `<YOUR_PROJECT_ID>`.
+  - **Workflow Migration (2026):** A/B Testing now lives *inside* the Remote Config template
+    (experiments alongside Rollouts/Personalization); the standalone Drafts tab is deprecated and
+    is removed **2026-10-31**, in-flight edits sit in a session-local "Staging" sub-tab, and
+    "Manage test devices" is gone (target internal devices by Firebase Installation ID in the
+    experiment's conditions instead). Console-side change — the experiments REST endpoints above
+    were **not** announced as deprecated (checked 2026-08-13). Limits: 300 experiments per project,
+    24 running at once.
+  - **Auth reality check before you plan on the REST route:** both `gcloud` and the Firebase CLI
+    token expire often, and re-auth is interactive → an agent cannot do it. Check `firebase
+    login:list` first; if the required account is present but stale, the fix is the user running
+    `firebase login --reauth` / `gcloud auth login`. **Do not silently fall back to a personal
+    account** — it usually has no access to the project and will just return a shorter project
+    list that looks like "the project doesn't exist". When the REST route is blocked, take launch
+    date / variant count / split from the console screenshot the user gave you and say in the
+    glossary that the split is user-reported, not pulled.
+  - **"Cannot calculate a p-value"** on the experiment page means Firebase itself could not
+    evaluate the objective — almost always too few users (a 97-user, 2-variant test is far below
+    any usable power), sometimes an objective/targeting mismatch. It is **not** a reason to skip
+    the dashboard, and the dashboard does **not** substitute for the verdict: state the observed
+    counts and the fact that no arm is decidable yet.
 - **RevenueCat Experiments** — `list-experiments` / `get-experiment-results` (RC MCP). RC results carry **exposure** (the correct denominator) → cite them as source-of-truth for revenue lift; the Amplitude dashboard is live monitoring.
 
 Then ask the user (below) **only for what the source didn't give you.**
@@ -56,7 +83,7 @@ Required to learn:
 4. **Platform**: Android / iOS / Web / All.
 5. **Traffic split**: 50/50, 66/33, 80/20, etc. **Critical** — non-50/50 split forbids Total Revenue as a metric (use ARPU instead).
 6. **For revenue/subscription tests only**: subscription type (weekly / monthly / yearly / one-time / lifetime). Drives Day-7 vs Day-30 checkpoints.
-7. **Amplitude project**: get from `mcp__plugin_amplitude_amplitude__get_context`. Default to user's `defaultAppId` unless they specified otherwise.
+7. **Amplitude project**: get from `get_amplitude_context` (call with no args). Default to the user's `defaultAppId` unless they specified otherwise.
 
 Only ask what's actually missing — if the user already gave variant names + platform, don't re-ask. If `defaultAppId` exists, don't ask which project (just confirm in glossary).
 
@@ -64,9 +91,22 @@ Only ask what's actually missing — if the user already gave variant names + pl
 
 Run these in parallel before building anything:
 
-- `get_context` → confirm projectId
+- `get_amplitude_context` → confirm projectId
 - `search` (entityTypes=`["EVENT", "EVENT_PROPERTY", "USER_PROPERTY"]`) for relevant events to the test type (purchase events for pricing tests, onboarding events for onboarding tests, etc.)
 - `query_dataset` diagnostic: group by the variant property **AND platform** (two-dimensional groupBy) to verify variant values exist on the target platform. See diagnostic below.
+
+**Which events actually carry the variant param — check, don't assume.** A param added for one
+test is usually wired into a *subset* of events (typically the purchase ones), and the one you
+most want — the paywall/screen **impression** event — is often the one it's missing from. That
+decides the whole dashboard: no marked impression event = **no exposure denominator** = conversion
+rate per variant cannot be computed, only ratios and downstream funnels (pitfall 22).
+
+Cheapest check is `get_properties` (`propertyType: "event"`, `eventType: "<event>"`) — a compact
+list per event. `query_dataset` also enforces it: an event/property that doesn't exist in the
+taxonomy now returns an explicit `Invalid chart definition: Property "X" does not exist on event
+type "Y"` (verified 2026-08-13), so a typo fails loudly instead of silently rendering zeros.
+Note the asymmetry: `get_amplitude_charts include:"guide"` does NOT validate names — it only
+describes chart structure.
 
 **Diagnostic (mandatory two-dimensional groupBy):**
 
@@ -112,10 +152,34 @@ Match test type → primary metric. Always one **single-metric chart** that dire
 
 See `references/chart-templates.md` for full JSON definitions for each.
 
+**When the variant param rides only on downstream events (no marked impression event), the table
+above does not apply** — every row in it assumes you can count exposed users per arm. Fall back to
+this trio (Templates 7–8), and say plainly in the glossary that these are proxies:
+
+1. **Downstream funnel** — first marked event → success event, split `byProp` on the variant param.
+   Honest, because its denominator (the first marked event) is itself marked. Answers "of users who
+   got far enough to be labelled, which arm finishes more".
+2. **Intent ratio** — `UNIQUES(variant=B) / UNIQUES(variant=A)` on the earliest marked event,
+   compared against the **baseline implied by the traffic split** (50/50 → 1.0; 67/33 → 0.49).
+   Above baseline = the B arm reaches that step more often. Needs the split; if the split is
+   user-reported rather than pulled from the platform, label it as such.
+3. **Treatment-on-treated** — if a second param distinguishes "feature actually rendered" from
+   "flag was on" (e.g. `…Shown` vs `…Enabled`), build the same cut on the *Shown* param and report
+   the dilution (how many flagged users never saw the feature). Intention-to-treat on the flag
+   understates the effect whenever that gap is non-trivial.
+
 ### Step 4 — Build the chart
 
+0. (optional but cheap) `verify_chart_definition` — catches wrong enums, bad field names, and
+   event/property names that don't exist in the taxonomy, and returns the corrected definition.
 1. `query_dataset` with the chosen definition. Use `start` (Unix seconds) + `end: "now"` from launch date — **not** `range: "Last N Days"` (range includes pre-test data which corrupts the cohort).
 2. **Verify Unix timestamp**: response shows interpreted range as `YYYY-MM-DD to YYYY-MM-DD`. If start year is wrong (e.g. 2025 instead of 2026), recalculate. 2026-01-01 00:00 UTC = 1767225600. Add 86400 per day.
+2b. **`interval` silently widens the window backwards to the bucket boundary.** `interval: 30` on a
+   test launched Aug 10 buckets from **Aug 1** and the totals then include 9 pre-test days;
+   `interval: 7` snaps to Monday. Verified 2026-08-13 — a diagnostic read 64 vs the true 11 this
+   way, a 6× inflation that looks like real data. Keep `interval: 1` for A/B charts, or use `7`
+   **only** when the launch date is itself a Monday. Always sanity-check the `xValue` of the first
+   datapoint in the response against your intended `start`.
 3. If revenue metric: `newOrActive: "new"` is required (only count purchases from users who started in the cohort window).
 4. **Readable legend — prefer a property split, not two named segments.** The cleanest way to get a readable per-variant legend is **one segment + a property breakdown**: funnels → `byProp` + `byPropIndex` on the variant property; eventsSegmentation → `groupBy` on it. The legend then shows the property's own values (e.g. `True` / `False`, `control` / `test`) automatically. This is the paywall-A/B pattern and it always renders. Use this whenever the variant IS a single event/user property.
 5. When the split is **not** a single property (e.g. `version ∈ {4.09.*}` vs `∉` → two segments with different conditions), you **cannot set the tile legend through this MCP** — it must be done in the UI after building. The tile legend reads the **top-level** `customSerieLabels` map (`{"{\"segmentIndex\":0}":"before 4.09","{\"segmentIndex\":1}":"4.09"}`), and only the UI "Rename a segment" action writes it (hover the segment name → click → type → Save). Verified dead ends (don't repeat them): `query_dataset` accepts top-level `customSerieLabels` and labels the response/CSV, but `save_chart_edits` **strips** it; placing it inside `params` survives save but the renderer **ignores** params-level. Still set each segment `name` (labels the query/CSV `Segment` column). In your final report, list which charts need the ~20-second UI rename. **Prefer the property split (step 4)** whenever the variant is a single property — it avoids the rename entirely.
@@ -126,6 +190,9 @@ See `references/chart-templates.md` for full JSON definitions for each.
    - **If user-property is `(none)` on the target platform** → switch to event-property pattern (Template 6, pitfall 13). RC's `presented_offering_id` works without app instrumentation.
    - **If `_new` cohort is all `(none)`** → drop `newOrActive: "new"`, use `"active"` with behavioral entry event (e.g. `Special Gift Opened`). See pitfall 15.
 6. `save_chart_edits` → permanent `chartId`. Required to put on dashboard.
+7. `render_chart` with the `chartEditId` (or saved `chartId`) to actually SHOW the result to the
+   user — skipping it means they read numbers in prose instead of seeing the chart. Do NOT render
+   an empty/all-zero result: say so in words instead.
 
 ### Step 5 — Build the dashboard
 
@@ -136,6 +203,11 @@ Use `create_dashboard` with two rows:
 
 For multi-metric tests (rare): add additional rows with smaller heights (375).
 
+**Charts you build land UNPUBLISHED in your personal space** — the dashboard link works for you and
+looks broken/empty to a teammate. Finish the job: `share_object` (objectType `DASHBOARD`, and the
+charts too) with the intended viewers' login emails, or tell the user in the report that publishing
+to a shared space is a manual step. Don't hand over a link that only the author can read.
+
 ### Step 6 — Report
 
 Tell user:
@@ -145,9 +217,36 @@ Tell user:
 - When to expect a real signal (Day 7 / Day 30 from launch — based on subscription type)
 - Any caveats discovered (variant B has 0 users, split is non-50/50, data only includes today, etc.)
 
+## Web / wasmJs tests
+
+- `platform` for the web client is **`Web`** — a third value next to `Android` / `iOS`. Filter on
+  it explicitly: a shared Amplitude project mixes all three, and mobile volume will drown the web
+  arm otherwise.
+- **Firebase A/B variant assignment never reaches Amplitude as a user-property** on any platform,
+  web included → always the event-property route. Which events carry it is a code fact, not a
+  platform fact — check per event (Step 2).
+- **A feature flag shipped "Android-only" may be alive on web and the code comments stale.** Check
+  the wasmJs `actual`/stubs of every flag source (RemoteConfig, DataStore) before concluding the
+  feature is off there — hardcoded `false` stubs are the classic failure, and un-stubbing them is
+  a one-line change someone may already have made.
+- Web purchases may run through a different billing path (web billing / Stripe) than the store
+  SDK. Don't assume `rc_*` events cover the web arm before checking.
+
 ## Critical pitfalls (read before building)
 
 See `references/pitfalls.md` for full list with examples. Key ones:
+
+- **`interval` widens the window backwards to the bucket boundary** — `interval: 30` on an Aug-10
+  test reads from Aug 1 and inflates every count (pitfall 22). Use `interval: 1`.
+- **No marked impression event = no exposure denominator** — conversion-rate-per-variant is then
+  not computable; use downstream funnel + intent-ratio + treatment-on-treated instead, and label
+  them as proxies (pitfall 22).
+- **Charts save unpublished into your personal space** — the dashboard link is not team-visible
+  until shared/published (pitfall 23).
+- **`save_chart_edits` can fail with `"Chart limit reached"`** on capped plans, at the very last
+  step. Check `org.plan` from `get_amplitude_context` early; when it hits, `render_chart` the
+  `chartEditId`s so the analysis still lands, and hand over a cleanup list — never delete other
+  people's charts yourself (pitfall 25).
 
 - **MANDATORY for your internal-team projects (`<YOUR_PROJECT_IDS>`): every segment MUST include `gp:userRole is not User_Team_Member`** — иначе team-тестеры доминируют на маленьких выборках (release 4.05.02 prec: Premium Purchase 7→1, Vote Not Buy 3→0). Add this condition in BOTH variant segments (control + test), не только в один.
 - **User-property may not be written on every platform** — diagnostic MUST groupBy `gp:<variant>` AND `platform` together. If target platform shows only `(none)`, fall back to event-property split (pitfall 13, Template 6). Real precedent: an Android client writes only `isSpecialGiftOfferEnabled` boolean, not `specialGiftOfferID` — iOS instrumentation works, Android doesn't. RC's `presented_offering_id` saves you.
@@ -163,14 +262,25 @@ See `references/pitfalls.md` for full list with examples. Key ones:
 
 ## Available tools (Amplitude MCP)
 
-The plugin `amplitude` MCP exposes these — load them via `ToolSearch` if not already in scope:
+Load in ONE `ToolSearch` call (comma-separated `select:`), not one per tool. Verified against live
+schemas 2026-08-13 — the names below are current; several older ones were consolidated:
 
-- `get_context`, `get_project_context`
-- `search`, `get_events`, `get_properties`
-- `get_chart_definition_params`, `verify_chart_definition`
-- `query_dataset` (returns editId)
-- `save_chart_edits` (editId → permanent chartId)
-- `create_dashboard`, `edit_dashboard`, `get_dashboard`
+| Use | Tool | Note |
+|---|---|---|
+| org + project list, project settings | `get_amplitude_context` | **replaces** `get_context` / `get_project_context` (one tool; omit `projectId` for the list) |
+| find events/properties/charts | `search` | `entityTypes: ["EVENT","EVENT_PROPERTY","USER_PROPERTY","CHART"]` |
+| taxonomy detail | `get_events`, `get_properties` | **`get_event_properties` is gone** → `get_properties` with `propertyType: "event"` + `eventType` |
+| pre-flight validation | `verify_chart_definition` | validates event/property names against the project taxonomy, auto-coerces known mistakes |
+| run an ad-hoc query | `query_dataset` | returns `chartEditId`; also aliased `query_amplitude_data` (accepts `chart` + `chartId` for fork/modify) |
+| read saved charts | `get_amplitude_charts` | one tool, five modes via `include`: `link` / `typed` / `definition` / `data` / `guide`. **replaces** `get_charts`, `query_charts`, `get_chart_definition_params` (= `include:"guide"`) |
+| SHOW a chart to the user | `render_chart` | pass the `chartEditId` from `query_dataset` (or a saved `chartId`) — renders an interactive widget |
+| persist | `save_chart_edits` | `chartEditId` → permanent `chartId` (required for dashboards) |
+| assemble | `create_dashboard`, `edit_dashboard`, `get_dashboard` | `edit_dashboard` needs `expectedLastModified` from `get_dashboard` |
+| make it visible to the team | `share_object` | AI-built charts land **unpublished in your personal space** — see pitfall 23 |
+
+Amplitude also exposes `get_experiments` / `query_experiment` — those are for experiments run in
+**Amplitude Experiment**. A Firebase/RevenueCat test is invisible to them; don't reach for them
+just because the word "experiment" appears.
 
 ## References
 
