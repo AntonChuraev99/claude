@@ -104,13 +104,23 @@ Merge, поставленный в очередь по CI, **не** являет
 ## Уборка (только после подтверждённого merge)
 
 ```bash
-git push origin --delete <branch>            # если не сняли флагом --remove-source-branch / --delete-branch
-git worktree remove .claude/worktrees/<slug> # незакоммиченного там уже нет (гард 3)
-git branch -d <branch>                       # -D не использовать: -d проверяет, что ветка влита
-git -C <main-checkout> checkout <trunk> && git -C <main-checkout> pull
+git push origin --delete <branch>   # если не сняли флагом --remove-source-branch / --delete-branch
 ```
 
-`git worktree remove` ругается на грязное дерево → в worktree осталось что-то незакоммиченное: **не** сносить с `--force`, показать `git status` пользователю. `git branch -d` отказывается → ветка не влита, merge на самом деле не состоялся — вернуться к разделу «Отказы».
+Дальше — **выход из worktree тулом, а не `git worktree remove`**: сессия стоит внутри каталога, и снести его, не сменив CWD, нельзя (на Windows каталог просто залочен).
+
+| Как заводили worktree | Уборка |
+|---|---|
+| `EnterWorktree({name})` в этой сессии | `ExitWorktree({action: "remove"})` — возвращает CWD, сносит каталог и локальную ветку |
+| вошли по `EnterWorktree({path})` / worktree из прошлой сессии | `ExitWorktree({action: "keep"})`, затем из главного checkout `git worktree remove <путь>` и `git branch -d <branch>` (`-d`, не `-D`: проверяет, что ветка влита) |
+
+`ExitWorktree` отказал с «commits not on the original branch» — после **squash**-merge это ожидаемо: squash кладёт в транк новый sha, коммитов ветки там буквально нет. Merge подтверждён (есть `Merged: <sha>`) → повторить с `discard_changes: true`. Merge не подтверждён → раздел «Отказы», ничего не сносить.
+
+Отказ на незакоммиченных файлах → в worktree осталась несохранённая работа: `discard_changes` **не** ставить, показать `git status` пользователю. `git branch -d` отказывается → ветка не влита, merge не состоялся — раздел «Отказы».
+
+```bash
+git -C <main-checkout> checkout <trunk> && git -C <main-checkout> pull
+```
 
 ## Отчёт
 
