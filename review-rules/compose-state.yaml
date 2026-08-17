@@ -13,6 +13,7 @@
   globs:
   - '**/commonMain/**/*.kt'
   - '**/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   detect:
     type: grep
     has: LaunchedEffect\([^)]*[Tt]rigger[^)]*\)
@@ -32,6 +33,7 @@
   globs:
   - '**/commonMain/**/*.kt'
   - '**/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   detect:
     type: grep
     has: \bisAtEnd\b
@@ -49,6 +51,7 @@
   - kmp
   globs:
   - '**/commonMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   detect:
     type: grep
     has: combine\s*\([^)]*emptyFlow\s*\(
@@ -84,6 +87,7 @@
   globs:
   - '**/commonMain/**/*.kt'
   - '**/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   detect:
     type: grep
     has: remember\s*(\([^)]*\))?\s*\{\s*(IntArray|FloatArray|LongArray|DoubleArray|arrayOfNulls|Array<)
@@ -99,6 +103,7 @@
   - kmp
   globs:
   - '**/commonMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   detect:
     type: grep
     has: ':\s*\([^)]*\)\s*->\s*\w+\s*=\s*\{\s*\}'
@@ -114,6 +119,7 @@
   - kmp
   globs:
   - '**/commonMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   detect:
     type: grep
     has: LaunchedEffect\((\w+)\)\s*\{\s*on\w+Changed\(\1\)
@@ -132,6 +138,7 @@
   globs:
   - '**/commonMain/**/*.kt'
   - '**/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
   - '**/wasmJsMain/**/*.kt'
   detect:
     type: grep
@@ -176,3 +183,31 @@
   message: 'Замена условного снятия узла (AnimatedVisibility / early return) на Modifier.alpha(0f) оставляет поддерево скомпонованным: шиммер-плейсхолдер / rememberInfiniteTransition внутри продолжает инвалидировать draw вечно и невидимо (на Skiko = постоянный repaint канваса), а прежний disposal-путь по onError исчезает.'
   fix: 'Прятать отсутствием узла (early return по state) там, где состояние конечное (blank data, error); alpha(0f) оставлять только для loading-фазы, где узел обязан жить, чтобы запрос стартовал — и убедиться, что внутри нет infinite-анимаций.'
   source: 'app: docs/solutions/profile-face-badge-flicker-2026-07-31.md (FaceAvatarBadge; AppPlaceholder = rememberInfiniteTransition, прецедент 376 рекомпозиций/сек)'
+- id: gating-flow-stuck-on-terminal-loading
+  mode: runtime
+  severity: medium
+  probation: '2026-11-13'
+  target_mode: static
+  stack:
+  - compose
+  - kmp
+  - android
+  globs:
+  - '**/commonMain/**/*.kt'
+  - '**/androidMain/**/*.kt'
+  - '**/src/main/**/*.kt'
+  detect:
+    type: grep
+    has: flowOf\s*\(\s*[A-Za-z.]*Loading
+    unless: Fake|Test|Preview|//|timeout|withTimeout|onStart
+  message: 'A gating flow returns a constant Loading flow for the "not resolved yet" branch (e.g. flatMapLatest
+    { if (state is Loading) flowOf(Loading) }). If the upstream source never emits at all - a callback
+    silently dropped rather than failing - the flow stays Loading forever. Consumers that gate a CTA on
+    "not Loading" lose their only way forward, and .catch does not help: "the callback never arrived"
+    is not an exception.'
+  fix: 'Give the consumer a ceiling the way the start gate already does: treat Loading longer than N seconds
+    as resolved-but-empty with a working exit, or seed the source with onStart { emit(...) }. Never gate
+    the only forward action purely on a non-Loading state.'
+  source: '<your-project> onboarding reveal deadlock 2026-08-13 (L2 review): the content repository flow
+    returns flowOf(Loading) while isPremiumPurchased is Loading, OnboardingRevealPage CTA is enabled only
+    on Ready -> no exit at all when RevenueCat is silent.'

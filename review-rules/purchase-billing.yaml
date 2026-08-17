@@ -31,7 +31,9 @@
   globs:
   - '**/feature/splash/**/*.kt'
   - '**/feature/paywall/**/*.kt'
+  - '**/onboarding/**/*.kt'
   - '**/*SplashViewModel*.kt'
+  - '**/premium/**/*.kt'
   detect:
     type: grep
     has: if\s*\([^)]*isPaywallLinked\(\)
@@ -49,7 +51,9 @@
   - android
   globs:
   - '**/feature/paywall/**/*.kt'
+  - '**/onboarding/**/*.kt'
   - '**/paywall/**/*.kt'
+  - '**/premium/**/*.kt'
   detect:
     type: grep
     has: \.id\s*==\s*"[a-z_]+:[a-z0-9-]+"
@@ -66,7 +70,9 @@
   - android
   globs:
   - '**/feature/paywall/**/*.kt'
+  - '**/onboarding/**/*.kt'
   - '**/paywall/**/*.kt'
+  - '**/premium/**/*.kt'
   detect:
     type: grep
     has: (MOCK_PRODUCT|MOCK_PACKAGE|MOCK_OFFERING|mock_premium|mock_package)
@@ -138,7 +144,9 @@
   - android
   globs:
   - '**/feature/paywall/**/*.kt'
+  - '**/onboarding/**/*.kt'
   - '**/paywall/**/*.kt'
+  - '**/premium/**/*.kt'
   detect:
     type: grep
     has: \.introductoryDiscount\s*=\s*[^=]
@@ -173,6 +181,7 @@
   globs:
   - '**/feature/paywall/**/data/**/*.kt'
   - '**/feature/paywall/**/*Repository*.kt'
+  - '**/*PurchasesRepository*.kt'
   detect:
     type: grep
     has: Purchases\.(shared|sharedInstance)\.(getOfferings|purchase|purchasePackage)\s*\(
@@ -223,6 +232,7 @@
   globs:
   - '**/BuyPremiumUseCase.kt'
   - '**/*PurchaseAnalytics*.kt'
+  - '**/*ConversionAnalytics*.kt'
   - '**/usecase/**/*Premium*.kt'
   detect:
     type: grep

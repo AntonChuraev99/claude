@@ -490,3 +490,21 @@
   message: "Глобальный over-video overlay (диалог/шторка в app-хосте выше NavHost) обёрнут в ComposeOverVideoContent, но БЕЗ hostZIndex. CMP 1.11 упорядочивает interop-хосты (<video>, nested viewport) по порядку ОТРИСОВКИ Compose-дерева (WebInteropContainer.place -> countInteropComponentsBelow -> traverseDescendantsInDrawOrder), а не по времени создания DOM: overlay, эмитируемый выше NavHost, получает индекс НИЖЕ <video> экрана и тонет под видео пейвола/онбординга, сколько бы позже он ни смонтировался. Обёртка сама по себе тут не спасает."
   fix: "Overlay внутри экрана -> достаточно эмитить его ПОСЛЕ VideoSurface в том же дереве. Overlay глобальный (хостится выше NavHost) -> обязателен hostZIndex: z-index на CMP-wrapper выводит хост из tree-order (interop-хосты - siblings под <body>, положительный z-index бьёт auto). Новое значение сверять с ОБЕИМИ половинами лестницы: Compose-константы (*HostZIndex) И body-level DOM-слои из init.js (RC-checkout 2_100_000, JS-экраны/React-шелл 2_147_483_600, wasm-gc 2_147_483_647). Подняв один хост, поднять и соседей по файлу, которые обязаны быть выше (канал уведомлений - App Top Banner) - иначе они молча уходят под него. ВНИМАНИЕ: детект здесь файлового уровня и замолкает, как только в файле появился хоть один hostZIndex; построчный enforcement живёт в fs-гварде проекта (test-web/e2e/overlay-zorder.static.spec.mjs) - каждый ComposeOverVideoContent в глобальном хосте обязан нести hostZIndex."
   source: "web paywall purchase-error dialog under <video> (2026-08-03); rules/wasmjs-web-video-css.md §Диалоги/overlay поверх видео"
+
+# === mined 2026-08-14 (static) ===
+- id: live-harness-outbound-bridge-guard-missing
+  mode: static
+  severity: medium
+  probation: '2026-08-14'
+  stack: [wasmjs, web]
+  globs: ["test-web/**/*.mjs"]
+  detect:
+    type: grep
+    has: 'mouse\.click|getByTestId\(.*generate|\.click\(\)'
+    # `initialAuthState` в lacks — признак харнесса, который СЕЕТ мост фикстурой вместо живого
+    # wasmJs-хоста: там `__<app>JsScreenEmit` не существует вовсе, боевой вызов физически
+    # невозможен, и гвард требовать не с чего. Читающие живой мост харнессы это поле не трогают.
+    lacks: '__\w+JsScreenEmit|initialAuthState'
+  message: "Live-харнесс кликает по поверхности генерации, но не перехватывает ИСХОДЯЩИЙ канал моста (globalThis.__<app>JsScreenEmit, сообщение type: portal/generate) -> тап уходит боевым вызовом и жжёт реальные кредиты. Обёртка вокруг __<app>WebReactBridge.emit НЕ спасает: это ВХОДЯЩИЙ канал Kotlin -> React. Симптом неотличим: локальный спиннер рисует startGeneration ДО emit, поэтому заглушенный и настоящий вызовы выглядят на экране одинаково; разница видна только по балансу кредитов."
+  fix: "Перед первым кликом обернуть globalThis.__<app>JsScreenEmit и глушить {type: portal/generate}, вызвав гвард ПОВТОРНО после навигации (канал регистрируется позже boot). Отсутствие трат доказывать двумя фактами: счётчик проглоченных вызовов + баланс кредитов до == после. Эталон - test-web/video-aspect-ratio-mobile-verify.mjs."
+  source: "live-прогон 2026-08-14 - 7 кредитов сожжено перехватом не того канала (входящий вместо исходящего) в харнессе проверки аспект-ratio видео"

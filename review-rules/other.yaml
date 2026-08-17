@@ -59,9 +59,9 @@
   detect:
     type: grep
     has: \bToast\.makeText\b|^\s*import\s+android\.widget\.Toast
-    unless: review-rules:allow-toast|//
+    unless: review-rules:allow-toast(-no-compose-surface)?
   message: 'Toast.makeText requires the main looper. The global Koin CoroutineScope is CoroutineScope(SupervisorJob()+Dispatchers.Default), so any scope.launch{}/onSuccess callback that reaches a Toast runs on a background thread → NullPointerException "Can''t toast on a thread that has not called Looper.prepare()" crashes the whole app (e.g. Save/Download on a share result screen). Toast is also banned for in-app notifications — App Top Banner is the only channel.'
-  fix: 'Replace every user-facing Toast with ShowTopBannerUseCase (AppBannersRepository.showBanner = Channel.trySend, thread-safe from any thread; resolve stringResource in the Composable and pass the texts into non-Composable handlers via a small data class, like DownloadBannerTexts). Any other UI/Activity call reached from a background scope.launch (startActivityForResult, dialogs) must be wrapped in withContext(Dispatchers.Main). A genuinely dev-only Toast in DebugMenu / debug-gated code: annotate the line with // review-rules:allow-toast.'
+  fix: 'The show must run on the main looper — Handler(Looper.getMainLooper()).post or withContext(Dispatchers.Main); a bare Toast.makeText from a background scope.launch crashes. For in-app notifications prefer the project''s own channel (a snackbar host, a top banner) over Toast. Exception — surfaces that have no Compose composition by design: Glance widget entry points, ActionCallback, notification/ProcessText trampolines. There a Toast posted to the main looper is the only channel that survives a finished activity; annotate the line with // review-rules:allow-toast-no-compose-surface. A genuinely dev-only Toast in DebugMenu / debug-gated code: annotate with // review-rules:allow-toast.'
   source: 'media-share result screen: Toast.makeText inside scope.launch on the global Dispatchers.Default Koin scope crashed Save/Download, 2026-07-10'
 
 - id: analytics-event-feeds-behavior-observer
