@@ -112,8 +112,21 @@ try {
     #    wrangler, и без этого он обходил guard целиком (как и `pnpm dlx`, `bash -c`,
     #    префикс `VAR=1 gcloud ...`). Паттерн один на детект и на разбор сервисов —
     #    два разных выражения тихо расходились бы при правке.
+    #    Слова живут в config/credentials-guard-patterns.json — тот же файл читает
+    #    hooks/credentials-guard-prefilter.js, который решает, платить ли за старт
+    #    pwsh вообще. Два списка в двух файлах разъехались бы молча, и разъезд был бы
+    #    не виден до пропущенного деплоя. Файл недоступен или битый — берём встроенный
+    #    дефолт: детект опасности обязан работать всегда.
     $tool = 'gcloud|wrangler|firebase|gh|adb|gsutil'
     $verb = 'deploy|publish|release\s+create|secret\s+(set|put)|functions\s+deploy|hosting:channel:deploy|pages\s+deploy|apps\s+release|repo\s+delete|uninstall|rm\s+-r'
+    try {
+        $patternsFile = Join-Path $env:USERPROFILE '.claude\config\credentials-guard-patterns.json'
+        if (Test-Path -LiteralPath $patternsFile) {
+            $patterns = Get-Content -LiteralPath $patternsFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($patterns.tools -and $patterns.tools.Count -gt 0) { $tool = ($patterns.tools -join '|') }
+            if ($patterns.verbs -and $patterns.verbs.Count -gt 0) { $verb = ($patterns.verbs -join '|') }
+        }
+    } catch { }
     $wrap = '(?:(?:npx|pnpm|yarn|bunx|sudo|env|command|time|nice)\s+(?:dlx\s+|exec\s+|-\S+\s+)*|\w+=\S+\s+|bash\s+-c\s+["'']?|sh\s+-c\s+["'']?)*'
     $posRe = "(?m)(?:^|[;&|(]|&&|\|\|)\s*$wrap"
     if ($cmd -notmatch "$posRe($tool)\b" -or $cmd -notmatch "\b($verb)") { exit 0 }

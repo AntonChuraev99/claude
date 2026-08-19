@@ -1,0 +1,172 @@
+#!/usr/bin/env node
+// PreToolUse(Bash) prefilter in front of credentials-guard.ps1.
+//
+// The guard itself is correct but expensive to reach: it ran on EVERY Bash call
+// and a pwsh start costs 1.4–2.4 s on this machine. The overwhelming majority
+// of Bash calls cannot possibly deploy anything, so this decides — in ~0.3 s of
+// node — whether the real guard has to run at all, then hands stdin over
+// untouched and proxies its verdict.
+//
+// Deliberately CRUDER than the guard: it only asks whether the command mentions
+// one of the external-service tools AND one of the state-changing verbs
+// anywhere. The guard then applies the same words positionally (command
+// position, wrapper handling, per-service checks). Cruder means this can only
+// over-approximate — it may pay for a pwsh start that the guard then waves
+// through, never the reverse.
+//
+// Both sides read the same word lists from config/credentials-guard-patterns.json
+// so they cannot drift apart. Anything unexpected — missing file, bad JSON,
+// unreadable stdin — falls through to running the guard. Fail-safe here means
+// running the expensive check, never skipping it.
+
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { spawnSync } = require('child_process');
+
+const CLAUDE_DIR = path.join(os.homedir(), '.claude');
+const GUARD = path.join(CLAUDE_DIR, 'hooks', 'credentials-guard.ps1');
+const PATTERNS = path.join(CLAUDE_DIR, 'config', 'credentials-guard-patterns.json');
+
+// Returns true when the real guard must run.
+function needsGuard(raw) {
+    let payload;
+    try {
+        payload = JSON.parse(raw);
+    } catch (e) {
+        return true; // unparseable input is the guard's problem, not ours
+    }
+
+    if (payload.tool_name !== 'Bash') return false;
+    // The guard honours this too; checking here avoids the spawn entirely.
+    if (process.env.CLAUDE_ALLOW_DEPLOY === '1') return false;
+
+    const command = payload.tool_input && payload.tool_input.command;
+    if (!command || typeof command !== 'string') return false;
+
+    let tools;
+    let verbs;
+    try {
+        const cfg = JSON.parse(fs.readFileSync(PATTERNS, 'utf8'));
+        // An empty or blank entry collapses the alternation into one that
+        // matches at nearly any word boundary, so every command would look
+        // dangerous — which is safe here but defeats the whole prefilter.
+        const clean = (v) => (Array.isArray(v) ? v.filter((s) => typeof s === 'string' && s.trim()) : []);
+        tools = clean(cfg.tools);
+        verbs = clean(cfg.verbs);
+        if (!tools.length || !verbs.length) return true;
+    } catch (e) {
+        return true; // no word list -> cannot rule anything out
+    }
+
+    try {
+        // Case-insensitive to match PowerShell's -match, which the guard uses
+        // and which ignores case by default. Without the flag `Firebase Deploy`
+        // and `GCLOUD deploy` skipped a guard that denies them — verified.
+        const toolRe = new RegExp(`\\b(${tools.join('|')})\\b`, 'i');
+        const verbRe = new RegExp(`\\b(${verbs.join('|')})`, 'i');
+        return toolRe.test(command) && verbRe.test(command);
+    } catch (e) {
+        return true; // bad pattern -> let the guard decide
+    }
+}
+
+function denyBecause(detail) {
+    process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason:
+                `credentials-guard не отработал (${detail}). `
+                + 'Команда меняет состояние во внешнем сервисе — сверь активный аккаунт '
+                + 'вручную, покажи результат пользователю и не снимай блокировку себе.',
+        },
+    }));
+}
+
+// Runs the real guard and proxies its verdict. Called only once the command is
+// already suspect, so from here on failure means deny, never allow: a silent
+// exit 0 would be a hook that waves a deploy through because of its own bug.
+function runGuard(raw) {
+    const result = spawnSync(
+        'pwsh',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', GUARD],
+        {
+            input: Buffer.from(raw, 'utf8'),
+            // A hung pwsh would otherwise be killed by the harness, and a killed
+            // PreToolUse hook renders no decision — the command just runs. The
+            // guard's own probes finish within ~6 s; this bounds the rest.
+            timeout: 15000,
+            killSignal: 'SIGKILL',
+        },
+    );
+
+    if (result.error || result.status === null) {
+        denyBecause(result.error ? result.error.message : 'процесс не вернул статус или был убит по таймауту');
+        return 0;
+    }
+
+    // The guard exits 0 on every path it takes, including both of its catch
+    // blocks. A non-zero status therefore means it never ran its logic —
+    // broken pwsh, ExecutionPolicy, a syntax error — and its silence must not
+    // be read as consent.
+    if (result.status !== 0) {
+        denyBecause(`guard завершился с кодом ${result.status}`);
+        return 0;
+    }
+
+    if (result.stderr && result.stderr.length) process.stderr.write(result.stderr);
+
+    const out = (result.stdout || Buffer.alloc(0)).toString('utf8').trim();
+    if (!out) return 0; // guard stayed silent = allow, its normal pass path
+
+    // Anything on stdout is the verdict, so it has to be a verdict: a banner or
+    // stray warning would reach the harness as unparseable and be ignored,
+    // turning a deny into an allow.
+    try {
+        JSON.parse(out);
+    } catch (e) {
+        denyBecause('guard вернул неразбираемый вывод вместо вердикта');
+        return 0;
+    }
+
+    process.stdout.write(out);
+    return 0;
+}
+
+function main() {
+    let raw = '';
+    try {
+        raw = fs.readFileSync(0, 'utf8');
+    } catch (e) {
+        raw = '';
+    }
+    if (!raw || !raw.trim()) return 0;
+
+    // Deciding is cheap and safe to fail open: needsGuard already answers true
+    // for anything it cannot parse.
+    if (!needsGuard(raw)) return 0;
+
+    try {
+        return runGuard(raw);
+    } catch (e) {
+        denyBecause(`внутренняя ошибка префильтра: ${e && e.message}`);
+        return 0;
+    }
+}
+
+if (require.main === module) {
+    try {
+        main();
+    } catch (e) {
+        // Reached only if reading stdin or the decision itself threw, i.e.
+        // before the command was judged suspect.
+    }
+    // process.exitCode, not process.exit(): on Windows a write to a pipe is
+    // async, and exit() can cut it off mid-JSON. A truncated deny is an
+    // unparseable deny, which the harness reads as no objection at all.
+    // Same reasoning as hooks/docs-length-guard.js.
+    process.exitCode = 0;
+}
+
+module.exports = { needsGuard };
