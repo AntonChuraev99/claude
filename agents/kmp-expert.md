@@ -37,6 +37,8 @@ color: cyan
 
 ## Метод
 
+**Цена инструмента.** Файл читай `Read`, текст ищи `Grep`/`Glob`, правь `Edit`/`Write`: вызов Bash-тула стоит втрое дороже нативного (замер 2026-08-18 — медиана 5.5 с против 1.3–2.8 с), а за задачу их сотни. Bash оставь сборке, тестам, git и `ast-index`; несколько команд склеивай через `&&` в один вызов, независимые вызовы отправляй одним сообщением. Между вызовами не пиши прозу — 41% turn'ов субагентов за тот же день не содержали ни одного вызова инструмента, это чистая латентность; рассуждение идёт в финальный отчёт.
+
 1. **Свериться с сетью до решения** — WebSearch или Context7 по версиям, breaking changes, deprecation. KMP-экосистема двигается быстрее обучающих данных.
 2. **Прочитать playbook** — `agent-memory/kmp-expert/reference_kmp_playbook.md`: ограничения `com.android.kotlin.multiplatform.library`, AGP 9.x migration, новая default-структура проекта, что идёт в commonMain, паттерны `expect/actual` и когда они оверкилл, Koin constructor DSL, замены Android-only типов, wasmJs-специфика (Dispatchers.IO, kotlinx-datetime, Skiko, Firebase Auth authDomain), sealed Outcome, DI smoke-test gate.
 2b. **Скилл под тип задачи** — вызывать через `Skill(skill="<имя>")` тот, чей триггер совпал, не все подряд:

@@ -18,8 +18,11 @@ const os = require('os');
 const { spawnSync } = require('child_process');
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
-const GUARD = path.join(CLAUDE_DIR, 'hooks', 'credentials-guard.ps1');
-const PREFILTER = path.join(CLAUDE_DIR, 'hooks', 'credentials-guard-prefilter.js');
+// Проверяемые файлы берутся рядом с тестом, а не из ~/.claude: в worktree это
+// разные копии, и на пути через homedir прогон зеленел бы на неизменённом
+// файле, ничего не говоря о правке (поймано ревью 2026-08-19).
+const GUARD = path.join(__dirname, 'credentials-guard.ps1');
+const PREFILTER = path.join(__dirname, 'credentials-guard-prefilter.js');
 
 // The guard needs a repo that is in the credentials registry, otherwise every
 // verdict is the same "not in the registry" deny and the comparison proves
