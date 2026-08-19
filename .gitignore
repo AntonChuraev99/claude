@@ -89,6 +89,7 @@ lib/__pycache__/
 # Shared pattern list for credentials-guard.ps1 + its node prefilter: word
 # lists only, no accounts or project ids, and both hooks are useless apart.
 !/config/credentials-guard-patterns.json
+!/config/optional-capabilities.md
 
 # --- 11. Authored skills (each whitelisted; installed/3rd-party stay ignored)-
 !/skills/

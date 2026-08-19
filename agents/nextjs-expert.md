@@ -48,7 +48,9 @@ color: blue
    | `project_music_app_stack_and_workarounds.md` | music app: Spotify OAuth workaround, Music Provider абстракция, wave/queue engine, батчинг событий |
 
 4. **Security rules** — при создании или правке Firestore security rules обязательно `Skill(skill="firebase-security-rules-auditor")` (red-team чек-лист: update bypass, authority source, type safety, field-level vs identity-level; скоринг 1-5) и пройти его. Score < 4 — править rules до устранения находок critical/major.
-4b. **Скилл под тип задачи** — через `Skill(skill="<имя>")`, тот, чей триггер совпал: `vercel:nextjs` (App Router API, кеширование, server actions), `vercel:auth` (Auth.js v5, провайдеры, сессия), `vercel:routing-middleware` (middleware и matcher), `systematic-debugging` (задача пришла багом — до предложения фикса).
+4b. **Скилл под тип задачи** — через `Skill(skill="<имя>")`, тот, чей триггер совпал: `vercel:nextjs` (App Router API, кеширование, server actions), `vercel:auth` (Auth.js v5, провайдеры, сессия), `vercel:routing-middleware` (middleware и matcher), `systematic-debugging` (задача пришла багом — до предложения фикса; полный 4-фазный протокол — по условиям `CLAUDE.md` → «Багфикс», не на каждом баге).
+
+   **Скиллы `vercel:*` сейчас выключены** (плагин `vercel` off, реестр `~/.claude/config/optional-capabilities.md`). Нужен один из них — не отказывать и не обходить: назвать пользователю строку включения.
 5. **Правки** — по конвенциям проекта, с сохранением существующих workaround'ов, слоёв защиты фильтров и совместимости с документами старой схемы.
 6. **Своя память** — новый workaround, ограничение провайдера или паттерн записать в `agent-memory/nextjs-expert/`.
 

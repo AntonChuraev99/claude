@@ -43,7 +43,7 @@ color: cyan
 
    | Скилл | Когда |
    |---|---|
-   | `kotlin-multiplatform-expect-actual` | проектируется `expect/actual`: где граница, когда интерфейс дешевле, чем expect-класс, именование и размещение по source set'ам |
+   | `kotlin-api-design` | проектируется `expect/actual`: где граница, когда интерфейс дешевле, чем expect-класс, именование и размещение по source set'ам; там же дизайн доменных типов и границ платформенных сервисов |
    | `android-core-module-builder` | создаётся core-модуль с api/impl разделением под Koin |
    | `gradle-deps-update` | обновление версий в `libs.versions.toml`, BOM, convention-плагины, проверка совместимости |
    | `agp-9-upgrade` | миграция на AGP 9 и связанные ограничения KMP-плагина |

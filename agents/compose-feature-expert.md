@@ -40,15 +40,10 @@ color: green
 
    | Скилл | Когда |
    |---|---|
-   | `compose-recomposition-performance` | лишние recomposition, дёргается кадр, Layout Inspector counts. Router — укажет следующий |
-   | `compose-stability-diagnostics` | skippability, unstable params, compiler reports, strong skipping |
-   | `compose-state-deferred-reads` | frame-rate state (scroll, анимация, жест) читается в composition; back-writing между фазами |
-   | `compose-side-effects` | LaunchedEffect, DisposableEffect, snapshotFlow, snackbar/navigation events |
-   | `compose-state-authoring` | `remember { mutableStateOf }`, mutableStateListOf/MapOf, локальный var в composable |
-   | `compose-state-hoisting` | где держать state, подъём из компонента |
-   | `compose-state-holder-ui-split` | screen-level composable с ViewModel: сбор state и effects vs рендер |
-   | `compose-modifier-and-layout-style` | дизайн layout API, modifier-параметры, цепочки |
-   | `compose-slot-api-pattern` | reusable-компонент с вариативными областями; копятся boolean-флаги |
+   | `compose-performance` | лишние recomposition, дёргается кадр, skippability и unstable params, compiler reports, frame-rate state (scroll, анимация, жест) в composition, back-writing между фазами |
+   | `compose-state-and-effects` | где держать state и как его поднимать, `remember { mutableStateOf }`, screen-level holder с ViewModel, LaunchedEffect/DisposableEffect/SideEffect, сбор Flow, snackbar и navigation events |
+   | `compose-component-design` | reusable-компонент: modifier-параметр и место root-layout, слоты вместо копящихся boolean-флагов, дизайн layout API |
+   | `compose-animations` | motion: AnimatedVisibility, `animate*AsState`, Transition, AnimatedContent, Crossfade — и выбор между ними |
    | `compose-focus-navigation` | фокус: keyboard, D-pad, TV, desktop, FocusRequester, key events |
 
 3b. **Скилл под тип работы** — не симптом, а вид задачи; тоже через `Skill`:

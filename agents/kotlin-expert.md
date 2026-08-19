@@ -43,10 +43,10 @@ color: purple
 
    | Скилл | Когда |
    |---|---|
-   | `kotlin-coroutines-structured-concurrency` | хранение CoroutineScope, launch из init/не-suspend API, runBlocking, широкий catch вокруг suspend |
-   | `kotlin-flow-state-event-modeling` | StateFlow/SharedFlow/Channel дизайн: stateIn, SharingStarted, one-shot events, sentinel initial values |
-   | `kotlin-types-value-class` | выбор `@JvmInline value class` vs data class, включая Compose stability |
-   | `systematic-debugging` | задача пришла как баг: гонка, зависший Flow, проглоченная ошибка — до предложения фикса, а не после |
+   | `kotlin-concurrency-and-flow` | хранение CoroutineScope, launch из init/не-suspend API, runBlocking, отмена, широкий catch вокруг suspend; дизайн StateFlow/SharedFlow/Channel — stateIn, SharingStarted, one-shot events, sentinel initial values |
+   | `kotlin-api-design` | member vs extension, фабрики, однополевые доменные типы, `@JvmInline value class` vs data class (включая Compose stability), границы платформенных сервисов. Раздел скилла про expect/actual — не твой, это `@kmp-expert` |
+   | `kotlin-control-flow` | `when`-выражения, guard-условия, исчерпывающие sealed, smart cast, ветвление по nullable, early return вместо каскада if/else |
+   | `systematic-debugging` | задача пришла как баг: гонка, зависший Flow, проглоченная ошибка — до предложения фикса, а не после. **Берёшь технику, не церемонию:** Iron Law («фикса без найденного корня не бывает») и счётчик 3 fail-loop'ов обязательны всегда, полный 4-фазный протокол — только по условиям `CLAUDE.md` → «Багфикс» (баг не воспроизводится · фикс уже не сработал · симптом переходит слои · дефект в проде · корень не виден после чтения ошибки). |
 
 5. **Специальные случаи** — читать по совпадению:
    - обёртка платформенного SDK-callback'а в общий `Result`/`AppResult` → `agent-memory/kotlin-expert/reference_sdk_callback_parameter_loss.md` (тихая потеря параметров на границе)
