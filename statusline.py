@@ -4,10 +4,15 @@
 
 Reads the status-line JSON payload on stdin and prints one line:
 
-    repo (branch) │ <ctx bar> │ $cost │ <devices> │ <status> │ <task title>
+    repo (branch) │ <ctx bar> │ $cost │ RAM <free> │ <devices> │ <status> │ <task title>
 
 Status icons: ⚡ turn running · ❓ waiting for your answer · 💤 idle,
 🤖N background agents still working · 📋done/total session todo list.
+
+The RAM segment shows free physical memory, and appends an overcommit ratio
+(e.g. `2.6×`) once every process together has demanded more than the machine
+physically has — the point where everything starts paging to disk. Detail on
+what is holding it: `scripts/mem-report.ps1`.
 
 Design notes
 ------------
@@ -400,6 +405,65 @@ def devices_segment(names, sel):
 
 
 # --------------------------------------------------------------------------
+# memory  (WinAPI struct fill — no subprocess, unlike the adb probe above)
+# --------------------------------------------------------------------------
+
+def ram_segment():
+    """Free physical RAM, plus an overcommit marker when the box is swapping.
+
+    `GlobalMemoryStatusEx` fills a struct in-process, so this costs a DLL call
+    rather than the detached-probe-plus-cache dance the adb segment needs.
+
+    The `ctypes` import is normally free here — `terminal_cols()` has already
+    pulled it into `sys.modules` by the time this runs. It only costs its full
+    ~6ms when `CLAUDE_TERM_COLS`/`CLAUDE_STATUSLINE_COLS` is set, because that
+    path returns before importing anything.
+
+    Two numbers, because free RAM alone hides the cause: `ullAvailPhys` says how
+    much is left right now, while commit charge (`ullTotalPageFile` minus
+    `ullAvailPageFile`) says how much every process has *demanded*. When the
+    second exceeds physical memory the machine pages to disk no matter how
+    healthy the first looks for a moment.
+    """
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        stat = MEMORYSTATUSEX()
+        stat.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat)):
+            return ""
+        total = stat.ullTotalPhys
+        if total <= 0:
+            return ""
+
+        gb = 1024.0 ** 3
+        free_gb = stat.ullAvailPhys / gb
+        color = RED if free_gb < 1.0 else YELLOW if free_gb < 2.5 else GREEN
+        seg = "%sRAM %.1fG%s" % (color, free_gb, RESET)
+
+        commit = stat.ullTotalPageFile - stat.ullAvailPageFile
+        ratio = commit / float(total)
+        if ratio >= 1.2:
+            seg += " %s%.1f×%s" % (RED if ratio >= 2.0 else YELLOW, ratio, RESET)
+        return seg
+    except Exception:
+        return ""
+
+
+# --------------------------------------------------------------------------
 # main
 # --------------------------------------------------------------------------
 
@@ -484,14 +548,15 @@ def main():
     # --- assemble; the bar and status always stay, the rest sheds ----------
     cols = terminal_cols()
     names, sel = read_devices()
-    parts = [loc, bar, DIM + "$%.2f" % cost + RESET, devices_segment(names, sel), status]
+    parts = [loc, bar, DIM + "$%.2f" % cost + RESET, ram_segment(),
+             devices_segment(names, sel), status]
 
     def build():
         joined = (" %s " % SEP).join(p for p in parts if p)
         return joined, dwidth(strip_ansi(joined))
 
     joined, used = build()
-    for drop in (3, 2):  # devices first, then cost
+    for drop in (4, 2, 3):  # devices first, then cost, then RAM
         if used <= cols:
             break
         parts[drop] = ""

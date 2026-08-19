@@ -25,6 +25,7 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 | `config/*.example.{md,json}` | Templates for machine-local config (copy to `*.local.*`, which stays gitignored): per-project credentials and the protected-branch registry. |
 | `hooks/` | Hooks wired up in `settings.example.json`: `credentials-guard` (deploy with the wrong account), `protected-branch-guard` (writing code straight onto `main`/`develop` instead of a branch + MR), `ensure-worktree-guard`, `model-overlay`, `credentials-digest`, `session-docs-digest`, `claude-md-size-guard`. Hooks that print to the terminal share one output shape — see `lib/hookout.py`. |
 | `lib/` | Shared by the status line and the hooks: `term.py` (console width, display width, truncation) and `hookout.py` (the common SessionStart output shape). Required — a clone without it has a broken status line and silent hooks. |
+| `scripts/` | Diagnostics you run by hand — not wired to any hook or event. `mem-report.ps1` breaks RAM down by group and names what is redundant (duplicate JVM daemons, MCP servers spawned per session), measuring commit rather than working set. |
 
 ### Subagents (`agents/`)
 
@@ -71,7 +72,9 @@ credential registry that guards against deploying with another project's account
 │   ├── term.py                # console width, display width, truncation, ANSI
 │   └── hookout.py             # one output shape for every hook that prints
 ├── notify.ps1                 # Windows toast notifications (Stop / Notification hooks)
-├── statusline.py              # status line (branch · context · cost · device · state · task)
+├── scripts/                   # hand-run diagnostics, not wired to any event
+│   └── mem-report.ps1         # RAM breakdown by group + what is redundant
+├── statusline.py              # status line (branch · context · cost · RAM · device · state · task)
 ├── statusline-adb.sh          # detached ADB device probe feeding the status line
 ├── statusline.sh              # shim → statusline.py (for sessions started before the switch)
 ├── doc-writer-update-reminder.ps1

@@ -77,6 +77,14 @@ lib/__pycache__/
 !/docs/decisions/
 !/docs/decisions/**
 
+# --- 7e. Operator scripts run by hand (diagnostics, not wired to any event) --
+#  Only the scripts themselves, by extension — NOT `**`. This is the folder a
+#  one-off dump or a *.local.* helper naturally lands in, and a blanket rule
+#  would publish it. Adding a new script here is meant to cost one line.
+!/scripts/
+!/scripts/*.ps1
+!/scripts/*.py
+
 # --- 8. Toast icons (used by notify.ps1) ------------------------------------
 !/assets/
 !/assets/events/
