@@ -242,3 +242,21 @@
   message: An existing purchase event is rebuilt with its own extras list in a file that already has a build*Event helper — every call site that previously went through the helper silently loses its context params (offer, location, timer, video-background, Firebase currency/price). Analytics looks alive, dashboards get nulls.
   fix: Build on top of the shared helper (buildEvent(name, ...).copy(extras = base.extras + specifics)) instead of a fresh listOf. When refactoring an event, diff the parameter-key sets BEFORE/AFTER per call site.
   source: '2026-07-29 purchase-error-analytics (webBilling onDismiss lost 9 params + 2 firebase extras, caught by L2); docs/solutions/kmp/kmp-abstraction-callback-parameter-loss-2026-05-13.md'
+- id: store-gate-covers-purchase-but-not-restore
+  mode: runtime
+  severity: medium
+  stack:
+  - android
+  - kmp
+  globs:
+  - '**/premium/**/*.kt'
+  - '**/paywall/**/*.kt'
+  - '**/onboarding/**/*.kt'
+  detect:
+    type: grep
+    has: ^\s*Restore[A-Za-z]*\(\s*$
+    unless: ^\s*(//|\*)
+    lacks: (isPurchaseInProgress|purchaseInProgress)
+  message: An "only one store operation at a time" gate was added for the purchase button, but the neighbouring control of the same billing SDK (Restore purchases) still has its own enabled-flag only — tapping it while purchaseWith is unfinished starts the very parallel operation the gate was introduced to prevent, and the user gets a restore error instead of the purchase they were paying for.
+  fix: Feed one "store operation running" signal into EVERY control that talks to billing, on every paywall surface — enumerate the call sites with grep, not from memory. Keep the flags separate if the labels differ (a spinner on Restore must not appear while the PURCHASE is running, and vice versa). Verify on a device by starting a purchase and tapping the neighbouring control before the Play sheet resolves.
+  source: 'инцидент 16.08.2026 — потерянная продажа на OperationAlreadyInProgressError (Redmi 9A, два on purchase click за 4,2 с); L2-ревью фикса 17.08.2026 нашло тот же класс на соседней кнопке: 5 из 5 call-site RestoreButton не получали признак; docs/solutions/purchase-double-tap-gating-2026-08-17.md'
