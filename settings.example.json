@@ -308,7 +308,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard.ps1\"",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard-prefilter.js\"",
             "timeout": 20,
             "statusMessage": "creds guard"
           }

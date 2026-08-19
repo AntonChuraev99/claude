@@ -24,6 +24,19 @@ const path = require('path');
 const os = require('os');
 const { spawnSync } = require('child_process');
 
+// Подсказки про выбор инструмента — необязательная функция поверх обязательной.
+// require намеренно ленивый и в try/catch: на верхнем уровне сломанный или
+// отсутствующий модуль убил бы процесс ДО main(), а обёртка `try { main() }`
+// время загрузки не покрывает. Пустой stdout харнесс читает как «возражений нет»,
+// то есть падение подсказки пропустило бы деплой мимо credentials-guard.
+function loadDiscipline() {
+    try {
+        return require('./bash-tool-discipline.js');
+    } catch (e) {
+        return null;
+    }
+}
+
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');
 const GUARD = path.join(CLAUDE_DIR, 'hooks', 'credentials-guard.ps1');
 const PATTERNS = path.join(CLAUDE_DIR, 'config', 'credentials-guard-patterns.json');
@@ -134,6 +147,74 @@ function runGuard(raw) {
     return 0;
 }
 
+// Второй, независимый смысл этого хука: он единственный, кто уже висит на
+// PreToolUse(Bash), поэтому дисциплина вызовов (ast-index вместо grep, Read
+// вместо cat, запрет долгого sleep) живёт здесь же — модулем в том же процессе.
+// Отдельный хук стоил бы ещё один спавн на каждый Bash-вызов; см. шапку
+// hooks/bash-tool-discipline.js. Вызывается только когда credentials-guard не
+// нужен: деплой важнее подсказки, и два вердикта одновременно вернуть нельзя.
+// Ключ дедупликации подсказок: transcript_path различает агентов внутри одной
+// сессии (у субагентов фан-аута session_id общий с родителем).
+function cooldownKey(payload) {
+    return payload.transcript_path || payload.session_id;
+}
+
+// Только запрет долгого sleep, отдельно от подсказок: он обязан отработать даже
+// на команде, которую дальше ждёт credentials-guard. Возвращает true, если
+// вердикт вынесен и писать больше нечего.
+function renderSleepDeny(payload) {
+    const discipline = loadDiscipline();
+    if (!discipline || payload.tool_name !== 'Bash') return false;
+
+    let verdict = null;
+    try {
+        // sleepVerdict, а не judge: judge на команде поиска или чтения потратил бы
+        // слот кулдауна, и подсказка ниже по потоку уже не выдалась бы.
+        verdict = discipline.sleepVerdict(payload.tool_input && payload.tool_input.command);
+    } catch (e) {
+        return false;
+    }
+    if (!verdict || verdict.decision !== 'deny') return false;
+
+    process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason: verdict.reason,
+        },
+    }));
+    return true;
+}
+
+function renderDiscipline(payload) {
+    const discipline = loadDiscipline();
+    if (!discipline || !payload || payload.tool_name !== 'Bash') return 0;
+
+    let verdict = null;
+    try {
+        verdict = discipline.judge(
+            payload.tool_input && payload.tool_input.command,
+            cooldownKey(payload),
+        );
+    } catch (e) {
+        return 0; // подсказка не стоит того, чтобы мешать работе
+    }
+    if (!verdict) return 0;
+
+    // Подсказка идёт БЕЗ permissionDecision: `allow` в этом контракте не «не
+    // возражаю», а «пропустить мимо проверки прав», и тогда любая команда,
+    // задевшая эвристику про cat/grep, автоматически обходила бы правила из
+    // permissions.deny/ask. Решение выносится только на запрет долгого sleep.
+    const out = verdict.decision === 'deny'
+        ? { permissionDecision: 'deny', permissionDecisionReason: verdict.reason }
+        : { additionalContext: verdict.context };
+
+    process.stdout.write(JSON.stringify({
+        hookSpecificOutput: Object.assign({ hookEventName: 'PreToolUse' }, out),
+    }));
+    return 0;
+}
+
 function main() {
     let raw = '';
     try {
@@ -143,9 +224,26 @@ function main() {
     }
     if (!raw || !raw.trim()) return 0;
 
+    let payload = null;
+    try {
+        payload = JSON.parse(raw);
+    } catch (e) {
+        payload = null; // needsGuard разберётся сам, он отвечает true на неразбираемое
+    }
+
+    // Запрет долгого sleep идёт ДО credentials-guard: иначе `sleep 600 && firebase
+    // deploy` уходит в гард и порога не видит вовсе, а в CLAUDE.md записано
+    // безусловное «sleep дольше 30 с блокируется». Deny здесь строже любого
+    // вердикта гарда — он всё равно был бы «нельзя» или «можно», а команда
+    // не должна выполняться в этом виде.
+    if (payload && renderSleepDeny(payload)) return 0;
+
     // Deciding is cheap and safe to fail open: needsGuard already answers true
     // for anything it cannot parse.
-    if (!needsGuard(raw)) return 0;
+    if (!needsGuard(raw)) {
+        if (!payload) return 0;
+        return renderDiscipline(payload);
+    }
 
     try {
         return runGuard(raw);
