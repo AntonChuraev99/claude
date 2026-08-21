@@ -29,10 +29,26 @@ const { spawnSync } = require('child_process');
 // отсутствующий модуль убил бы процесс ДО main(), а обёртка `try { main() }`
 // время загрузки не покрывает. Пустой stdout харнесс читает как «возражений нет»,
 // то есть падение подсказки пропустило бы деплой мимо credentials-guard.
+// Сломанный модуль молча выключает ВСЕ жёсткие запреты, и на replay «правило ни
+// разу не понадобилось» неотличимо от «правило не работает». Одна строка в лог
+// эту разницу и делает; сам лог падать не имеет права — он тут не главный.
+function noteDisciplineFailure(err) {
+    try {
+        const line = JSON.stringify({
+            ts: new Date().toISOString(),
+            hook: 'credentials-guard-prefilter',
+            event: 'discipline-module-unavailable',
+            error: String((err && err.message) || err).slice(0, 300),
+        });
+        fs.appendFileSync(path.join(os.homedir(), '.claude', 'error-logs', 'hook-failures.jsonl'), line + '\n');
+    } catch (e) { /* лог не работает — вердикт всё равно важнее */ }
+}
+
 function loadDiscipline() {
     try {
         return require('./bash-tool-discipline.js');
     } catch (e) {
+        noteDisciplineFailure(e);
         return null;
     }
 }
@@ -159,19 +175,27 @@ function cooldownKey(payload) {
     return payload.transcript_path || payload.session_id;
 }
 
-// Только запрет долгого sleep, отдельно от подсказок: он обязан отработать даже
-// на команде, которую дальше ждёт credentials-guard. Возвращает true, если
-// вердикт вынесен и писать больше нечего.
-function renderSleepDeny(payload) {
+// Жёсткие запреты (долгий sleep, поллинг по таймеру, текстовый поиск по
+// исходникам) — отдельно от подсказок: они обязаны отработать даже на команде,
+// которую дальше ждёт credentials-guard. Порядок безопасен в одну сторону:
+// запрет СТРОЖЕ, чем разбор в guard, поэтому вынесение его вперёд не способно
+// пропустить опасную команду — оно её блокирует. Обратный порядок стоил бы
+// пропуска запрета на командах, где грубый префильтр увидел слово вроде
+// `firebase` внутри поискового паттерна. Возвращает true, если вердикт вынесен.
+function renderHardDeny(payload) {
     const discipline = loadDiscipline();
     if (!discipline || payload.tool_name !== 'Bash') return false;
 
     let verdict = null;
     try {
-        // sleepVerdict, а не judge: judge на команде поиска или чтения потратил бы
+        // Отдельные функции, а не judge: judge на команде чтения потратил бы
         // слот кулдауна, и подсказка ниже по потоку уже не выдалась бы.
-        verdict = discipline.sleepVerdict(payload.tool_input && payload.tool_input.command);
+        const command = payload.tool_input && payload.tool_input.command;
+        verdict = discipline.sleepVerdict(command) || discipline.codeSearchVerdict(command);
     } catch (e) {
+        // Тот же случай, что и несобравшийся модуль: запрет не вынесен, и это
+        // должно быть видно в логе, а не выглядеть как «нарушений не было».
+        noteDisciplineFailure(e);
         return false;
     }
     if (!verdict || verdict.decision !== 'deny') return false;
@@ -204,7 +228,9 @@ function renderDiscipline(payload) {
     // Подсказка идёт БЕЗ permissionDecision: `allow` в этом контракте не «не
     // возражаю», а «пропустить мимо проверки прав», и тогда любая команда,
     // задевшая эвристику про cat/grep, автоматически обходила бы правила из
-    // permissions.deny/ask. Решение выносится только на запрет долгого sleep.
+    // permissions.deny/ask. Решение выносится только на запреты (долгий sleep,
+    // поллинг по таймеру, текстовый поиск по исходникам) — их отдаёт judge как
+    // `decision: 'deny'`, и они уже отработали выше, в renderHardDeny.
     const out = verdict.decision === 'deny'
         ? { permissionDecision: 'deny', permissionDecisionReason: verdict.reason }
         : { additionalContext: verdict.context };
@@ -231,12 +257,13 @@ function main() {
         payload = null; // needsGuard разберётся сам, он отвечает true на неразбираемое
     }
 
-    // Запрет долгого sleep идёт ДО credentials-guard: иначе `sleep 600 && firebase
-    // deploy` уходит в гард и порога не видит вовсе, а в CLAUDE.md записано
-    // безусловное «sleep дольше 30 с блокируется». Deny здесь строже любого
-    // вердикта гарда — он всё равно был бы «нельзя» или «можно», а команда
-    // не должна выполняться в этом виде.
-    if (payload && renderSleepDeny(payload)) return 0;
+    // Жёсткие запреты идут ДО credentials-guard: иначе `sleep 600 && firebase
+    // deploy` уходит в гард и порога не видит вовсе, а `grep -rn firebase
+    // --include=*.kt .` будит pwsh из-за слова в поисковом паттерне. Deny здесь
+    // строже любого вердикта гарда — он всё равно был бы «нельзя» или «можно»,
+    // а команда не должна выполняться в этом виде. Пороги пауз (10 с вне цикла,
+    // 30 с внутри until/while) держит сам модуль, здесь их дублировать незачем.
+    if (payload && renderHardDeny(payload)) return 0;
 
     // Deciding is cheap and safe to fail open: needsGuard already answers true
     // for anything it cannot parse.
