@@ -50,8 +50,39 @@ check('короткий sleep разрешён', () => {
     assert.strictEqual(d.judge('sleep 5 && adb devices', sid()), null);
 });
 
-check('sleep ровно на пороге не блокируется', () => {
-    assert.strictEqual(d.judge(`sleep ${d.SLEEP_DENY_THRESHOLD_S}`, sid()), null);
+// Порогов теперь два, и граница у них разная по смыслу: голая пауза перед
+// разовой проверкой судится низким порогом (это ожидание по таймеру), sleep
+// внутри until/while — высоким (это шаг опроса). Прежний кейс проверял 30 с на
+// команде без цикла и теперь по контракту обязан денаиться — заменён на пару.
+check('sleep ровно на пороге поллинга не блокируется', () => {
+    assert.strictEqual(d.judge(`sleep ${d.SLEEP_POLL_THRESHOLD_S}`, sid()), null);
+});
+
+check('пауза перед разовой проверкой блокируется как поллинг', () => {
+    const v = d.judge('sleep 25; gh pr checks 104', sid());
+    assert.strictEqual(v.decision, 'deny');
+    // Замена — ожидание по условию в фоне. Про `Monitor` тут не говорится
+    // намеренно: его контракт — поток событий, а для одного уведомления он сам
+    // отсылает к `run_in_background` с until-циклом (ревью 2026-08-21).
+    assert.ok(/until/.test(v.reason), 'в отказе нет готовой замены');
+    assert.ok(/run_in_background/.test(v.reason));
+    assert.ok(!/Monitor/.test(v.reason), 'Monitor для одиночного ожидания не рекомендуется');
+    assert.ok(/25/.test(v.reason));
+});
+
+check('sleep как шаг опроса внутри until-цикла разрешён', () => {
+    assert.strictEqual(d.judge('until gh pr checks 104 | grep -q pass; do sleep 20; done', sid()), null);
+    assert.strictEqual(d.judge('while ! curl -sf http://localhost:8080; do sleep 15; done', sid()), null);
+});
+
+check('долгий sleep блокируется и внутри цикла', () => {
+    const v = d.judge('until gh run view; do sleep 120; done', sid());
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/run_in_background/.test(v.reason));
+});
+
+check('порог поллинга ниже порога простоя', () => {
+    assert.ok(d.SLEEP_POLL_THRESHOLD_S < d.SLEEP_DENY_THRESHOLD_S);
 });
 
 check('sleep после && тоже виден', () => {
@@ -65,17 +96,116 @@ check('слово sleep внутри пути не считается', () => {
 });
 
 // --- поиск по коду -------------------------------------------------------
-check('grep по kotlin-исходникам получает подсказку про ast-index', () => {
+// КОНТРАКТ ИЗМЕНЁН 2026-08-21: поиск по исходникам через Bash был подсказкой,
+// стал запретом. Основание — замер после снятия шелл-налога: подсказка сдвинула
+// долю (1 вызов ast-index на 2 230 grep → 19 на 463), но текстовый grep остался
+// преобладающим. Запрет не отнимает возможность искать: он переводит тот же
+// поиск в нативный тул Grep, который работает и там, где индекса нет.
+check('grep по kotlin-исходникам блокируется с готовой заменой', () => {
     const v = d.judge('grep -rn "FooViewModel" --include=*.kt .', sid());
-    assert.strictEqual(v.decision, 'allow');
-    assert.ok(/ast-index usages/.test(v.context));
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/тул Grep/.test(v.reason), 'нет замены нативным тулом');
+    assert.ok(/pattern: "FooViewModel"/.test(v.reason), 'паттерн не подставлен');
+    assert.ok(/glob: "\*\.kt"/.test(v.reason), 'фильтр не подставлен');
+    assert.ok(/ast-index usages FooViewModel/.test(v.reason), 'нет символьной альтернативы');
 });
 
-// Подсказка обязана оставаться подсказкой: вердикт `deny` на чтении или поиске
-// заблокировал бы обычную работу, а тест на текст сообщения этого не заметит.
-check('подсказки не блокируют команду', () => {
-    assert.strictEqual(d.judge('grep -rn "Foo" --include=*.kt .', sid()).decision, 'allow');
+// Запрет обязан оставаться узким: чтение файла — по-прежнему подсказка, иначе
+// встанет обычная работа (`cat` в скрипте, `head` для куска лога).
+check('чтение файла остаётся подсказкой, не запретом', () => {
     assert.strictEqual(d.judge('cat src/Foo.kt', sid()).decision, 'allow');
+});
+
+// Реальная команда из транскрипта: фильтр вычислялся по всей цепочке и в отказ
+// уезжал glob чужого сегмента (`*.py` при поиске по `.js`) — замена вела в
+// никуда. Плюс запрет останавливает всю цепочку, и отказ обязан это назвать.
+check('в цепочке разбирается сегмент поиска, а не вся команда', () => {
+    const v = d.judge(
+        "python fix_market.py apps/webapp/i18n.js && node --check apps/webapp/i18n.js && grep -n 'fx_market_hint' apps/webapp/i18n.js | head -3",
+        sid(),
+    );
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/glob: "\*\.js"/.test(v.reason), 'фильтр взят из чужого сегмента: ' + v.reason);
+    assert.ok(/pattern: "fx_market_hint"/.test(v.reason));
+    assert.ok(/Остальные звенья/.test(v.reason), 'отказ не говорит, что делать с цепочкой');
+});
+
+check('одиночный поиск про цепочку не упоминает', () => {
+    const v = d.judge('grep -rn "Foo" --include=*.kt .', sid());
+    assert.ok(!/Остальные звенья/.test(v.reason));
+});
+
+check('regex-паттерн блокируется, но ast-index не предлагается', () => {
+    const v = d.judge('grep -rn "fun .*Screen(" --include=*.kt .', sid());
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/тул Grep/.test(v.reason));
+    assert.ok(!/ast-index/.test(v.reason), 'regex символом не является');
+});
+
+// Вывод уходит в ОБРАБОТКУ — тул Grep этого не умеет, запрет был бы ложным.
+// Приёмники, которые только показывают или считают (`| cat`, `| wc -l`), сюда
+// не относятся: у тула Grep для них есть свои режимы, и щадить их значило бы
+// оставить обход в один символ (проверяется кейсом про вырожденный приёмник).
+check('поиск, уходящий в обработку, не блокируется', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rl "Foo" --include=*.kt . | xargs sed -i s/a/b/'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . > /tmp/hits.txt'), null);
+    assert.ok(d.feedsAnotherCommand('grep -rn "Foo" --include=*.kt . | xargs sed -i s/a/b/'));
+});
+
+check('поиск внутри heredoc и чужого интерпретатора не блокируется', () => {
+    assert.strictEqual(d.codeSearchVerdict('python - <<PY\nimport re  # grep Foo.kt\nPY'), null);
+    assert.strictEqual(d.codeSearchVerdict('perl -e "# grep Foo.kt"'), null);
+});
+
+// Обходы, найденные пробой руками: каждый снимал запрет одним лишним символом
+// или обёрткой, то есть правило переставало быть правилом, не переставая
+// существовать на бумаге.
+check('вырожденный приёмник не снимает запрет', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . | cat').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . | head -50').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . | wc -l').decision, 'deny');
+    // ...а настоящая обработка по-прежнему щадится: тул Grep её не заменяет.
+    assert.strictEqual(d.codeSearchVerdict('grep -rl Foo --include=*.kt . | xargs sed -i s/a/b/'), null);
+});
+
+check('обёртка bash -c не снимает запрет', () => {
+    assert.strictEqual(d.codeSearchVerdict("bash -c 'grep -rn Foo --include=*.kt .'").decision, 'deny');
+    assert.strictEqual(d.sleepVerdict('bash -c \'sleep 600\'').decision, 'deny');
+});
+
+// Команда на чужом языке — текст программы, а не вызовы шелла. Поймано живьём:
+// проверочный `node -e "... sleep 120 ..."` получил deny как ожидание.
+check('чужой интерпретатор не судится как команда шелла', () => {
+    // Пауза обязана стоять там, где разбор шелла её ВИДИТ (после `;`), иначе
+    // кейс зеленел бы и без защиты — просто потому, что regex её не нашёл.
+    // Мутационная матрица поймала ровно это: первая редакция кейса прятала
+    // `sleep` за `//` и защиту не проверяла.
+    assert.strictEqual(d.sleepVerdict('node -e \'console.log(1); sleep 120\''), null);
+    assert.strictEqual(d.sleepVerdict('python3 -c "import x; sleep 300"'), null);
+    assert.strictEqual(d.codeSearchVerdict('python -c "x = 1  # grep Foo.kt"'), null);
+});
+
+check('слова цикла в тексте циклом не считаются', () => {
+    // Есть и `while`, и `do`, но нет тела цикла — пауза голая, порог низкий.
+    assert.strictEqual(d.sleepVerdict('sleep 25; echo "while true do"').decision, 'deny');
+    // Голая пауза перед настоящим циклом судится отдельно от шага опроса.
+    assert.strictEqual(d.sleepVerdict('sleep 25; until gh pr checks; do sleep 20; done').decision, 'deny');
+    assert.strictEqual(d.sleepVerdict('until gh pr checks; do sleep 20; done'), null);
+});
+
+check('текст команды в кавычках вердикта не получает', () => {
+    assert.strictEqual(d.sleepVerdict('echo "sleep 600"'), null);
+    assert.strictEqual(d.codeSearchVerdict('git commit -m "fix: grep in Foo.kt"'), null);
+});
+
+check('escape hatch снимает запрет поиска', () => {
+    process.env.CLAUDE_ALLOW_CODE_GREP = '1';
+    try {
+        assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt .'), null);
+    } finally {
+        delete process.env.CLAUDE_ALLOW_CODE_GREP;
+    }
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt .').decision, 'deny');
 });
 
 check('рекурсивный grep по логам и build/ подсказку не вызывает', () => {
@@ -98,18 +228,40 @@ check('ключ кулдауна не уводит запись состояни
     const name = `evil-${RUN}`;
     const escaped = path.join(os.tmpdir(), '..', `${name}.json`);
     try { fs.unlinkSync(escaped); } catch (e) { /* его и не должно быть */ }
-    const v = d.judge('grep -rn "Foo" --include=*.kt .', `../../${name}`);
+    // Тема read, а не search: поиск по коду теперь денаится и состояния не пишет.
+    const v = d.judge('cat src/Foo.kt', `../../${name}`);
     assert.ok(v && v.decision === 'allow', 'подсказка не выдалась — проверять нечего');
     assert.ok(!fs.existsSync(escaped), 'состояние записано за пределы каталога: ' + escaped);
 });
 
 check('cd-префикс не мешает распознать поиск', () => {
     const v = d.judge('cd "C:/repo/.claude/worktrees/x" && grep -rn "Foo" --include=*.ts src', sid());
-    assert.ok(v && /ast-index/.test(v.context));
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/glob: "\*\.ts"/.test(v.reason));
 });
 
 check('rg -r по дереву — тоже поиск по коду', () => {
     assert.ok(d.isCodeSearch('rg -rn "Repository" .'));
+});
+
+// Поймано живьём: прогон тестов с фильтром вывода получал подсказку про
+// ast-index. grep после пайпа читает stdout соседа, файлов не открывает,
+// и заменить его ast-index нельзя в принципе.
+check('grep после пайпа — фильтр вывода, не поиск по коду', () => {
+    assert.strictEqual(d.isCodeSearch('node hooks/bash-tool-discipline.tests.js | grep -E "FAIL|passed"'), false);
+    assert.strictEqual(d.isCodeSearch('cat src/Foo.kt | grep -n "fun render"'), false);
+    assert.strictEqual(d.judge('./gradlew build 2>&1 | grep -i "warning.*\\.kt"', sid()), null);
+});
+
+check('обёртки перед настоящим поиском не мешают', () => {
+    assert.ok(d.isCodeSearch('LC_ALL=C grep -rn "FooViewModel" --include=*.kt .'));
+    assert.ok(d.isCodeSearch('cd /repo && grep -rn "FooViewModel" --include=*.kt .'));
+    assert.ok(d.isCodeSearch('timeout 30 rg -n "FooViewModel" --type kt'));
+});
+
+check('|| разделяет сегменты, одиночный | — нет', () => {
+    assert.ok(d.isCodeSearch('test -d src || grep -rn "Foo" --include=*.kt .'));
+    assert.strictEqual(d.isCodeSearch('ls src/*.kt | grep Foo'), false);
 });
 
 check('поиск по логам подсказку не вызывает', () => {
@@ -172,14 +324,225 @@ check('пустая и мусорная команда безопасны', () =
 // --- кулдаун -------------------------------------------------------------
 check('вторая подсказка той же темы в рамках сессии молчит', () => {
     const s = sid();
-    assert.ok(d.judge('grep -rn "A" --include=*.kt .', s));
-    assert.strictEqual(d.judge('grep -rn "B" --include=*.kt .', s), null);
+    assert.ok(d.judge('cat src/A.kt', s));
+    assert.strictEqual(d.judge('cat src/B.kt', s), null);
+});
+
+// Кулдаун живёт только у подсказок. Запрет обязан срабатывать КАЖДЫЙ раз:
+// пропущенный второй вызов означал бы, что правило действует через раз.
+check('запрет не глушится кулдауном', () => {
+    const s = sid();
+    assert.strictEqual(d.judge('grep -rn "A" --include=*.kt .', s).decision, 'deny');
+    assert.strictEqual(d.judge('grep -rn "B" --include=*.kt .', s).decision, 'deny');
+    assert.strictEqual(d.judge('sleep 25; gh pr checks', s).decision, 'deny');
 });
 
 check('разные темы не глушат друг друга', () => {
     const s = sid();
-    assert.ok(d.judge('grep -rn "A" --include=*.kt .', s));
-    assert.ok(d.judge('cat Foo.kt', s));
+    assert.ok(d.judge('cat A.kt', s));
+    assert.strictEqual(d.judge('grep -rn "A" --include=*.kt .', s).decision, 'deny');
+});
+
+// --- находки ревью 2026-08-21 ------------------------------------------
+// Каждый кейс ниже — дефект, найденный ревью диффа на двух осях. Держим их
+// тестами, а не памятью: почти все были обходами в один-два символа.
+
+check('поиск файлов по имени ведёт в Glob, а не в Grep', () => {
+    const v = d.codeSearchVerdict('find . -name "*.kt"');
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/тул Glob \(pattern: "\*\*\/\*\.kt"\)/.test(v.reason), v.reason);
+    assert.ok(!/ast-index usages find/.test(v.reason), 'мусорная замена в отказе');
+});
+
+check('пакетная операция find не трогается вовсе', () => {
+    assert.strictEqual(d.codeSearchVerdict('find . -name "*.kt" -exec sed -i s/a/b/ {} +'), null);
+    assert.strictEqual(d.codeSearchVerdict('find src -name "*.kt" -delete'), null);
+});
+
+// Переменная читается из окружения процесса хука: агент не может открыть себе
+// хатч из команды, и отказ обязан это сказать, иначе цикл «отказ → префикс →
+// тот же отказ» повторяется без новой информации.
+check('escape hatch описан как действие пользователя', () => {
+    const v = d.codeSearchVerdict('grep -rn "Foo" --include=*.kt .');
+    assert.ok(/снимает пользователь/.test(v.reason));
+    assert.ok(/префикс в самой команде/.test(v.reason));
+    const inline = d.codeSearchVerdict('CLAUDE_ALLOW_CODE_GREP=1 grep -rn "Foo" --include=*.kt .');
+    assert.strictEqual(inline.decision, 'deny', 'inline-префикс не должен снимать запрет');
+});
+
+check('флаг -e отдаёт паттерн, -c его не съедает', () => {
+    assert.ok(/pattern: "Foo"/.test(d.codeSearchVerdict('grep --include=*.kt -e Foo .').reason));
+    assert.ok(/pattern: "Foo"/.test(d.codeSearchVerdict('grep -rn -e "Foo" --include=*.kt .').reason));
+    assert.ok(/pattern: "TODO"/.test(d.codeSearchVerdict('grep -c "TODO" src/Foo.kt').reason));
+    // Форма через `=` — единственная, где общий пропуск «флаг со значением»
+    // съел бы сам паттерн и в отказ уехала бы точка вместо запроса.
+    assert.ok(/pattern: "Foo"/.test(d.codeSearchVerdict('grep --regexp=Foo --include=*.kt .').reason));
+});
+
+check('редирект stderr запрет не снимает', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . 2>&1').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . 2>/dev/null').decision, 'deny');
+    // Настоящий редирект вывода по-прежнему щадится — тул Grep в файл не пишет.
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . > out.txt'), null);
+});
+
+check('альтернация в кавычках за пайп не принимается', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rnE "Foo|Bar" --include=*.kt .').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict("grep -rn 'a|b' --include=*.kt .").decision, 'deny');
+});
+
+// NON_CODE_PATH проверялся по всей строке: слово `build` в паттерне или
+// `&& ./gradlew build` в соседнем звене глушило правило целиком.
+check('некодовый путь узнаётся по пути, а не по слову', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "build" --include=*.kt .').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . && ./gradlew build').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rni error build/reports/'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -n FATAL ~/Downloads/crash.kt.txt'), null);
+});
+
+check('git grep и обёртки не проходят мимо правила', () => {
+    assert.strictEqual(d.codeSearchVerdict('git grep -n "Foo" -- "*.kt"').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('env grep -rn "Foo" --include=*.kt .').decision, 'deny');
+});
+
+check('форма записи флага не решает судьбу приёмника', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . | head -n 50').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . | tail -n +2').decision, 'deny');
+    // ...а второй grep — уже обработка, там Bash уместен.
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . | grep -v test'), null);
+});
+
+check('кавычки внутри паттерна экранируются', () => {
+    const v = d.codeSearchVerdict('grep -rn \'val "x"\' --include=*.kt .');
+    assert.ok(/pattern: "val \\"x\\""/.test(v.reason), v.reason);
+});
+
+check('дробная пауза и префиксы видны', () => {
+    assert.strictEqual(d.sleepVerdict('sleep 0.5m; git status').decision, 'deny');
+    assert.strictEqual(d.sleepVerdict('time sleep 600').decision, 'deny');
+    assert.strictEqual(d.sleepVerdict('sleep 8; git status'), null);
+});
+
+// `for` перебирает готовый список, а не ждёт события: пауза внутри него — такой
+// же простой, как голая. Все тексты правил говорят только про until/while.
+check('for без break — перебор списка, не ожидание', () => {
+    assert.strictEqual(d.sleepVerdict('for f in a b; do sleep 20; done').decision, 'deny');
+    assert.strictEqual(d.sleepVerdict('until gh pr checks; do sleep 20; done'), null);
+    assert.strictEqual(d.sleepVerdict(`until x; do sleep ${d.SLEEP_DENY_THRESHOLD_S}; done`), null);
+});
+
+// Ограниченный поллинг из mr-merge.md: `for` со счётчиком и `break` — это
+// ожидание по условию с потолком итераций, и порог у него как у until-цикла.
+// Без этой ветки рекомендованная самим репозиторием форма получала бы deny.
+check('for со счётчиком и break — законное ожидание', () => {
+    assert.strictEqual(d.sleepVerdict(
+        'for i in $(seq 1 20); do [ "$(gh pr view 12 --json state -q .state)" = "MERGED" ] && break; sleep 15; done',
+    ), null);
+});
+
+// --- находки второго раунда ревью ---------------------------------------
+
+check('rg --files — листинг, замена ему Glob', () => {
+    const v = d.codeSearchVerdict('rg --files -g "*.kt"');
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/тул Glob \(pattern: "\*\*\/\*\.kt"\)/.test(v.reason), v.reason);
+    assert.ok(!/ast-index/.test(v.reason));
+});
+
+// heredoc, скормленный bash, — шелл, а не чужой язык: иначе обход в одну строку,
+// того же класса, что закрытая обёртка `bash -c`.
+check('heredoc для bash запрет не снимает', () => {
+    assert.strictEqual(d.sleepVerdict('bash <<EOF\nsleep 600\nEOF').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('sh <<EOF\ngrep -rn Foo --include=*.kt .\nEOF').decision, 'deny');
+    // ...а heredoc чужого интерпретатора по-прежнему не трогается.
+    assert.strictEqual(d.codeSearchVerdict('python - <<PY\n# grep Foo.kt\nPY'), null);
+});
+
+check('timeout перед паузой её не прячет', () => {
+    assert.strictEqual(d.sleepVerdict('timeout 60 sleep 45').decision, 'deny');
+});
+
+check('редирект всего вывода щадится, редирект stderr — нет', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . &> out.txt'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . 2>&1').decision, 'deny');
+});
+
+// Индекс не покрывает .md — совет `ast-index usages TODO` отправлял бы в
+// инструмент, который этих файлов не видит.
+check('ast-index не предлагается для некодового фильтра', () => {
+    const v = d.codeSearchVerdict('grep -rn "TODO" --include=*.md docs/');
+    if (v) assert.ok(!/ast-index/.test(v.reason), v.reason);
+});
+
+check('тексты отказов знают про for с break', () => {
+    const poll = d.sleepVerdict('sleep 25; gh pr checks');
+    assert.ok(/for` с `break`/.test(poll.reason), poll.reason);
+    const long = d.sleepVerdict('sleep 600');
+    assert.ok(/for` с `break`/.test(long.reason), long.reason);
+});
+
+check('отказ по паузе не советует прятать в фон саму паузу', () => {
+    const v = d.sleepVerdict('sleep 25; gh pr checks');
+    assert.ok(/until/.test(v.reason));
+    assert.ok(!/запускай саму команду через/.test(v.reason));
+});
+
+// --- периметр: обходы второго раунда ------------------------------------
+
+check('рекурсия ripgrep по умолчанию видна, но без фильтра — подсказка', () => {
+    // `-r` у rg значит `--replace`, поэтому требовать его было ошибкой.
+    assert.ok(d.isCodeSearch('rg "FooViewModel"'));
+    // Без явного фильтра по коду поиск может идти по чему угодно — только подсказка.
+    assert.strictEqual(d.codeSearchVerdict('rg "FooViewModel"'), null);
+    assert.strictEqual(d.codeSearchVerdict('rg -t kt FooViewModel').decision, 'deny');
+});
+
+check('рекурсивный поиск по не-исходникам не денаится', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "TODO" docs'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn ERROR build'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn FATAL logs'), null);
+});
+
+check('предикатный grep заменить нечем', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -q "Foo" src/Foo.kt && ./gradlew build'), null);
+});
+
+check('слово в паттерне путём не считается', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "build" --include=*.kt .').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . && ls build/').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . # see build/x').decision, 'deny');
+});
+
+check('цитирование bash разбирается по правилам bash', () => {
+    // Экранированная кавычка внутри двойных строку не закрывает — `|` не пайп.
+    assert.strictEqual(d.codeSearchVerdict(String.raw`grep -rnE "foo\"|bar" --include=*.kt .`).decision, 'deny');
+    // ...а `\'` вне кавычек строку не открывает — пайп настоящий, это обработка.
+    assert.strictEqual(d.codeSearchVerdict(String.raw`grep -rn It\'s --include=*.kt . | xargs sed -i 's/a/b/'`), null);
+});
+
+check('разделитель в кавычках сегмент не разваливает', () => {
+    const v = d.codeSearchVerdict('grep -rn "a && b" --include=*.kt .');
+    assert.ok(/pattern: "a && b"/.test(v.reason), v.reason);
+    assert.ok(!/Остальные звенья/.test(v.reason), 'ложная приписка про цепочку');
+});
+
+check('листинг с обработкой ведёт не в Glob', () => {
+    assert.strictEqual(d.codeSearchVerdict('find . -name "*.kt" | xargs grep Foo'), null);
+});
+
+check('интерпретатор прикрывает только свой сегмент', () => {
+    assert.strictEqual(d.sleepVerdict('python -c "print(1)"; sleep 600').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('node build.js && grep -c "Foo" src/Foo.kt').decision, 'deny');
+    // Маркер heredoc в паттерне иммунитета не даёт.
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "a<<EOF" --include=*.kt .').decision, 'deny');
+});
+
+check('обёртка bash -lc разворачивается', () => {
+    assert.strictEqual(d.sleepVerdict("bash -lc 'sleep 600'").decision, 'deny');
+});
+
+check('дробная пауза не даёт артефакта в тексте', () => {
+    assert.ok(/простаивает 252 с/.test(d.sleepVerdict('sleep 0.07h').reason));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

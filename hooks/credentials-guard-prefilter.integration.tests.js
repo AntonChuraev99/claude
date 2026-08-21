@@ -97,6 +97,63 @@ for (const command of CASES) {
     }
 }
 
+// Жёсткие запреты дисциплины вызовов сравнивать с pwsh-guard нельзя: у него на
+// эти команды вердикта нет вовсе, весь смысл — что префильтр выносит свой,
+// раньше guard и не спрашивая его. Поэтому ожидание задаётся явно, а прогон всё
+// так же идёт через реальный процесс: юнит-тесты judge() не видят ни разбора
+// stdin, ни порядка вердиктов, ни формы JSON, которую читает харнесс.
+const RUN = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const DISCIPLINE_CASES = [
+    ['grep -rn "FooViewModel" --include=*.kt .', 'deny', /тул Grep \(pattern: "FooViewModel", glob: "\*\.kt"\)/],
+    // Замена — ожидание по условию в фоне, а не Monitor: его контракт про поток
+    // событий, для одиночного ожидания он сам отсылает к run_in_background.
+    ['sleep 25; gh pr checks 104', 'deny', /until .*run_in_background|run_in_background/],
+    ['sleep 600 && firebase deploy', 'deny', /run_in_background/],
+    // `| wc -l` ничего не обрабатывает — считает то же, что вернул бы поиск, а
+    // у тула Grep для этого есть count-режим. Щадить такой пайп значило бы
+    // оставить обход запрета в один символ.
+    ['grep -rn "Foo" --include=*.kt . | wc -l', 'deny', /count|тул Grep/],
+    // А вот настоящая обработка остаётся за Bash: тул Grep в пайп не отдаёт.
+    ['grep -rl "Foo" --include=*.kt . | xargs sed -i s/a/b/', 'context', null],
+    ['node tests.js | grep -E "FAIL|passed"', 'allow', null],
+    ['./gradlew :app:testDebugUnitTest', 'allow', null],
+    ['until gh pr checks; do sleep 15; done', 'allow', null],
+];
+
+for (const [command, want, reasonRe] of DISCIPLINE_CASES) {
+    const payload = JSON.stringify({
+        tool_name: 'Bash', cwd: CWD, tool_input: { command },
+        // Ключ уникален на прогон и на кейс: подсказки живут под кулдауном 10 мин,
+        // и на фиксированном ключе второй запуск теста читал бы состояние первого
+        // — «подсказки нет» вместо «подсказка выдана».
+        session_id: 'integration', transcript_path: `integration-${RUN}-${command.length}`,
+    });
+    const res = spawnSync('node', [PREFILTER], { input: Buffer.from(payload, 'utf8') });
+    const text = (res.stdout || '').toString().trim();
+    let reason = '';
+    let got = 'allow';
+    try {
+        const out = JSON.parse(text).hookSpecificOutput;
+        reason = out.permissionDecisionReason || '';
+        // Подсказка приходит без permissionDecision — это отдельный исход, а не
+        // «нет вердикта»: подменять его на allow значило бы не отличать молчание
+        // хука от выданной подсказки.
+        got = out.permissionDecision || (out.additionalContext ? 'context' : 'allow');
+    } catch (e) { /* пустой stdout — хук промолчал */ }
+
+    const reasonOk = !reasonRe || reasonRe.test(reason);
+    if (got === want && reasonOk) {
+        console.log(`  PASS ${command}  -> ${got}`);
+        passed++;
+    } else {
+        console.log(`  FAIL ${command}`);
+        console.log(`    expected: ${want}${reasonRe ? ` matching ${reasonRe}` : ''}`);
+        console.log(`    got:      ${got} ${reason.slice(0, 80)}`);
+        failed++;
+    }
+}
+
 console.log('');
 console.log(`Passed: ${passed}  Failed: ${failed}`);
 process.exit(failed === 0 ? 0 : 1);
