@@ -34,23 +34,34 @@ const { spawnSync } = require('child_process');
 // эту разницу и делает; сам лог падать не имеет права — он тут не главный.
 function noteDisciplineFailure(err) {
     try {
+        const dir = path.join(os.homedir(), '.claude', 'error-logs');
+        // Каталог существует не по конструкции: на чистом профиле его нет, и без
+        // mkdir запись молча провалилась бы в catch — то есть ровно то молчание,
+        // против которого этот лог и заведён (ревью 2026-08-21).
+        fs.mkdirSync(dir, { recursive: true });
         const line = JSON.stringify({
             ts: new Date().toISOString(),
             hook: 'credentials-guard-prefilter',
             event: 'discipline-module-unavailable',
             error: String((err && err.message) || err).slice(0, 300),
         });
-        fs.appendFileSync(path.join(os.homedir(), '.claude', 'error-logs', 'hook-failures.jsonl'), line + '\n');
+        fs.appendFileSync(path.join(dir, 'hook-failures.jsonl'), line + '\n');
     } catch (e) { /* лог не работает — вердикт всё равно важнее */ }
 }
 
+// Результат мемоизируется: loadDiscipline зовётся дважды за вызов (жёсткие
+// запреты и подсказки), а неудачный require в Node не кешируется — сломанный
+// модуль парсился заново и логировался ДВАЖДЫ на каждую команду.
+let disciplineCache;
 function loadDiscipline() {
+    if (disciplineCache !== undefined) return disciplineCache;
     try {
-        return require('./bash-tool-discipline.js');
+        disciplineCache = require('./bash-tool-discipline.js');
     } catch (e) {
         noteDisciplineFailure(e);
-        return null;
+        disciplineCache = null;
     }
+    return disciplineCache;
 }
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude');

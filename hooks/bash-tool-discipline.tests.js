@@ -61,7 +61,12 @@ check('sleep ровно на пороге поллинга не блокируе
 check('пауза перед разовой проверкой блокируется как поллинг', () => {
     const v = d.judge('sleep 25; gh pr checks 104', sid());
     assert.strictEqual(v.decision, 'deny');
-    assert.ok(/Monitor/.test(v.reason), 'в отказе нет готовой замены');
+    // Замена — ожидание по условию в фоне. Про `Monitor` тут не говорится
+    // намеренно: его контракт — поток событий, а для одного уведомления он сам
+    // отсылает к `run_in_background` с until-циклом (ревью 2026-08-21).
+    assert.ok(/until/.test(v.reason), 'в отказе нет готовой замены');
+    assert.ok(/run_in_background/.test(v.reason));
+    assert.ok(!/Monitor/.test(v.reason), 'Monitor для одиночного ожидания не рекомендуется');
     assert.ok(/25/.test(v.reason));
 });
 
@@ -433,6 +438,111 @@ check('for со счётчиком и break — законное ожидани�
     assert.strictEqual(d.sleepVerdict(
         'for i in $(seq 1 20); do [ "$(gh pr view 12 --json state -q .state)" = "MERGED" ] && break; sleep 15; done',
     ), null);
+});
+
+// --- находки второго раунда ревью ---------------------------------------
+
+check('rg --files — листинг, замена ему Glob', () => {
+    const v = d.codeSearchVerdict('rg --files -g "*.kt"');
+    assert.strictEqual(v.decision, 'deny');
+    assert.ok(/тул Glob \(pattern: "\*\*\/\*\.kt"\)/.test(v.reason), v.reason);
+    assert.ok(!/ast-index/.test(v.reason));
+});
+
+// heredoc, скормленный bash, — шелл, а не чужой язык: иначе обход в одну строку,
+// того же класса, что закрытая обёртка `bash -c`.
+check('heredoc для bash запрет не снимает', () => {
+    assert.strictEqual(d.sleepVerdict('bash <<EOF\nsleep 600\nEOF').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('sh <<EOF\ngrep -rn Foo --include=*.kt .\nEOF').decision, 'deny');
+    // ...а heredoc чужого интерпретатора по-прежнему не трогается.
+    assert.strictEqual(d.codeSearchVerdict('python - <<PY\n# grep Foo.kt\nPY'), null);
+});
+
+check('timeout перед паузой её не прячет', () => {
+    assert.strictEqual(d.sleepVerdict('timeout 60 sleep 45').decision, 'deny');
+});
+
+check('редирект всего вывода щадится, редирект stderr — нет', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . &> out.txt'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn Foo --include=*.kt . 2>&1').decision, 'deny');
+});
+
+// Индекс не покрывает .md — совет `ast-index usages TODO` отправлял бы в
+// инструмент, который этих файлов не видит.
+check('ast-index не предлагается для некодового фильтра', () => {
+    const v = d.codeSearchVerdict('grep -rn "TODO" --include=*.md docs/');
+    if (v) assert.ok(!/ast-index/.test(v.reason), v.reason);
+});
+
+check('тексты отказов знают про for с break', () => {
+    const poll = d.sleepVerdict('sleep 25; gh pr checks');
+    assert.ok(/for` с `break`/.test(poll.reason), poll.reason);
+    const long = d.sleepVerdict('sleep 600');
+    assert.ok(/for` с `break`/.test(long.reason), long.reason);
+});
+
+check('отказ по паузе не советует прятать в фон саму паузу', () => {
+    const v = d.sleepVerdict('sleep 25; gh pr checks');
+    assert.ok(/until/.test(v.reason));
+    assert.ok(!/запускай саму команду через/.test(v.reason));
+});
+
+// --- периметр: обходы второго раунда ------------------------------------
+
+check('рекурсия ripgrep по умолчанию видна, но без фильтра — подсказка', () => {
+    // `-r` у rg значит `--replace`, поэтому требовать его было ошибкой.
+    assert.ok(d.isCodeSearch('rg "FooViewModel"'));
+    // Без явного фильтра по коду поиск может идти по чему угодно — только подсказка.
+    assert.strictEqual(d.codeSearchVerdict('rg "FooViewModel"'), null);
+    assert.strictEqual(d.codeSearchVerdict('rg -t kt FooViewModel').decision, 'deny');
+});
+
+check('рекурсивный поиск по не-исходникам не денаится', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "TODO" docs'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn ERROR build'), null);
+    assert.strictEqual(d.codeSearchVerdict('grep -rn FATAL logs'), null);
+});
+
+check('предикатный grep заменить нечем', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -q "Foo" src/Foo.kt && ./gradlew build'), null);
+});
+
+check('слово в паттерне путём не считается', () => {
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "build" --include=*.kt .').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . && ls build/').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "Foo" --include=*.kt . # see build/x').decision, 'deny');
+});
+
+check('цитирование bash разбирается по правилам bash', () => {
+    // Экранированная кавычка внутри двойных строку не закрывает — `|` не пайп.
+    assert.strictEqual(d.codeSearchVerdict(String.raw`grep -rnE "foo\"|bar" --include=*.kt .`).decision, 'deny');
+    // ...а `\'` вне кавычек строку не открывает — пайп настоящий, это обработка.
+    assert.strictEqual(d.codeSearchVerdict(String.raw`grep -rn It\'s --include=*.kt . | xargs sed -i 's/a/b/'`), null);
+});
+
+check('разделитель в кавычках сегмент не разваливает', () => {
+    const v = d.codeSearchVerdict('grep -rn "a && b" --include=*.kt .');
+    assert.ok(/pattern: "a && b"/.test(v.reason), v.reason);
+    assert.ok(!/Остальные звенья/.test(v.reason), 'ложная приписка про цепочку');
+});
+
+check('листинг с обработкой ведёт не в Glob', () => {
+    assert.strictEqual(d.codeSearchVerdict('find . -name "*.kt" | xargs grep Foo'), null);
+});
+
+check('интерпретатор прикрывает только свой сегмент', () => {
+    assert.strictEqual(d.sleepVerdict('python -c "print(1)"; sleep 600').decision, 'deny');
+    assert.strictEqual(d.codeSearchVerdict('node build.js && grep -c "Foo" src/Foo.kt').decision, 'deny');
+    // Маркер heredoc в паттерне иммунитета не даёт.
+    assert.strictEqual(d.codeSearchVerdict('grep -rn "a<<EOF" --include=*.kt .').decision, 'deny');
+});
+
+check('обёртка bash -lc разворачивается', () => {
+    assert.strictEqual(d.sleepVerdict("bash -lc 'sleep 600'").decision, 'deny');
+});
+
+check('дробная пауза не даёт артефакта в тексте', () => {
+    assert.ok(/простаивает 252 с/.test(d.sleepVerdict('sleep 0.07h').reason));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -106,7 +106,9 @@ const RUN = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 const DISCIPLINE_CASES = [
     ['grep -rn "FooViewModel" --include=*.kt .', 'deny', /тул Grep \(pattern: "FooViewModel", glob: "\*\.kt"\)/],
-    ['sleep 25; gh pr checks 104', 'deny', /Monitor/],
+    // Замена — ожидание по условию в фоне, а не Monitor: его контракт про поток
+    // событий, для одиночного ожидания он сам отсылает к run_in_background.
+    ['sleep 25; gh pr checks 104', 'deny', /until .*run_in_background|run_in_background/],
     ['sleep 600 && firebase deploy', 'deny', /run_in_background/],
     // `| wc -l` ничего не обрабатывает — считает то же, что вернул бы поиск, а
     // у тула Grep для этого есть count-режим. Щадить такой пайп значило бы

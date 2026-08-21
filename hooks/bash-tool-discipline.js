@@ -3,12 +3,14 @@
 // Отдельный хук стоил бы ещё один спавн процесса на КАЖДЫЙ вызов — ровно та
 // цена, которую снимал замер спавна на этой машине (docs/solutions/, 2026-08-19).
 //
-// ЗАЧЕМ. Замер транскриптов за 2026-08-18 (219 прогонов субагентов):
-//   * 3 908 «дешёвых» Bash-вызовов (cat/grep/ls/git) = 10.1 ч, медиана 5.5 с;
-//     те же операции нативными тулами — 1 472 вызова = 1.2 ч, медиана 1.3–2.8 с;
-//   * ast-index вызван 1 раз против 2 230 текстовых grep — при живом индексе
-//     (1 927 файлов, 23 304 символа) и правиле в CLAUDE.md и в 13 файлах agents/;
-//   * `sleep` в Bash — 85 вызовов, 1.4 ч простоя.
+// ЗАЧЕМ. Исходный замер (2026-08-18) показывал 10.1 ч в день на «дешёвых»
+// Bash-вызовах при медиане 5.5 с — эту статью закрыл фикс шелл-налога
+// 2026-08-19. Replay 2026-08-21: медиана дешёвого вызова 1.1 с, у субагентов
+// 0.93 с против 0.93 с у нативного тула, суммарно 0.67 ч в день. Осталось то,
+// что ценой вызова не лечится:
+//   * ast-index вызывался 19 раз против 463 текстовых grep по коду (08-20) —
+//     при живом индексе и правиле в CLAUDE.md и в 13 файлах agents/;
+//   * `sleep` вне цикла — 23 голых паузы дольше 10 с за двое суток.
 // Правило текстом уже было написано и всё равно не исполнялось: в bypassPermissions
 // системный промпт велит обратное («читай через cat, ищи через grep»), а
 // плагинная напоминалка ast-index висит на matcher "Grep" и вызовы через Bash
@@ -67,7 +69,7 @@ function stripPrefix(cmd) {
     // что внутри кавычки команда не стоит в начале сегмента. Разворачивается
     // только явная форма с кавычками — `echo "sleep 600"` при этом остаётся
     // текстом и вердикта не получает.
-    const wrapped = withoutCd.match(/^(?:bash|sh)\s+-c\s+(?:"([^"]*)"|'([^']*)')\s*$/i);
+    const wrapped = withoutCd.match(/^(?:bash|sh|zsh)\s+-[a-z]*c\s+(?:"([^"]*)"|'([^']*)')\s*$/i);
     return wrapped ? (wrapped[1] || wrapped[2] || '').trim() : withoutCd;
 }
 
@@ -78,12 +80,20 @@ function sleepOccurrences(cmd) {
     // Дробная часть учитывается, а не отбрасывается: `sleep 0.5m` — это 30 с, а
     // на `parseInt` оно давало 0 и проходило мимо порога (ревью 2026-08-21).
     // Префиксы `time`/`env`/`VAR=` разрешены — иначе `time sleep 600` не виден.
-    const re = /(^|[;&|\n]|\bthen\b|\bdo\b)\s*(?:(?:[A-Z_][A-Z0-9_]*=\S*|env|time|nice|sudo)\s+)*sleep\s+(\d+(?:\.\d+)?)([smh]?)\b/gi;
+    const re = /(^|[;&|\n]|\bthen\b|\bdo\b)\s*(?:(?:[A-Z_][A-Z0-9_]*=\S*|env|time|nice|sudo|timeout\s+\d+[smh]?)\s+)*sleep\s+(\d+(?:\.\d+)?)([smh]?)\b/gi;
     const found = [];
     let m;
     while ((m = re.exec(cmd)) !== null) {
         const mult = m[3] === 'h' ? 3600 : m[3] === 'm' ? 60 : 1;
-        found.push({ seconds: parseFloat(m[2]) * mult, index: m.index });
+        // Округление обязательно: `sleep 0.07h` давало 252.00000000000003 с,
+        // и это число уезжало в текст отказа.
+        //
+        // Индекс — позиция самого слова, а не начала матча: матч начинается с
+        // РАЗДЕЛИТЕЛЯ (`;`, `&&`), который принадлежит предыдущему сегменту, и
+        // на нём пауза из `python -c "…"; sleep 600` считалась прикрытой чужим
+        // интерпретатором (ревью 2026-08-21, второй раунд).
+        const at = m.index + m[0].search(/sleep/i);
+        found.push({ seconds: Math.round(parseFloat(m[2]) * mult * 100) / 100, index: at });
     }
     return found;
 }
@@ -104,14 +114,37 @@ const NON_CODE_DIR = /(^|[\\/])(logs?|build|dist|out|reports?|coverage|node_modu
 // правило словом в ПАТТЕРНЕ, а `… && ./gradlew build` — словом в соседнем
 // звене цепочки; дописать `# build` хватало, чтобы обойти запрет целиком.
 // Смотрим только на токены, похожие на пути.
+// Токены-ПУТИ сегмента поиска: всё неопционное, кроме самого паттерна. Развести
+// их обязательно, и обе стороны этой границы уже ломались: проверка по всей
+// строке глушила правило словом в паттерне (`grep -rn "build" --include=*.kt .`
+// проходил мимо), а проверка «токен с чужим именем каталога» вернула ту же дыру
+// на уровне токенов. Паттерн у grep — первый неопционный токен; у find первый
+// неопционный — это путь, паттерн живёт в `-name`.
+function searchPaths(cmd) {
+    const seg = stripComment(searchSegment(cmd));
+    const head = seg.match(/\b(grep|rg|ack|find)\b/i);
+    if (!head) return [];
+    const after = seg.slice(seg.indexOf(head[0]) + head[0].length);
+    const tokens = after.match(/(?:"[^"]*"|'[^']*'|\S)+/g) || [];
+    const paths = [];
+    let patternSeen = /find/i.test(head[1]);
+    for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (/^--?[\w-]+=/.test(t)) continue;
+        if (FLAG_WITH_VALUE.test(t)) { i++; continue; }
+        if (/^-/.test(t)) continue;
+        if (!patternSeen) { patternSeen = true; continue; }
+        paths.push(t.replace(/^(["'])([\s\S]*)\1$/, '$2'));
+    }
+    return paths;
+}
+
 function touchesNonCodePath(cmd) {
-    const tokens = cmd.match(/(?:"[^"]*"|'[^']*'|\S)+/g) || [];
-    return tokens.some((raw) => {
-        const t = raw.replace(/^(["'])([\s\S]*)\1$/, '$2');
-        if (/^-/.test(t)) return false;
-        if (!/[\\/]/.test(t)) return false;
-        return NON_CODE_DIR.test(t);
-    });
+    // Каталог пишут и со слэшем (`build/reports/`), и голым именем
+    // (`grep -rn ERROR build`) — узнаём обе формы, но только среди путей.
+    return searchPaths(cmd).some((t) => (
+        /[\\/]/.test(t) ? NON_CODE_DIR.test(t) : NON_CODE_DIR.test(`/${t}/`)
+    ));
 }
 // `rg --type kt` / `rg -t py` — тот же фильтр по коду, только языком.
 const RG_TYPE = /(?:--type[= ]|\s-t\s*)(kt|kotlin|java|ts|typescript|js|javascript|py|python|swift|go|rust|rs|cs|csharp|dart|vue|cpp|c)\b/i;
@@ -133,7 +166,10 @@ const SEARCH_AT_SEGMENT_START =
 // Поиск ФАЙЛОВ по имени — не текстовый поиск: замена ему тул Glob, а не Grep.
 // Отдельная ветка нужна, чтобы отказ не предлагал `pattern: "find"` и
 // `ast-index usages find` (ревью 2026-08-21: обе оси, high).
+// `rg --files -g "*.kt"` — тот же листинг файлов, что и `find -name`: без него
+// он получал отказ с `pattern: "*.kt"` и советом искать этот glob как текст.
 const FIND_BY_NAME = /(?:^|[;\n]|&&|\|\|)\s*(?:sudo\s+)?find\b[^|]*-(?:i)?name\b/i;
+const RG_FILES = /(?:^|[;\n]|&&|\|\|)\s*(?:sudo\s+)?rg\b[^|]*\s--files\b/i;
 // `find … -exec/-delete` — пакетная операция над файлами, а не листинг: у неё
 // замены нет вовсе, и трогать её нельзя даже подсказкой.
 const FIND_MUTATES = /\s-(?:exec|execdir|delete|ok|okdir)\b/i;
@@ -150,9 +186,27 @@ function isCodeSearch(cmd) {
     if (CODE_EXT.test(cmd)) return true;
     // У rg тот же фильтр пишется языком, а не расширением: `rg --type kt`.
     if (RG_TYPE.test(cmd)) return true;
-    // Рекурсивный обход без фильтра: считаем поиском по коду, только если в
-    // команде вообще нет пути к некодовым данным (проверено выше).
-    return /\b(grep|rg)\b[^|]*\s-[a-z]*r/i.test(cmd);
+    // Рекурсивный обход без фильтра по расширению: `grep -rn Foo .`, а у `rg` и
+    // `ack` рекурсия включена по умолчанию (у `rg` флаг `-r` вообще значит
+    // `--replace`, поэтому требовать его было ошибкой — самая идиоматичная
+    // форма ripgrep не ловилась ни одним признаком).
+    return /\b(grep|ack)\b[^|]*\s-[a-z]*r/i.test(cmd)
+        || /(?:^|[;\n]|&&|\|\|)\s*(?:\S+=\S*\s+|sudo\s+|env\s+|command\s+|git\s+)*(?:rg|ack)\b/i.test(cmd);
+}
+
+// Явный фильтр по коду — единственное, что даёт право на ЗАПРЕТ. Рекурсивный
+// поиск без такого фильтра может идти по чему угодно (`grep -rn TODO docs`,
+// заметки, конфиги), и запрет там был бы ложным: остаётся подсказка.
+// Разделение введено после того, как ревью показало deny на `grep -rn TODO docs`
+// при тексте отказа, который сам же разрешает поиск по не-исходникам.
+function hasExplicitCodeFilter(cmd) {
+    return CODE_EXT.test(cmd) || RG_TYPE.test(cmd);
+}
+
+// `grep -q` не отдаёт вывод — он даёт код возврата, на котором висит `&&`.
+// Тул Grep такой семантики не имеет, заменить нечем.
+function isPredicateSearch(cmd) {
+    return /\b(?:grep|rg|ack)\b[^|]*\s-(?:[a-z]*q|-quiet|-silent)\b/i.test(cmd);
 }
 
 // Чтение конкретного файла: cat/head/tail/sed -n по пути. Якорь `^` здесь
@@ -246,14 +300,18 @@ function loopBodies(cmd) {
         const done = cmd.slice(m.index).search(/\bdone\b/i);
         if (done === -1) continue;
         const head = cmd.slice(0, m.index);
-        const body = cmd.slice(m.index, m.index + done);
+        // Тело маскируется: слово `break` в строке (`echo "break"`) — не выход
+        // из цикла, а текст, и на нём перебор списка выдавал себя за поллинг.
+        const body = maskQuoted(cmd.slice(m.index, m.index + done));
         // `until`/`while` — ожидание по условию по определению. `for` — только
         // когда в теле есть `break`: `for i in $(seq 1 20); … break; sleep 15`
         // это ограниченный поллинг (ровно та форма, которую рекомендует
         // mr-merge.md), а `for f in a b; do sleep 20; done` — перебор списка, и
         // пауза там такой же простой, как голая.
-        const isWait = /\b(until|while)\b/i.test(head)
-            || (/\bfor\b/i.test(head) && /\bbreak\b/.test(body));
+        // `while read` — перебор строк файла, а не ожидание события: пауза в нём
+        // такой же простой, как в `for` без `break`.
+        const isWait = (/\b(until|while)\b/i.test(head) && !/\bwhile\s+read\b/i.test(head))
+            || (/\b(for|while\s+read)\b/i.test(head) && /\bbreak\b/.test(body));
         if (!isWait) continue;
         ranges.push([m.index, m.index + done]);
     }
@@ -271,12 +329,16 @@ function sleepVerdict(command) {
     if (process.env.CLAUDE_ALLOW_SLEEP === '1') return null;
     const cmd = stripPrefix(command);
     // Пауза внутри программы на чужом языке — не ожидание шелла, а её текст.
-    if (insideInterpreter(cmd)) return null;
+    // Проверка ПОСЕГМЕНТНАЯ: `python -c "print(1)"; sleep 600` — пауза стоит в
+    // соседнем сегменте и интерпретатором не прикрыта (ревью, второй раунд).
+    const foreign = segments(cmd).filter((s) => insideInterpreter(s.text));
+    const shielded = (i) => foreign.some((s) => i >= s.from && i <= s.to);
     // Каждая пауза судится своим порогом: одна и та же команда может держать и
     // законный шаг опроса в цикле, и голую паузу перед ним.
     let slept = 0;
     let limit = SLEEP_POLL_THRESHOLD_S;
     for (const s of sleepOccurrences(cmd)) {
+        if (shielded(s.index)) continue;
         const own = insideLoop(cmd, s.index) ? SLEEP_DENY_THRESHOLD_S : SLEEP_POLL_THRESHOLD_S;
         if (s.seconds > own && s.seconds > slept) {
             slept = s.seconds;
@@ -291,8 +353,9 @@ function sleepVerdict(command) {
                 `Команда простаивает ${slept} с в \`sleep\`. Так ждать нельзя: `
                 + 'долгую команду запускай через `run_in_background` и получай уведомление о завершении, '
                 + 'а на внешнее событие (CI, деплой, эмулятор) ставь Monitor с условием. '
-                + `Короткий sleep (≤${SLEEP_DENY_THRESHOLD_S} с) разрешён внутри until/while-цикла; `
-                + 'если ожидание действительно неизбежно — CLAUDE_ALLOW_SLEEP=1.',
+                + `Короткий sleep (≤${SLEEP_DENY_THRESHOLD_S} с) разрешён как шаг опроса внутри `
+                + '`until`/`while`-цикла и внутри `for` с `break`; '
+                + 'если ожидание действительно неизбежно — попроси пользователя выставить CLAUDE_ALLOW_SLEEP=1.',
         };
     }
     return {
@@ -300,10 +363,10 @@ function sleepVerdict(command) {
         reason:
             `Пауза ${slept} с перед разовой проверкой — это ожидание по таймеру вместо ожидания по условию: `
             + 'угадал мало — проверяешь ещё раз, угадал много — простаиваешь. '
-            + 'Ставь Monitor с until-условием (просыпается по факту наступления события) '
-            + 'либо запускай саму команду через `run_in_background`. '
-            + `Внутри until/while-цикла sleep — правильный шаг опроса и разрешён до ${SLEEP_DENY_THRESHOLD_S} с; `
-            + 'неизбежное ожидание — CLAUDE_ALLOW_SLEEP=1.',
+            + 'Жди условие: `until <проверка>; do sleep 15; done` — и запускай этот цикл '
+            + 'через `run_in_background`, тогда завершение придёт уведомлением, а таймаут вызова его не срежет. '
+            + `Внутри \`until\`/\`while\` и внутри \`for\` с \`break\` пауза — правильный шаг опроса, до ${SLEEP_DENY_THRESHOLD_S} с; `
+            + 'неизбежное ожидание — попроси пользователя выставить CLAUDE_ALLOW_SLEEP=1.',
     };
 }
 
@@ -318,8 +381,28 @@ const PASSTHROUGH_SINK = /^\s*(?:cat|head|tail|more|less|wc|sort|uniq|nl)\b(?:\s
 // Кавычки скрывают спецсимволы: `grep -rEn "foo|bar"` — это альтернация, а не
 // пайп, и на наивном split запрет снимался самой частой формой regex. Маска
 // сохраняет длину, поэтому позиции в исходной строке не съезжают.
+// Посимвольный сканер вместо регулярки: правила цитирования bash регуляркой не
+// выражаются. `\"` внутри двойных кавычек строку не закрывает, `\'` ВНЕ кавычек
+// не открывает её, а внутри одинарных экранирования нет вовсе. На regex-версии
+// обе формы ломались в разные стороны — ложный deny на
+// `grep -rn It\'s … | xargs sed` (маска глотала пайп) и обход на
+// `grep -rnE "foo\"|bar"` (маска раскрывала кавычку, и `|` становился пайпом).
+// Маска сохраняет длину строки, поэтому позиции разделителей остаются годными.
 function maskQuoted(cmd) {
-    return cmd.replace(/"[^"]*"|'[^']*'/g, (m) => ' '.repeat(m.length));
+    const out = cmd.split('');
+    let quote = null;
+    for (let i = 0; i < cmd.length; i++) {
+        const ch = cmd[i];
+        if (quote !== "'" && ch === '\\' && i + 1 < cmd.length) {
+            if (quote === '"') out[i + 1] = ' ';
+            i++;
+            continue;
+        }
+        if (quote === null && (ch === '"' || ch === "'")) { quote = ch; continue; }
+        if (quote !== null && ch === quote) { quote = null; continue; }
+        if (quote !== null) out[i] = ' ';
+    }
+    return out.join('');
 }
 
 // Вывод поиска уходит дальше — в обработку другой командой или в файл. Тул Grep
@@ -327,9 +410,18 @@ function maskQuoted(cmd) {
 // остаётся единственным способом и запрет был бы ложным.
 function feedsAnotherCommand(cmd) {
     const masked = maskQuoted(cmd);
-    // Редирект вывода — да; редирект stderr (`2>/dev/null`, `2>&1`, `&>`) — нет,
-    // иначе запрет снимался хвостом в три символа (ревью 2026-08-21, обе оси).
-    if (/\b(?:grep|rg|ack)\b[^|>]*(?<![0-9&])>/i.test(masked)) return true;
+    // Листинг, чей вывод уходит в другую команду (`find … | xargs grep Foo`), —
+    // не листинг: это поиск по содержимому, и заменить его тулом Glob нельзя.
+    // Прежде такая цепочка получала отказ с текстом про Glob, терявшим grep-часть.
+    if (/\bfind\b[^|]*\|/i.test(masked) || /\brg\b[^|]*--files[^|]*\|/i.test(masked)) return true;
+    // Редирект вывода в файл — да, включая `&>` (он уводит в файл и stdout, и
+    // stderr, то есть результат поиска действительно уходит из чата). Редирект
+    // ОДНОГО stderr (`2>/dev/null`, `2>&1`) — нет: результат по-прежнему
+    // читает агент, и запрет снимался бы хвостом в три символа.
+    // `&>` и `1>` уводят вывод в файл — это исключение из запрета. Исключается
+    // только редирект ОДНОГО stderr: `2>`, `2>&1`, `>&2`.
+    if (/(?:&>|\b1>)/.test(masked)) return true;
+    if (/\b(?:grep|rg|ack)\b[^|>]*(?<![0-9&])>(?!&\s*2)/i.test(masked)) return true;
     // Режем ИСХОДНУЮ строку по позициям пайпов, найденным в маске: так кавычки
     // не делят команду, а куски остаются настоящими для дальнейшего разбора.
     const cuts = [];
@@ -352,8 +444,18 @@ function feedsAnotherCommand(cmd) {
 // `bash -c` сюда НЕ входит намеренно — внутри него шелл, и обёртка не должна
 // служить способом обойти правило.
 function insideInterpreter(cmd) {
-    return /<<-?\s*['"]?\w+/.test(cmd)
-        || /(?:^|[;&|]\s*)(?:python\d?|node|perl|ruby|osascript)\b[^;]*\s-(?:c|e)\b/i.test(cmd);
+    // По МАСКЕ: маркер heredoc внутри поискового паттерна (`grep -rn "a<<EOF"`)
+    // выключал оба запрета целиком.
+    const masked = maskQuoted(cmd);
+    // Heredoc, скормленный `bash`/`sh`, — это шелл, а не чужой язык: `bash <<EOF
+    // sleep 600 EOF` снимал оба запрета одной строкой, ровно как обёртка
+    // `bash -c`, которая под запретом оставлена намеренно (ревью 2026-08-21).
+    if (/(?:^|[;&|]\s*)(?:bash|sh|zsh)\b[^;|&]*<<-?\s*['"]?\w+/i.test(masked)) return false;
+    return /<<-?\s*['"]?\w+/.test(masked)
+        // `[^;&|]*`, а не `[^;]*`: иначе `node build.js && grep -c Foo src/Foo.kt`
+        // засчитывал `-c` от grep как флаг интерпретатора и снимал запрет с
+        // остатка цепочки (ревью 2026-08-21, второй раунд).
+        || /(?:^|[;&|]\s*)(?:python\d?|node|perl|ruby|osascript)\b[^;&|]*\s-(?:c|e)\b/i.test(masked);
 }
 
 // Из команды достаётся то, что нужно для готовой замены в тексте отказа:
@@ -361,7 +463,7 @@ function insideInterpreter(cmd) {
 // должен звучать как «вот та же работа другим инструментом».
 // Флаги, забирающие следующее слово как значение: без их списка `-rn` съедает
 // сам паттерн, и в тексте отказа оказывается мусор вместо готовой замены.
-const FLAG_WITH_VALUE = /^(?:--(?:include|exclude|type|glob|max-count|after-context|before-context|context)|-[tmABC])$/;
+const FLAG_WITH_VALUE = /^(?:--(?:include|exclude|type|glob|max-count|after-context|before-context|context)|-[tmABCg])$/;
 // Регистр в списке выше значим: с флагом `/i` класс `[egtmABC]` ловил ещё и
 // `-c` (`--count`, значения не берёт) и `-e` (его значение и ЕСТЬ паттерн) —
 // в обоих случаях паттерн уезжал в имя файла, и отказ предлагал искать путь.
@@ -371,8 +473,45 @@ const FLAG_WITH_VALUE = /^(?:--(?:include|exclude|type|glob|max-count|after-cont
 // фильтр по расширению вычислялся из ЧУЖОГО сегмента и в текст отказа уезжал
 // `glob: "*.py"` при поиске по `.js` — то есть готовая замена вела в никуда
 // (поймано прогоном вердикта по реальным командам из транскриптов).
+// Комментарий отрезается по маске: `grep … . # see build/x` глушил правило
+// путём из комментария — обход в два токена (ревью 2026-08-21, второй раунд).
+function stripComment(cmd) {
+    const masked = maskQuoted(cmd);
+    const at = masked.search(/(?:^|\s)#/);
+    return at === -1 ? cmd : cmd.slice(0, at);
+}
+
+// Сегменты команды с их границами. Разделители ищутся по маске, чтобы `;` и
+// `&&` внутри кавычек команду не разваливали.
+function segments(cmd) {
+    const masked = maskQuoted(cmd);
+    const out = [];
+    const re = /;|&&|\|\||\n/g;
+    let m;
+    let from = 0;
+    while ((m = re.exec(masked)) !== null) {
+        out.push({ text: cmd.slice(from, m.index), from, to: m.index });
+        from = m.index + m[0].length;
+    }
+    out.push({ text: cmd.slice(from), from, to: cmd.length });
+    return out;
+}
+
 function searchSegment(cmd) {
-    const parts = cmd.split(/;|&&|\|\||\n/);
+    // Резать по СЫРОЙ строке нельзя: `grep -rn "a && b" --include=*.kt .`
+    // разваливался по разделителю внутри кавычек, и в отказ уезжал обрывок
+    // паттерна плюс ложная приписка про цепочку (ревью 2026-08-21, второй раунд).
+    // Техника та же, что в feedsAnotherCommand: ищем разделители по маске,
+    // режем исходную строку по найденным позициям.
+    const masked = maskQuoted(cmd);
+    const bounds = [];
+    const re = /;|&&|\|\||\n/g;
+    let m;
+    while ((m = re.exec(masked)) !== null) bounds.push([m.index, m.index + m[0].length]);
+    const parts = [];
+    let from = 0;
+    for (const [at, to] of bounds) { parts.push(cmd.slice(from, at)); from = to; }
+    parts.push(cmd.slice(from));
     for (const part of parts) {
         if (SEARCH_AT_SEGMENT_START.test(part.trim() ? `;${part}` : part)) return part.trim();
     }
@@ -424,6 +563,9 @@ function codeSearchVerdict(command) {
     const cmd = stripPrefix(command);
     if (!isCodeSearch(cmd)) return null;
     if (feedsAnotherCommand(cmd) || insideInterpreter(cmd)) return null;
+    if (isPredicateSearch(cmd)) return null;
+    // Листинг файлов судится своей веткой ниже, у него фильтр по коду не нужен.
+    if (!hasExplicitCodeFilter(cmd) && !RG_FILES.test(cmd) && !FIND_BY_NAME.test(cmd)) return null;
 
     const segment = searchSegment(cmd);
     // Поиск как звено цепочки: запрет останавливает всю команду, поэтому отказ
@@ -440,8 +582,14 @@ function codeSearchVerdict(command) {
 
     // Поиск ФАЙЛОВ по имени заменяется тулом Glob, а не Grep: у него нет ни
     // паттерна текста, ни символа, и прежний общий текст выдавал `pattern: "find"`.
-    if (!SEARCH_AT_SEGMENT_START.test(cmd) && FIND_BY_NAME.test(cmd)) {
-        const name = cmd.match(/-(?:i)?name\s+(["']?)([^"'\s]+)\1/i);
+    const listsFiles = RG_FILES.test(cmd)
+        || (!SEARCH_AT_SEGMENT_START.test(cmd) && FIND_BY_NAME.test(cmd));
+    // Листинг, чей результат уходит в поиск по содержимому (`find … | xargs grep`),
+    // Glob'ом не заменяется — там работа совсем другая, и щадится он выше, в
+    // feedsAnotherCommand. Здесь остаётся чистый листинг.
+    if (listsFiles) {
+        const name = cmd.match(/-(?:i)?name\s+(["']?)([^"'\s]+)\1/i)
+            || cmd.match(/\s-g\s+(["']?)([^"'\s]+)\1/i);
         const globCall = name ? `тул Glob (pattern: "**/${name[2]}")` : 'тул Glob';
         return {
             decision: 'deny',
@@ -459,7 +607,12 @@ function codeSearchVerdict(command) {
     const grepCall = pat
         ? `тул Grep (pattern: ${JSON.stringify(pat)}${glob ? `, glob: ${JSON.stringify(glob)}` : ''})`
         : 'тул Grep';
-    const astCall = pat && /^[A-Za-z_][A-Za-z0-9_]*$/.test(pat)
+    // ast-index предлагается только когда ищут по КОДУ: на `--include=*.md`
+    // индекс не распространяется, и совет `ast-index usages TODO` был бы
+    // отправкой в инструмент, который этих файлов не видит (ревью 2026-08-21).
+    const looksLikeCode = CODE_EXT.test(segment) || RG_TYPE.test(segment)
+        || !/--include|--type|-g\s/i.test(segment);
+    const astCall = pat && looksLikeCode && /^[A-Za-z_][A-Za-z0-9_]*$/.test(pat)
         ? ` Ищешь символ, а не текст — \`ast-index usages ${pat}\` (или \`refs\`/\`explore\`) даёт использования без совпадений в комментариях и импортах.`
         : '';
     return {

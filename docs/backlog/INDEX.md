@@ -8,6 +8,7 @@
 
 | дата | запись | область | суть |
 |---|---|---|---|
+| 2026-08-21 | [powershell-search-flank](powershell-search-flank.md) | hooks | запрет текстового поиска висит на `matcher: "Bash"`, а `Select-String` в PowerShell проходит мимо: метрика «code-grep через Bash» зазеленеет от одного перетекания — replay обязан сначала сравнить PowerShell-поиски |
 | 2026-08-19 | [claude-md-over-limit](claude-md-over-limit.md) | rules | глобальный `CLAUDE.md` — 219 строк при лимите 200, хук предупреждает каждую сессию; механический вынос в `rules/` не проходит (нужен `paths:`), инварианты обязаны остаться inline — разбирать по кандидатам: reader-стадия в скилл, обоснования тестов и багфикса в `decisions/` |
 | 2026-08-19 | [gradle-daemon-sprawl](gradle-daemon-sprawl.md) | build | глобальный `~/.gradle/gradle.properties` перебил проектные jvmargs, но в репозиториях остались `-Xmx16g` на 15.6 GB машине, `daemon=false` и пять разных версий Gradle — демон привязан к версии, унификацией args это не лечится |
 | 2026-08-19 | [hook-refactor-followups](hook-refactor-followups.md) | hooks | Хвосты рефакторинга hook-слоя: PR в warpdotdev/claude-code-warp (#77) решено не отправлять; находки ревью MEDIUM/LOW (рассинхрон fallback-списка с JSON, `permissions.allow` против гарда, `CLAUDE_CONFIG_DIR`); `async: true`; пункт 10 (оперативка как причина спайков спавна) закрыт → [gradle-daemon-sprawl](gradle-daemon-sprawl.md) |
