@@ -145,6 +145,8 @@ lib/__pycache__/
 !/skills/subagent-authoring/**
 !/skills/instruction-routing/
 !/skills/instruction-routing/**
+!/skills/workflow-orchestration/
+!/skills/workflow-orchestration/**
 
 # --- 12. Re-exclude junk inside otherwise-allowed skills ---------------------
 /skills/jira-task-writer/evals/
