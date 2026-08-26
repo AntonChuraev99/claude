@@ -1,12 +1,15 @@
 ---
 title: "CLAUDE.md над лимитом 200 строк — что выносить"
 date: 2026-08-19
-status: backlog
+status: done
+resolved: 2026-08-26
 area: rules
 keywords: [claude-md, instruction-routing, adherence, context, rules, размер, лимит]
 ---
 
 # Глобальный `CLAUDE.md` перерос лимит, а выносить нечего без разбора
+
+**Статус:** Done — закрыто 2026-08-26. Файл 222 → 192 строки, 35 754 → 29 207 символов. Все три кандидата ниже разобраны: reader-стадия и механика `Workflow` → скилл `workflow-orchestration`; обоснования тест-политики и багфикса → `references/claude-md-precedents.md` (а не `decisions/`, как предполагалось здесь — механизм прецедентов уже существовал). Дополнительно: триггеры доменных агентов убраны из `CLAUDE.md` как дубль их `description`, абзацы переведены в списки. Разбор и метрики — improvement `2026-08-26-resident-context-trim`.
 
 ## Факт
 
