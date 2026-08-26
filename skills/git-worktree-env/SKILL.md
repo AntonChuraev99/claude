@@ -8,7 +8,7 @@ description: |
 
 > **Status:** Deprecated 2026-05-08 in favour of Claude Code's official Worktrees feature.
 > **Why:** the official feature does the same job natively (no bash dependency on Windows, auto-cleanup, parallel sessions, hook integration), with the file list version-controlled in the repo via `.worktreeinclude`.
-> **Migration verified on:** `<your-project>` (Android/KMP), 2026-05-08 — see `~/.claude/improvements/2026-05-08-git-worktree-env-deprecated.md`.
+> **Migration verified on:** `<your-project>` (Android/KMP), 2026-05-08 — see `~/.claude/improvements/archive/2026-05-08-git-worktree-env-deprecated.md`.
 
 ## Recommended path: official Claude Code Worktrees
 

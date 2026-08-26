@@ -31,7 +31,7 @@
   question: "Предложил ли репро-тест/harness через реальный production-путь (реальная среда, реальный DPR/девайс, не headless/мок) вместо ещё одного слепого патча? Порог — ПЕРВОЕ-второе 'не помогло', не 3 fail-loop'а."
   message: "слепые патчи поверх невоспроизведённого бага жгут итерации и доверие (прецедент web top-banner: ~4 слепых фикса, headless+dpr=1 не воспроизводили клип)."
   fix: "после первого 'не помогло' при невоспроизведении -> AskUserQuestion: (а) написать failing-репро через прод-путь; (б) доступ/данные для локального репро; (в) выбрать гипотезу слоя."
-  source: "improvements/2026-06-25 (deprecated alias) + CLAUDE.md stuck-fix circuit breaker"
+  source: "improvements/archive/2026-06-25 (deprecated alias) + CLAUDE.md stuck-fix circuit breaker"
 
 - id: subagent-scope-and-no-commit
   mode: process
@@ -97,7 +97,7 @@
   question: "`git rev-parse --abbrev-ref HEAD` в рабочем каталоге — не защищённая ветка (main/master/develop/release/*)? Работа шла в отдельном worktree, а результат уходит в транк через MR/PR, а не локальным merge? Если правка сознательно сделана в транке — это одно из зафиксированных исключений (hotfix по согласованию, конфиг ~/.claude, явная просьба пользователя), а не обход хука на автопилоте?"
   message: "прямая правка транка ломает ревью и откат: изменение попадает в main/develop без MR, без diff-ревью и без возможности отменить одной кнопкой. Хук protected-branch-guard ловит только Write/Edit главного агента — фоновые субагенты (run_in_background) PreToolUse НЕ наследуют, их правки в основном checkout ловятся только `git -C <main> status`."
   fix: "правки в транке -> `git stash` -> вернуть основной checkout на транк -> `git worktree add .claude/worktrees/<slug> -b <type>/<slug>` -> `git stash pop` в worktree -> push + MR/PR. Проект без строки в ~/.claude/config/protected-branches.local.json — завести её, иначе хук работает на дефолте."
-  source: "CLAUDE.md «Защищённая ветка и worktree» + improvements/2026-08-04-protected-branch-guard.md + improvements/2026-07-20-worktree-guard-auto-register.md (4 прецедента записи субагентов в главный checkout)"
+  source: "CLAUDE.md «Защищённая ветка и worktree» + improvements/archive/2026-08-04-protected-branch-guard.md + improvements/archive/2026-07-20-worktree-guard-auto-register.md (4 прецедента записи субагентов в главный checkout)"
 
 - id: contract-changing-diff-rewrites-its-own-guard-test
   mode: process

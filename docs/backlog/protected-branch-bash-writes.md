@@ -10,7 +10,7 @@ keywords: [protected-branch, hooks, PreToolUse, bash, git, worktree, MR]
 
 ## Что уже закрыто (2026-08-04)
 
-`hooks/protected-branch-guard.ps1` перехватывает `Write`/`Edit`/`MultiEdit`/`NotebookEdit` (matcher `(?i)^(write|.*edit)$`) и возвращает `ask`. `/commit` шаг 0 и условие (6) auto-commit в `/task-gate` не дают закоммитить в транк. Полностью: `improvements/2026-08-04-protected-branch-guard.md`.
+`hooks/protected-branch-guard.ps1` перехватывает `Write`/`Edit`/`MultiEdit`/`NotebookEdit` (matcher `(?i)^(write|.*edit)$`) и возвращает `ask`. `/commit` шаг 0 и условие (6) auto-commit в `/task-gate` не дают закоммитить в транк. Полностью: `improvements/archive/2026-08-04-protected-branch-guard.md`.
 
 ## Что осталось открытым
 

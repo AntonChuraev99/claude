@@ -25,4 +25,4 @@ status: open
 не был — он найден ревью диффа как дыра в периметре, а не как наблюдаемый расход. Сначала данные
 replay, потом решение о цене.
 
-Связано: `docs/solutions/bash-tool-discipline-2026-08-21.md`, `improvements/2026-08-21-bash-discipline-tails.md`.
+Связано: `docs/solutions/bash-tool-discipline-2026-08-21.md`, `improvements/archive/2026-08-21-bash-discipline-tails.md`.

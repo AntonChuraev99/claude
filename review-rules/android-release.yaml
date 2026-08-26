@@ -11,7 +11,7 @@
     has: 'getIdentifier\('
   message: "getIdentifier() возвращает 0 после resource-обфускации (isShrinkResources) -> release-only краш; debug проходит."
   fix: "ссылаться на ресурс через сгенерированный R-class / Res, не по строковому имени. Видео-raw -> RawResourceDataSource по R.raw.*"
-  source: "improvements/2026-05-05-resource-getidentifier-anti-pattern.md"
+  source: "improvements/archive/2026-05-05-resource-getidentifier-anti-pattern.md"
 
 - id: android-resource-uri-by-name
   mode: static
@@ -23,7 +23,7 @@
     has: 'android\.resource://[^"]*/[A-Za-z_]'
   message: "строковый android.resource://pkg/type/<name> ломается в release (имя ресурса переименовано шринкером)."
   fix: "собирать URI из числового resId (R.raw.x), а не из строкового имени ресурса."
-  source: "improvements/2026-05-11-android-expert-non-fatal-cleanup.md"
+  source: "improvements/archive/2026-05-11-android-expert-non-fatal-cleanup.md"
 
 - id: bare-positional-placeholder
   mode: static
@@ -37,7 +37,7 @@
     unless: '%\d+\$[dsf]'
   message: "Compose Resources не подставляет bare %d/%s/%f -> на APK рендерится литерал '%d'; lint/build/tests молчат."
   fix: "позиционная форма: %1$d, %2$s. Любой плейсхолдер -> %<N>$<тип>."
-  source: "improvements/2026-05-15-compose-resources-positional-placeholders.md"
+  source: "improvements/archive/2026-05-15-compose-resources-positional-placeholders.md"
 
 - id: svg-in-composeresources
   mode: static
@@ -48,7 +48,7 @@
     type: glob
   message: ".svg в composeResources крашит Android (AAPT не парсит SVG); web рендерит через Skiko -> сборка обманчиво зелёная."
   fix: "конвертировать в Vector Drawable XML (imageVector / .xml drawable)."
-  source: "improvements/2026-05-11-android-expert-crashfix-rules.md"
+  source: "improvements/archive/2026-05-11-android-expert-crashfix-rules.md"
 
 # === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
 - id: activity-api-from-application-context-silent-return
