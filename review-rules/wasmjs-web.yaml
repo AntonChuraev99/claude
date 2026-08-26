@@ -24,7 +24,7 @@
     has: '^\s*(private |internal |public )?external var '
   message: "top-level `external var` компилится в bare-name assign -> prod wasmJs падает ReferenceError на старте композиции; dev-сборка прощает (dev/prod asymmetry)."
   fix: "не top-level external var; объявлять через js()-expression / обёртку с присваиванием полю объекта."
-  source: "improvements/2026-05-20-wasmjs-external-var-esm-pitfall.md"
+  source: "improvements/archive/2026-05-20-wasmjs-external-var-esm-pitfall.md"
 
 - id: composeover-video-sizing
   mode: runtime

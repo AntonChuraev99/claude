@@ -14,7 +14,7 @@
     lacks: '(FUNCTIONS_REGION|getFunctions\([^)]*,\s*["''][a-z]+-[a-z]+\d)'
   message: "getFunctions() без явного региона -> клиент бьёт в дефолтный us-central1; если функция в europe-west* -> 404/CORS. Боль #4 маскируется под deploy-skew."
   fix: "регион из ОДНОЙ env-константы (FUNCTIONS_REGION). Assert совпадения на 3 концах: клиентский URL, setGlobalOptions({region}) в коде функции, --region в deploy."
-  source: "improvements/2026-05-08-firebase-deploy-reminders.md + project-memory gcloud-deploy region note"
+  source: "improvements/archive/2026-05-08-firebase-deploy-reminders.md + project-memory gcloud-deploy region note"
 
 - id: deploy-set-flags-wipe-config
   mode: static
@@ -38,7 +38,7 @@
     type: glob
   message: "тронут код Cloud Functions: git merge != deploy. Running revision может быть старше мерджа -> клиент бьёт в старый код (CORS/404)."
   fix: "после правки: задеплоить ЯВНО + smoke `curl -i -X OPTIONS <client-URL> -H 'Origin: ...'` (ждать 204 + ACAO). Сверить revision/updateTime новее коммита."
-  source: "improvements/2026-05-08-firebase-deploy-reminders.md + cross-service-deployment-patterns.md Pattern 1"
+  source: "improvements/archive/2026-05-08-firebase-deploy-reminders.md + cross-service-deployment-patterns.md Pattern 1"
 
 - id: wrangler-account-and-workers-dev
   mode: runtime
