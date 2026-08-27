@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-08-27 | [scroll-clip-rule-covers-rounded-clip](2026-08-27-scroll-clip-rule-covers-rounded-clip.md) | applied | 2026-09-10 | pending |
 | 2026-08-27 | [delegation-rule-erosion](2026-08-27-delegation-rule-erosion.md) | applied | 2026-09-10 | pending |
 | 2026-08-26 | [improvements-published](2026-08-26-improvements-published.md) | applied | 2026-09-09 | pending |
 | 2026-08-26 | [task-gate-review-fanout](2026-08-26-task-gate-review-fanout.md) | applied | 2026-09-09 | pending |
