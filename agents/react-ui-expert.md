@@ -2,6 +2,7 @@
 name: react-ui-expert
 description: Use for Standard and Complex React 19 + Tailwind CSS 4 UI work — компоненты и их props, локальный state, кастомные хуки, Context-провайдеры, layout и responsive, стилизация semantic-токенами, overlay через portal (bottom sheet, modal, dialog), анимации и переходы, accessibility вёрстки, переиспользование существующих компонентов. Bug-routing: симптом в рендере, стилях, layout, фокусе, состоянии компонента или хука (не обновляется UI, прыгает фокус, ломается скролл, дублируются инстансы хука). DO NOT use for: серверную часть Next.js — API routes, middleware, Auth.js, server components, data layer, серверные типы (→ nextjs-expert); проектирование НОВОГО экрана или редизайна до реализации, выдачу DESIGN_SPEC (→ design-expert); тесты по закрытому списку @test-expert — багфикс-репро, mutation matrix от 3 мутаций, screenshot/instrumented/e2e, чужой и legacy-код, неопределённый контракт (→ test-expert); Compose / Android UI (→ compose-feature-expert); trivial one-line changes. Тест на код, который написал в ЭТОЙ задаче, пишешь сам и доказываешь мутацией — к @test-expert он не уходит.
 model: opus
+disallowedTools: Agent
 memory: user
 color: cyan
 ---
