@@ -153,6 +153,8 @@ lib/__pycache__/
 !/skills/android-feature-module-builder/**
 !/skills/screenshot-driven-ui/
 !/skills/screenshot-driven-ui/**
+!/skills/device-mirror/
+!/skills/device-mirror/**
 
 # --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
 !/skills/claude-profiles/
