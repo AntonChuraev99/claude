@@ -50,11 +50,17 @@ areas:
 #   severity:  high | medium | low
 #   stack:     optional list of stack tags (documentation / optional --stack filter)
 #   globs:     path globs (**, *, ?, {a,b}); a rule runs only on matching changed files
+#   narrowed_since: optional YYYY-MM-DD — when the detector was last narrowed. Weeding in
+#              stats.py then counts ONLY events logged after that date: statistics from before
+#              describe a detector that no longer exists (see README -> "Прополка").
 #   detect:    static/runtime only —
 #                type: grep | glob
-#                has:    per-line positive regex (grep)
-#                unless: per-line negative regex — skip the line if it also matches (grep)
-#                lacks:  file-level negative regex — skip the whole file if it matches (grep)
+#                has:      per-line positive regex (grep)
+#                unless:   per-line negative regex — skip the line if it also matches (grep)
+#                lacks:    file-level negative regex — skip the whole file if it matches (grep)
+#                requires: file-level positive regex — skip the whole file if it does NOT match;
+#                          mirror of `lacks`, for rules whose `message` names a narrow context
+#                          (inside a sheet, next to a retry counter) that `has` cannot see
 #   trigger:   process only — prose condition on the diff/session that arms the question
 #   question:  process only — what the main agent must answer before "done"
 #   message:   one-line explanation of the bug class

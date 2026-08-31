@@ -110,6 +110,10 @@
   detect:
     type: grep
     has: (trailingIcon|leadingIcon)\s*=\s*\{
+    # НЕ сужать через `requires: 'AnimatedVisibility'` — пробовали 2026-08-31, откатили: message
+    # называет ДВА носителя условности, «AnimatedVisibility/if», и вариант
+    # `trailingIcon = { if (cond) Icon(...) }` выпал бы из-под правила целиком. Маркера `if`,
+    # пригодного для файлового requires, не существует — он есть в любом файле.
   message: 'Material3 wraps ANY non-null trailingIcon/leadingIcon of (Outlined)TextField in a defaultMinSize(48dp) slot. An always-non-null lambda with conditional visibility INSIDE (AnimatedVisibility/if) keeps 48dp of dead space reserved while the icon is hidden — the placeholder gets truncated/ellipsised earlier than it should. Fires on every icon-slot line: check whether the icon is meant to be conditional.'
   fix: 'Move the condition OUTSIDE the slot: trailingIcon = if (cond) { { Icon(...) } } else null. Never hide an icon inside an always-non-null slot lambda.'
   source: 'catalog search field 2026-07-16: clear-X wrapped in AnimatedVisibility reserved 48dp on the empty field and clipped the placeholder'

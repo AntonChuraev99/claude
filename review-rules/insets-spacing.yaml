@@ -3,6 +3,7 @@
 # so these point the reviewer / a real-device check at the right line.
 
 - id: double-system-bar-padding
+  narrowed_since: '2026-08-31'
   pain: 3
   mode: runtime
   severity: medium
@@ -11,6 +12,9 @@
   detect:
     type: grep
     has: '\.(navigationBarsPadding|statusBarsPadding)\(\)'
+    # сужено 2026-08-31: 4087 срабатываний, 0 блокировок, est-FP 96% — детектор ловил
+    # ЛЮБОЙ *BarsPadding, хотя правило про случай внутри контейнера, уже владеющего insets.
+    requires: 'ModalDrawerSheet|ModalBottomSheet|Scaffold|DrawerDefaults'
   message: "ручной *BarsPadding внутри ModalDrawerSheet/ModalBottomSheet/Scaffold, который уже владеет window-insets, -> двойной отступ, обрезанный футер (особенно landscape / fontScale>=130%)."
   fix: "не добавлять *BarsPadding на контент компонента, который уже применяет DrawerDefaults/sheet windowInsets. Проверить визуально на девайсе."
   source: "agent-memory/design-expert/drawer-scroll-and-insets.md"
@@ -42,6 +46,7 @@
   source: "agent-memory/design-expert/drawer-scroll-and-insets.md + active_task_adaptive_ui_migration"
 
 - id: textalign-center-without-fillwidth
+  narrowed_since: '2026-08-31'
   pain: 3
   mode: runtime
   severity: low
@@ -50,6 +55,9 @@
   detect:
     type: grep
     has: 'textAlign\s*=\s*TextAlign\.Center'
+    # сужено 2026-08-31: 3340 срабатываний, 0 блокировок, est-FP 98%. Гасим строки, где
+    # ширина уже задана в том же чейне — остаток правила построчным grep не выражается.
+    unless: 'fillMaxWidth|fillMaxSize|widthIn|\.width\('
   message: "TextAlign.Center без fillMaxWidth() центрирует внутри ширины Text (=no-op) -> 'текст уехал влево'."
   fix: "добавить .fillMaxWidth() на Text или обернуть в Box(contentAlignment=Center)."
   source: "agent-memory/compose-feature-expert/reference_compose_pitfalls.md §10.2-A"
@@ -86,6 +94,11 @@
   detect:
     type: grep
     has: horizontalArrangement\s*=\s*Arrangement\.spacedBy
+    # НЕ сужать через `lacks: maxLines` — пробовали 2026-08-31, откатили в тот же день:
+    # message правила прямо про случай «maxLines нет вовсе», а файловый `lacks` гасит карточку,
+    # где maxLines стоит у ДРУГОГО Text, и навсегда выводит файл из-под правила после первого же
+    # применения его собственного fix. Сужение этого правила требует контекста уровня Row,
+    # которого построчный grep не даёт — оставлено широким сознательно.
   message: Backend-driven Text (nullable String из DTO, без enum-контракта) без maxLines/overflow/weight в Row рядом с сиблингом — длинная строка выталкивает сиблинг за границу клипающего родителя, сиблинг и его contentDescription исчезают. Особо опасно при рефакторинге «перенесли из независимых якорей (TopStart/TopEnd) в общий Row». localized-text-clipping-fixed-container это НЕ ловит - оно кейится на maxLines=1, а здесь maxLines нет вовсе.
   fix: maxLines=1 + overflow=Ellipsis + Modifier.weight(1f, fill=false) на растяжимый Text (сиблинг сохраняет intrinsic-ширину), либо widthIn(max=). Golden/скриншот-тест с САМЫМ ДЛИННЫМ реалистичным значением с бэка, не с образцовым коротким.
   source: PortalEffectCard.kt 2026-07-20 (badge TopStart+pill TopEnd -> общий Row -> длинный badge прячет type-pill)
