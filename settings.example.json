@@ -304,13 +304,13 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Grep",
         "hooks": [
           {
             "type": "command",
             "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard-prefilter.js\"",
             "timeout": 20,
-            "statusMessage": "creds guard"
+            "statusMessage": "creds guard + дисциплина инструментов"
           }
         ]
       },

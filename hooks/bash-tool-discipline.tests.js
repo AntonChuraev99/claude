@@ -545,5 +545,99 @@ check('дробная пауза не даёт артефакта в текст�
     assert.ok(/простаивает 252 с/.test(d.sleepVerdict('sleep 0.07h').reason));
 });
 
+// --- склейка вызовов больше не снимает запрет (2026-08-31) ----------------
+check('поиск с безобидным приёмником и склейкой блокируется', () => {
+    // `| head -20` — приёмник, который лишь показывает тот же результат; `; echo`
+    // принадлежит СОСЕДНЕМУ звену. До фикса кусок после пайпа разбирался целиком
+    // и вся команда объявлялась «обработкой», то есть запрет снимался склейкой.
+    const v = d.codeSearchVerdict('grep -rn "CAVEMAN_DEFAULT_MODE" --include=*.js . | head -20; echo "=== next ==="');
+    assert.ok(v && v.decision === 'deny', 'склейка сняла запрет');
+    assert.ok(/Остальные звенья/.test(v.reason), 'нет подсказки про цепочку');
+});
+
+check('настоящая обработка вывода по-прежнему разрешена', () => {
+    assert.strictEqual(d.codeSearchVerdict("grep -rn Foo --include=*.kt . | xargs sed -i 's/a/b/'"), null);
+    assert.strictEqual(d.codeSearchVerdict('find . -name "*.kt" | xargs grep Foo'), null);
+});
+
+// --- тул Grep: символ уходит в ast-index ---------------------------------
+check('символьный паттерн Grep отклоняется с готовой командой ast-index', () => {
+    const v = d.grepVerdict({ pattern: 'GenerationJobsRegistry' }, sid());
+    assert.ok(v && v.decision === 'deny', 'символ не отклонён');
+    assert.ok(/ast-index usages GenerationJobsRegistry/.test(v.reason), v.reason);
+    assert.ok(/повтори этот же Grep/.test(v.reason), 'нет выхода на случай отсутствия индекса');
+});
+
+check('повтор того же паттерна проходит — запрет одноразовый', () => {
+    const key = sid();
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate' }, key).decision === 'deny');
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate' }, key), null);
+    // Другой символ в той же сессии судится независимо.
+    assert.ok(d.grepVerdict({ pattern: 'OnboardingGate' }, key).decision === 'deny');
+});
+
+check('текст и регулярка остаются работой Grep', () => {
+    assert.strictEqual(d.grepVerdict({ pattern: 'TODO: fix' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'val\\s+x' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'foo.bar' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'id' }, sid()), null, 'слишком короткий — не символ');
+});
+
+check('не-кодовые фильтры выводят из-под запрета', () => {
+    assert.strictEqual(d.grepVerdict({ pattern: 'ProfileScreen', glob: '*.md' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'ProfileScreen', type: 'json' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'ProfileScreen', path: 'build/reports' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'ProfileScreen', '-i': true }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'ProfileScreen', multiline: true }, sid()), null);
+});
+
+// --- склейка с интерпретатором тоже не снимает запрет (ревью 2026-08-31) ---
+check('однострочка интерпретатора прикрывает только свой сегмент', () => {
+    // `python -c` кончается на своём разделителе; поиск в соседнем звене остаётся
+    // поиском. На всей команде это был обход запрета в один префикс.
+    assert.ok(d.codeSearchVerdict('python -c "import sys" ; grep -rn Foo --include=*.py .').decision === 'deny');
+    assert.ok(d.codeSearchVerdict('node -e "console.log(1)" && grep -rn Foo --include=*.kt .').decision === 'deny');
+    // ...а поиск ВНУТРИ однострочки по-прежнему её текст, а не команда шелла.
+    assert.strictEqual(d.codeSearchVerdict('node -e "grep -rn Foo --include=*.kt ."'), null);
+});
+
+check('heredoc судится по всей команде, а не по сегменту', () => {
+    // Тело heredoc'а продолжается за разделителями: сузив проверку до сегмента,
+    // мы бы начали денаить содержимое чужого скрипта.
+    assert.strictEqual(d.codeSearchVerdict('cat <<EOF > run.sh\ngrep -rn Foo --include=*.kt .\nEOF'), null);
+    // Шеллу heredoc иммунитета не даёт — это тот же шелл, только в обёртке.
+    assert.ok(d.codeSearchVerdict('bash <<EOF\ngrep -rn Foo --include=*.kt .\nEOF').decision === 'deny');
+});
+
+// --- Grep: символ отличается от обычного слова (ревью 2026-08-31) ----------
+check('слово без признаков имени остаётся работой Grep', () => {
+    // ast-index по построению не даёт совпадений в строках и комментариях,
+    // поэтому отказ на литерале стоил бы трёх turn'ов: Grep → пусто → Grep.
+    for (const p of ['TODO', 'FIXME', 'premium_purchase', 'onboarding', 'deprecated']) {
+        assert.strictEqual(d.grepVerdict({ pattern: p }, sid()), null, p);
+    }
+    assert.strictEqual(d.grepVerdict({ pattern: 'TODO', glob: '*.kt' }, sid()), null, 'TODO с кодовым фильтром');
+});
+
+check('camelCase и PascalCase с внутренней заглавной — символ', () => {
+    assert.ok(d.grepVerdict({ pattern: 'getUser' }, sid()).decision === 'deny');
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate' }, sid()).decision === 'deny');
+});
+
+check('односложное имя судится только под кодовым фильтром', () => {
+    assert.strictEqual(d.grepVerdict({ pattern: 'Paywall' }, sid()), null, 'без фильтра — может быть текстом');
+    assert.ok(d.grepVerdict({ pattern: 'Paywall', glob: '*.kt' }, sid()).decision === 'deny');
+    assert.ok(d.grepVerdict({ pattern: 'Paywall', type: 'kotlin' }, sid()).decision === 'deny');
+});
+
+check('build-скрипты остаются работой Grep — индекса по ним нет', () => {
+    // `*.gradle.kts` кончается на `.kts` и попадал в кодовый фильтр: отказ вёл в
+    // ast-index, тот отвечал пусто, агент повторял Grep — два turn'а впустую.
+    assert.strictEqual(d.grepVerdict({ pattern: 'Paywall', glob: '**/*.gradle.kts' }, sid()), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'Paywall', glob: '*.gradle' }, sid()), null);
+    // ...а обычный `.kts`-скрипт под фильтр по-прежнему попадает.
+    assert.ok(d.grepVerdict({ pattern: 'Paywall', glob: '*.kts' }, sid()).decision === 'deny');
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exitCode = fail ? 1 : 0;

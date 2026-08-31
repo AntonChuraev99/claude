@@ -193,6 +193,35 @@ function cooldownKey(payload) {
 // пропустить опасную команду — оно её блокирует. Обратный порядок стоил бы
 // пропуска запрета на командах, где грубый префильтр увидел слово вроде
 // `firebase` внутри поискового паттерна. Возвращает true, если вердикт вынесен.
+function emitDeny(reason) {
+    process.stdout.write(JSON.stringify({
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason: reason,
+        },
+    }));
+    return true;
+}
+
+// Тул Grep судится тем же модулем, но в ЭТОМ же процессе: отдельный хук на
+// matcher "Grep" стоил бы второй спавн на каждый поиск (на Windows это заметно —
+// docs/solutions/hook-spawn-cost-windows-2026-08-19.md), а плагинная напоминалка
+// ast-index уже висит там своим bash-скриптом и не блокирует.
+function renderGrepDeny(payload) {
+    const discipline = loadDiscipline();
+    if (!discipline || !discipline.grepVerdict) return false;
+    let verdict = null;
+    try {
+        verdict = discipline.grepVerdict(payload.tool_input, cooldownKey(payload));
+    } catch (e) {
+        noteDisciplineFailure(e);
+        return false;
+    }
+    if (!verdict || verdict.decision !== 'deny') return false;
+    return emitDeny(verdict.reason);
+}
+
 function renderHardDeny(payload) {
     const discipline = loadDiscipline();
     if (!discipline || payload.tool_name !== 'Bash') return false;
@@ -202,7 +231,8 @@ function renderHardDeny(payload) {
         // Отдельные функции, а не judge: judge на команде чтения потратил бы
         // слот кулдауна, и подсказка ниже по потоку уже не выдалась бы.
         const command = payload.tool_input && payload.tool_input.command;
-        verdict = discipline.sleepVerdict(command) || discipline.codeSearchVerdict(command);
+        verdict = discipline.sleepVerdict(command)
+            || discipline.codeSearchVerdict(command);
     } catch (e) {
         // Тот же случай, что и несобравшийся модуль: запрет не вынесен, и это
         // должно быть видно в логе, а не выглядеть как «нарушений не было».
@@ -210,15 +240,7 @@ function renderHardDeny(payload) {
         return false;
     }
     if (!verdict || verdict.decision !== 'deny') return false;
-
-    process.stdout.write(JSON.stringify({
-        hookSpecificOutput: {
-            hookEventName: 'PreToolUse',
-            permissionDecision: 'deny',
-            permissionDecisionReason: verdict.reason,
-        },
-    }));
-    return true;
+    return emitDeny(verdict.reason);
 }
 
 function renderDiscipline(payload) {
@@ -274,6 +296,15 @@ function main() {
     // строже любого вердикта гарда — он всё равно был бы «нельзя» или «можно»,
     // а команда не должна выполняться в этом виде. Пороги пауз (10 с вне цикла,
     // 30 с внутри until/while) держит сам модуль, здесь их дублировать незачем.
+    // Grep — не команда шелла: ни credentials-guard, ни подсказки про cat/grep к
+    // нему неприменимы, а `needsGuard` на сыром JSON увидел бы слово вроде
+    // `firebase` в поисковом паттерне и разбудил pwsh впустую. Поэтому ветка
+    // закрывается здесь целиком.
+    if (payload && payload.tool_name === 'Grep') {
+        renderGrepDeny(payload);
+        return 0;
+    }
+
     if (payload && renderHardDeny(payload)) return 0;
 
     // Deciding is cheap and safe to fail open: needsGuard already answers true
