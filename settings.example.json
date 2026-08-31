@@ -237,7 +237,13 @@
             "type": "command",
             "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\claude-md-size-guard.py\"",
             "timeout": 10,
-            "statusMessage": "CLAUDE.md: проверяю лимит строк…"
+            "statusMessage": "CLAUDE.md: проверяю лимит строк и символов…"
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\ensure-bash-discipline-registered.ps1\"",
+            "timeout": 10,
+            "statusMessage": "bash-discipline: проверяю регистрацию prefilter…"
           },
           {
             "type": "command",

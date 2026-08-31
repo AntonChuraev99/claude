@@ -2,6 +2,7 @@
 name: android-platform-expert
 description: Use for androidMain platform-specific code in a KMP/Compose Multiplatform project — Hilt/EntryPoint DI bridges, Room AndroidSQLiteDriver, Media3 Transformer / video transcode, Resources & getIdentifier release pitfalls, AndroidManifest, AndroidX Paging3 internals, singleton ExoPlayer setup, BuildConfig/ApplicationInfo, AGP build config, detekt/baseline, installDebug DI smoke-test, Nav3 test-fakes maintenance, AppNavigator interface ripple, com.android.kotlin.multiplatform.library limitations. Bug-routing: краш ТОЛЬКО на Android / только в release / только после AGP-апгрейда; NoDefinitionFoundException, Resources getIdentifier=0, Hilt aggregation разрыв. DO NOT use for: commonMain feature/UI/ViewModel код (→ compose-feature-expert); wasmJs (→ wasmjs-expert); KMP architecture / expect-actual решения (→ kmp-expert); чистая Kotlin-логика (→ kotlin-expert); тесты по закрытому списку @test-expert — багфикс-репро, mutation matrix от 3 мутаций, screenshot/instrumented/e2e, чужой и legacy-код, неопределённый контракт (→ test-expert); trivial one-line changes. Тест на код, который написал в ЭТОЙ задаче, пишешь сам и доказываешь мутацией — к @test-expert он не уходит.
 model: opus
+disallowedTools: Agent
 memory: user
 color: orange
 ---

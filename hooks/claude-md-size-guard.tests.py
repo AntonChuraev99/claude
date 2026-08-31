@@ -35,6 +35,18 @@ def write_md(path, lines):
         f.write("\n".join("строка %d" % i for i in range(lines)))
 
 
+def write_md_wide(path, lines, width):
+    """Few lines, long ones: the shape a line-only counter is blind to.
+
+    Returns the exact character count the hook must report.
+    """
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    body = "\n".join("я" * width for _ in range(lines))
+    with io.open(path, "w", encoding="utf-8") as f:
+        f.write(body)
+    return len(body)
+
+
 def run_hook(home, cwd, cols="100"):
     env = dict(os.environ)
     env["CLAUDE_HOME"] = home
@@ -110,6 +122,36 @@ def case_same_file_not_doubled(root):
     check("same file counted once", msg.count("250") == 1, repr(msg))
 
 
+def case_chars_over_lines_fine(root):
+    """197 lines / 35k chars was green under the line-only counter — it must not be."""
+    home = os.path.join(root, "home")
+    chars = write_md_wide(os.path.join(home, "CLAUDE.md"), 50, 800)
+    _, parsed, _ = run_hook(home, os.path.join(root, "proj"))
+    msg = sysmsg(parsed) or ""
+    check("wide file warns", bool(msg), "silent at %d chars in 50 lines" % chars)
+    check("reports the char count", "%d символов" % chars in msg,
+          "want %d символов, got %r" % (chars, msg))
+    check("does not claim a line overflow", "50 строк" not in msg, repr(msg))
+    check("model gets the how-to", "instruction-routing" in ctx(parsed), ctx(parsed))
+
+
+def case_both_budgets_over(root):
+    home = os.path.join(root, "home")
+    chars = write_md_wide(os.path.join(home, "CLAUDE.md"), 260, 200)
+    _, parsed, _ = run_hook(home, os.path.join(root, "proj"))
+    msg = sysmsg(parsed) or ""
+    check("both budgets named", "260 строк" in msg and "%d символов" % chars in msg, repr(msg))
+    check("still short", len(msg.splitlines()) <= 3, repr(msg))
+
+
+def case_wide_but_within_budget(root):
+    """Just under both budgets stays silent — the guard must not cry wolf."""
+    home = os.path.join(root, "home")
+    write_md_wide(os.path.join(home, "CLAUDE.md"), 100, 300)   # 100 lines, 30 099 chars
+    _, parsed, _ = run_hook(home, os.path.join(root, "proj"))
+    check("under both → silent", parsed is None, repr(parsed))
+
+
 def case_missing_files(root):
     code, parsed, err = run_hook(os.path.join(root, "nowhere"), os.path.join(root, "alsonowhere"))
     check("no files → silent", parsed is None, repr(parsed))
@@ -125,7 +167,8 @@ def case_bad_stdin():
 
 
 CASES = [case_under_limit, case_global_over, case_project_over, case_both_over,
-         case_same_file_not_doubled, case_missing_files]
+         case_same_file_not_doubled, case_chars_over_lines_fine, case_both_budgets_over,
+         case_wide_but_within_budget, case_missing_files]
 
 
 def main():

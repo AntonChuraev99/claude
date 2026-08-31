@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""SessionStart hook: enforcement for «CLAUDE.md ≤200 строк».
+"""SessionStart hook: enforcement for «CLAUDE.md ≤200 строк и ≤37000 символов».
 
 The limit came out of the 2026-05-28 improvement replay: a limit without a
 mechanism does not hold. Warns when the global OR the project CLAUDE.md is over,
 so detail moves into rules/ or skills/ before instruction adherence regresses.
 Never blocks — it only reports.
+
+Two budgets on purpose. Counting lines alone is blind to the shape this file
+actually grows in: on 2026-08-31 the global CLAUDE.md sat at 197 lines (green)
+and 35 152 characters, ~178 chars per line. Context cost and the adherence
+effect Anthropic warns about track characters, not newlines, so a file can
+double in weight without ever tripping a line limit.
 
 Screen and model get different lengths on purpose: the terminal gets the fact
 («214 строк, лимит 200»), the model gets the routing instructions it needs to
@@ -28,22 +34,42 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "lib"))
 from hookout import cwd_of, emit, force_utf8, read_payload, warn_block  # noqa: E402
 
 LIMIT = 200
+# Set ~5% above the 2026-08-31 measurement (35 320) on purpose: a budget the file
+# already busts would warn every single session, and «сократить CLAUDE.md» has been
+# tried three times without sticking — a permanent nag would simply be tuned out.
+# The headroom is deliberate but small: one added paragraph is free, sustained growth
+# is not. Ratchet it down as the file shrinks. Keep this number, the docstring above,
+# and skills/instruction-routing/SKILL.md → «## CLAUDE.md» in sync.
+CHAR_LIMIT = 37000
 
 HOWTO = (
-    "WARNING: CLAUDE.md > ~%d строк (Anthropic: >200 снижает adherence + раздувает "
-    "per-turn/per-subagent контекст). Вынеси detail-блоки: правило по типу файлов -> "
+    "WARNING: CLAUDE.md > ~%d строк или > ~%d символов (Anthropic: >200 строк снижает "
+    "adherence + раздувает per-turn/per-subagent контекст; символы — та же цена, но "
+    "линейный счётчик её не видит). Вынеси detail-блоки: правило по типу файлов -> "
     "~/.claude/rules/*.md с paths:, процедура -> ~/.claude/skills/<name>/SKILL.md; "
     "в CLAUDE.md оставь триггер+указатель. Инварианты (security/git/DoD-gate/scope) "
-    "оставляй inline. Маршрутизация — скилл instruction-routing." % LIMIT
+    "оставляй inline. Маршрутизация — скилл instruction-routing." % (LIMIT, CHAR_LIMIT)
 )
 
 
-def count_lines(path):
+def measure(path):
+    """(lines, chars) of path, or None if unreadable."""
     try:
         with io.open(path, encoding="utf-8", errors="replace") as f:
-            return sum(1 for _ in f)
+            text = f.read()
     except OSError:
         return None
+    return text.count("\n") + (1 if text and not text.endswith("\n") else 0), len(text)
+
+
+def overflow(lines, chars):
+    """Human-readable list of the budgets this file busts; empty when fine."""
+    parts = []
+    if lines > LIMIT:
+        parts.append("%d строк" % lines)
+    if chars > CHAR_LIMIT:
+        parts.append("%d символов" % chars)
+    return parts
 
 
 def main():
@@ -69,21 +95,27 @@ def main():
 
     over = []
     for label, path in targets:
-        n = count_lines(path)
-        if n is not None and n > LIMIT:
-            over.append((label, n, path))
+        measured = measure(path)
+        if measured is None:
+            continue
+        lines, chars = measured
+        parts = overflow(lines, chars)
+        if parts:
+            over.append((label, parts, path))
     if not over:
         return 0
 
-    headline = "CLAUDE.md больше лимита (%d строк): %s" % (
-        LIMIT, ", ".join("%s — %d" % (label, n) for label, n, _ in over))
+    headline = "CLAUDE.md больше лимита (%d строк / %d символов): %s" % (
+        LIMIT, CHAR_LIMIT,
+        ", ".join("%s — %s" % (label, ", ".join(parts)) for label, parts, _ in over))
     details = ["вынести detail в rules/ или skills/ — скилл instruction-routing"]
     details += [path for _, _, path in over]
 
     emit(system_message=warn_block(headline, *details),
          context=HOWTO + "\n" + "\n".join(
-             "%s CLAUDE.md — %d строк (лимит %d): %s" % (label, n, LIMIT, path)
-             for label, n, path in over))
+             "%s CLAUDE.md — %s (лимит %d строк / %d символов): %s"
+             % (label, ", ".join(parts), LIMIT, CHAR_LIMIT, path)
+             for label, parts, path in over))
     return 0
 
 
