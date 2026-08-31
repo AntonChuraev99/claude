@@ -18,6 +18,6 @@
 
 | дата | запись | итог |
 |---|---|---|
-| 2026-08-03 | [review-rules-noise-reduction](review-rules-noise-reduction.md) | закрыто 2026-08-31: в детектор добавлен `requires`, 12 правил сужены (4 оставлены сознательно — high severity либо нет файлового маркера контекста); триггер L2 сужен до находки `static` (runtime дал 0 блокировок на 5202 прогона); автогигиена «Прополка» в `stats.py` + поле `narrowed_since`, чтобы правило судилось по нынешней форме. Замер — Replay improvement'а 2026-09-14 |
+| 2026-08-03 | [review-rules-noise-reduction](review-rules-noise-reduction.md) | закрыто 2026-08-31: в детектор добавлен `requires`, 10 правил сужены (6 остаются кандидатами — у двух сужение откачено ревью, оно глушило сам баг); триггер L2 сужен до находки `static` (runtime дал 0 блокировок на 5202 прогона); автогигиена «Прополка» в `stats.py` + `narrowed_since`, у сужённых критерий — объём, а не FP. Замер — Replay improvement'а 2026-09-14 |
 | 2026-08-05 | [subagents-get-no-mcp-tools](subagents-get-no-mcp-tools.md) | субагент получает MCP только при трёх условиях сразу: сервер подключён в профиле + транспорт `stdio` + объявлен и в `mcpServers:`, и в `tools:`. Раскатано на 12 агентов, подтверждено живыми вызовами (context7 в `~/.claude`, atlassian в `claude-work`). Осталось: проверить context7 в рабочем профиле после рестарта |
 | 2026-08-03 | [subagent-docs-ship-with-mr](subagent-docs-ship-with-mr.md) | вариант B: `DOCS_WRITTEN:` от `@doc-writer` + проверка 2.7b в `/task-gate`; hard scope субагентов не тронут |
