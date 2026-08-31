@@ -458,6 +458,22 @@ function insideInterpreter(cmd) {
         || /(?:^|[;&|]\s*)(?:python\d?|node|perl|ruby|osascript)\b[^;&|]*\s-(?:c|e)\b/i.test(masked);
 }
 
+// Прикрыт ли ПОИСК чужим интерпретатором. Две половины судятся по-разному, и это
+// не симметрия ради симметрии:
+//   * heredoc — по всей команде: его тело физически продолжается за `;` и `&&`,
+//     и сужение до сегмента разорвало бы разметку (`cat <<EOF … grep … EOF`);
+//   * однострочка `python -c` / `node -e` — по сегменту поиска: она кончается
+//     на своём разделителе. На всей команде `python -c "import sys" ; grep -rn
+//     Foo --include=*.py .` снимал запрет соседним сегментом — тот же обход
+//     склейкой, который закрыт для feedsAnotherCommand (ревью 2026-08-31).
+function interpreterShieldsSearch(cmd) {
+    const masked = maskQuoted(cmd);
+    const heredocToShell = /(?:^|[;&|]\s*)(?:bash|sh|zsh)\b[^;|&]*<<-?\s*['"]?\w+/i.test(masked);
+    if (!heredocToShell && /<<-?\s*['"]?\w+/.test(masked)) return true;
+    return /(?:^|[;&|]\s*)(?:python\d?|node|perl|ruby|osascript)\b[^;&|]*\s-(?:c|e)\b/i
+        .test(maskQuoted(searchSegment(cmd)));
+}
+
 // Из команды достаётся то, что нужно для готовой замены в тексте отказа:
 // сам паттерн и фильтр по расширению. Без них отказ звучит как «нельзя», а
 // должен звучать как «вот та же работа другим инструментом».
@@ -562,7 +578,14 @@ function codeSearchVerdict(command) {
     if (process.env.CLAUDE_ALLOW_CODE_GREP === '1') return null;
     const cmd = stripPrefix(command);
     if (!isCodeSearch(cmd)) return null;
-    if (feedsAnotherCommand(cmd) || insideInterpreter(cmd)) return null;
+    // Обработка вывода судится по СЕГМЕНТУ поиска, а не по всей команде. Иначе
+    // запрет снимается склейкой: `grep … --include=*.js . | head -20; echo "==="`
+    // — `head` тут безобидный приёмник, но кусок после пайпа содержал ещё и
+    // `; echo`, не проходил PASSTHROUGH_SINK, и вся команда объявлялась
+    // «обработкой». Замер 2026-08-31: так уходило от запрета большинство
+    // оставшихся поисков — агенты склеивают вызовы через `;`/`&&` по правилу
+    // «несколько команд одним вызовом», и оно же глушило дисциплину.
+    if (feedsAnotherCommand(searchSegment(cmd)) || interpreterShieldsSearch(cmd)) return null;
     if (isPredicateSearch(cmd)) return null;
     // Листинг файлов судится своей веткой ниже, у него фильтр по коду не нужен.
     if (!hasExplicitCodeFilter(cmd) && !RG_FILES.test(cmd) && !FIND_BY_NAME.test(cmd)) return null;
@@ -628,6 +651,87 @@ function codeSearchVerdict(command) {
     };
 }
 
+// --- тул Grep -------------------------------------------------------------
+// Плагинная напоминалка ast-index висит на PreToolUse(Grep) с рождения и НЕ
+// блокирует. Замер 2026-08-31 за неделю: 3 374 вызова Grep против 82 вызовов
+// ast-index — подсказку читают и не исполняют, ровно как читали подсказку про
+// grep в Bash до запрета.
+//
+// Запрет здесь устроен иначе, чем в Bash, и причина — отсутствие дешёвой
+// проверки «есть ли индекс у этого проекта»: индекс лежит в
+// %LOCALAPPDATA%/ast-index/<hash>/index.db без обратного маппинга на путь, а
+// спавн `ast-index stats` на КАЖДЫЙ Grep стоил бы дороже самой экономии.
+// Поэтому запрет ОДНОРАЗОВЫЙ на паттерн: первый Grep по символу отклоняется с
+// готовой командой ast-index, повтор того же паттерна проходит. Индекса нет,
+// ast-index ответил пусто — агент повторяет Grep и работает дальше; тупика,
+// в котором нечем искать, не возникает.
+const GREP_RETRY_WINDOW_MS = 30 * 60 * 1000;
+// Паттерн-символ: голый идентификатор без regex-метасимволов. Одного этого мало —
+// под него попадает половина обычных текстовых поисков, а `ast-index` по
+// построению не отвечает на литералы и комментарии, и отказ на них стоил бы
+// агенту трёх turn'ов вместо одного (Grep → ast-index пусто → Grep снова).
+// Поэтому дополнительно требуется признак ИМЕНИ: заглавная не в первой позиции
+// (`PurchaseGate`, `getUser`) либо явный кодовый фильтр при PascalCase-имени
+// (`Paywall` + `glob: *.kt`). Отсекается ровно то, на чём индекс молчит:
+// `TODO`, `FIXME` (нет строчных), `premium_purchase`, `onboarding` (нет
+// заглавных) — ревью 2026-08-31 прогнало эти случаи живьём.
+const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{2,}$/;
+const NON_CODE_GLOB = /\.(md|json|ya?ml|toml|txt|csv|lock|log|xml|properties|gradle)(?=$|["'\s,}])/i;
+const CODE_GLOB = /\.(kt|kts|java|swift|ts|tsx|js|jsx|py|rs|go|rb|cs|c|cc|cpp|h|hpp|php|scala|dart)(?=$|["'\s,}])/i;
+// `*.gradle.kts` формально кончается на `.kts`, но индекса по build-скриптам нет —
+// и инструкции агентов прямо велят искать в них тулом `Grep`. Без этой проверки
+// `Grep(pattern:"Paywall", glob:"**/*.gradle.kts")` получал отказ с советом
+// `ast-index usages Paywall`, индекс отвечал пусто, агент повторял тот же Grep:
+// два turn'а на пустом месте (ревью 2026-08-31, второй проход).
+const BUILD_SCRIPT_GLOB = /\.gradle(\.kts)?(?=$|["'\s,}])/i;
+const CODE_TYPE = /^(kt|kotlin|java|ts|typescript|js|javascript|py|python|swift|go|rust|rs|cs|csharp|dart|cpp|c)$/i;
+
+function looksLikeSymbolName(pattern, scopedToCode) {
+    if (!IDENTIFIER_PATTERN.test(pattern)) return false;
+    if (!/[a-z]/.test(pattern)) return false;           // TODO, FIXME, HTTP_OK
+    if (/[A-Z]/.test(pattern.slice(1))) return true;    // PurchaseGate, getUser
+    return scopedToCode && /^[A-Z]/.test(pattern);      // Paywall + glob: *.kt
+}
+
+function grepVerdict(toolInput, key) {
+    if (process.env.CLAUDE_ALLOW_CODE_GREP === '1') return null;
+    const input = toolInput || {};
+    const pattern = typeof input.pattern === 'string' ? input.pattern : '';
+    // Регистронезависимый и многострочный поиск — не то, что делает ast-index:
+    // он ищет символ как символ, точным именем.
+    if (input['-i'] === true || input.multiline === true) return null;
+    // Фильтр указывает на не-код — индекс этих файлов не видит.
+    if (input.glob && NON_CODE_GLOB.test(String(input.glob))) return null;
+    if (input.glob && BUILD_SCRIPT_GLOB.test(String(input.glob))) return null;
+    if (input.type && /^(md|markdown|json|yaml|yml|toml|txt|csv|xml)$/i.test(String(input.type))) return null;
+    if (input.path && NON_CODE_DIR.test(String(input.path).replace(/\\/g, '/'))) return null;
+
+    const scopedToCode = (input.glob && CODE_GLOB.test(String(input.glob)))
+        || (input.type && CODE_TYPE.test(String(input.type)));
+    if (!looksLikeSymbolName(pattern, scopedToCode)) return null;
+
+    const state = readState(key);
+    const seen = state.greps || {};
+    const now = Date.now();
+    if (seen[pattern] && now - seen[pattern] < GREP_RETRY_WINDOW_MS) return null;
+    const firstWrite = Object.keys(state).length === 0;
+    seen[pattern] = now;
+    state.greps = seen;
+    writeState(key, state, firstWrite);
+
+    return {
+        decision: 'deny',
+        reason:
+            `\`${pattern}\` — это имя символа, а не текст. Тем же одним вызовом: `
+            + `\`ast-index usages ${pattern}\` (кто использует), \`ast-index refs ${pattern}\` `
+            + `(определения + импорты + использования), \`ast-index symbol|class ${pattern}\` (определение), `
+            + `\`ast-index explore ${pattern}\` (исходник + вызывающие + тесты сразу). `
+            + 'Индекс не даёт совпадений в комментариях, строках и импортах, поэтому результат не нужно фильтровать глазами. '
+            + '`rebuild`/`update` не запускай — индекс держит хук плагина. '
+            + `Индекса у проекта нет или ответ пуст — **повтори этот же Grep**, второй раз он пройдёт (запрет одноразовый на паттерн).`,
+    };
+}
+
 // Возвращает вердикт для харнесса либо null, если сказать нечего.
 // `key` нужен только для дедупликации подсказок и должен различать АГЕНТОВ, а не
 // сессии: субагенты фан-аута получают session_id родителя, и на ключе по сессии
@@ -663,6 +767,7 @@ module.exports = {
     judge,
     sleepVerdict,
     codeSearchVerdict,
+    grepVerdict,
     longSleepSeconds,
     insideLoop,
     feedsAnotherCommand,
