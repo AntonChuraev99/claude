@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-08-31 | [worktree-shell-cleanup](2026-08-31-worktree-shell-cleanup.md) | applied | 2026-09-14 | pending |
 | 2026-08-31 | [test-expert-scope-and-cost](2026-08-31-test-expert-scope-and-cost.md) | applied | 2026-09-14 | pending |
 | 2026-08-31 | [review-threshold](2026-08-31-review-threshold.md) | applied | 2026-09-14 | pending |
 | 2026-08-29 | [device-mirror-skill](2026-08-29-device-mirror-skill.md) | applied | 2026-09-12 | pending |
