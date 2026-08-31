@@ -1,12 +1,21 @@
 ---
 title: "Bug-pattern review: прополоть шум, сменить триггер L2, автогигиена реестра"
 date: 2026-08-03
-status: backlog
+status: done
+resolved: 2026-08-31
 area: review-rules
 keywords: [review-rules, bug-pattern, false-positive, L1, L2, stats, task-gate, noise]
 ---
 
 # Прополоть шум в bug-pattern review
+
+> **Закрыто 2026-08-31** — improvements [`2026-08-31-review-threshold`](../../improvements/2026-08-31-review-threshold.md).
+>
+> - **П.1 прополка** — сделано частично: в схему детектора добавлен ключ `requires` (файловый уровень, зеркало `lacks`), 12 правил сужены им или расширенным `unless`. Четыре кандидата (`web-anon-link-isnewuser-false-onboarding-skip`, `coop-same-origin-allow-popups-firebase-popup-login`, `wasmjs-custom-popstate-vs-bindtobrowsernavigation`, `banner-text-from-captured-stringresource`) **сознательно не тронуты**: severity high либо нет точного файлового маркера контекста — сузить можно только догадкой. Остаются в списке кандидатов автогигиены.
+> - **П.2 триггер L2** — сделано, но жёстче предложенного: не «FP ниже порога», а прямо «находка в режиме `static`». Основание — свежий замер: `runtime`-правила дали **0 блокировок на 5202 прогона**.
+> - **П.3 автогигиена** — сделано: секция «Прополка — кандидаты на пересмотр» в `stats.py` по порогу ≥200 срабатываний / 0 блокировок / ≥3 суждений / est-FP ≥90%. Дополнительно введено поле `narrowed_since`, без которого отчёт судил бы сужённое правило по статистике его прежней формы.
+>
+> Замер «стало лучше» перенесён в Replay improvement'а (2026-09-14).
 
 ## Замер на 2026-08-03
 

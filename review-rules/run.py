@@ -212,6 +212,9 @@ def run_detector(
         lacks = detect.get("lacks")
         if lacks and re.search(lacks, content):
             return []  # file already contains the required guard -> OK
+        requires = detect.get("requires")
+        if requires and not re.search(requires, content):
+            return []  # context the rule is about is absent from this file -> not our case
         has = detect.get("has")
         unless = detect.get("unless")
         if not has:

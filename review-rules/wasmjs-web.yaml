@@ -27,6 +27,7 @@
   source: "improvements/archive/2026-05-20-wasmjs-external-var-esm-pitfall.md"
 
 - id: composeover-video-sizing
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: medium
   stack: [wasmjs]
@@ -34,6 +35,9 @@
   detect:
     type: grep
     has: 'ComposeOverVideoContent\('
+    # сужено 2026-08-31: 2279 срабатываний, 0 блокировок, est-FP 94% — детектор ловил любой
+    # вызов. Баг существует только при проблемном размере; правильный heightIn не срабатывает.
+    requires: 'fillMaxSize|wrapContent'
   message: "overlay поверх HTML5 video: fillMaxSize блокирует клики host-слоем; wrapContent/wrapContentHeight -> nested ComposeViewport меряет 0 -> overlay невидим."
   fix: "размер overlay: heightIn(min,max) + if(visible)-гейт, не fillMaxSize и не wrapContent*. Проверить кликабельность и видимость на вебе."
   source: "project-memory feedback_composeover_video_sizing + agent-memory reference_android_runtime_pitfalls §R9"
@@ -179,6 +183,7 @@
   fix: Drive video muted/volume from the shared VideoSoundController / ObserveSoundEnabledUseCase (single source of truth = AppDataStore.isSoundEnabled) via LaunchedEffect(controller) and use the shared SoundToggleButton; keep the playWithMute fallback that mutes only on NotAllowedError.
   source: wasm-bugs/web-video-sound-app-preference-2026-05-19.md; wasm-bugs/web-uploaded-video-sound-toggle-2026-06-03.md; wasm-bugs/web-sound-toggle-shared-pattern-2026-06-05.md
 - id: apple-oauth-provider-google-only-param
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: medium
   stack:
@@ -189,6 +194,9 @@
   detect:
     type: grep
     has: new OAuthProvider\(['\"]apple\.com
+    # narrowed 2026-08-31: 758 fires, 0 blocks, est-FP 100%. Nothing to verify when none of the
+    # Google-only parameters the rule is about appears in the file at all.
+    requires: 'prompt|\bhd\b|select_account'
   message: Apple OAuthProvider present — verify it is NOT configured with a Google-only custom parameter (prompt/hd/select_account). Apple supports only `locale`; an unsupported param yields invalid_request and only the Apple button breaks.
   fix: 'On the apple.com provider pass only locale via setCustomParameters; drop prompt/hd and any param copied from the Google provider. (Red-flag: confirm by running Apple sign-in, not by static text alone — the prompt param is usually on a different line than the constructor.)'
   source: kmp/web-auth-providers-apple-email-2026-05-13.md; kmp/firebase-auth-same-origin-cf-worker-proxy-safari-itp-2026-05-26.md
@@ -208,6 +216,7 @@
   fix: 'Two-layer gate: (1) _headers `/composeResources/*` -> `Cache-Control: public, max-age=0, must-revalidate`; (2) in init.js patch globalThis.fetch to force cache:''no-cache''/''reload'' on any `/composeResources/` URL (programmatic fetch ignores hard-refresh). Note: _headers cannot exclude by extension (rules comma-join), so client-side JS enforcement is mandatory. Keep a smoke-test that RED-fails on max-age>0.'
   source: wasm-bugs/stale-sw-poisoned-cache-base64-crash-2026-05-26.md; wasm-bugs/web-composeresources-cache-base64-crash-2026-06-03.md
 - id: initjs-window-sentry-dead-channel
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: medium
   stack:
@@ -218,6 +227,11 @@
   detect:
     type: grep
     has: window\.Sentry\.
+    # narrowed 2026-08-31: 5535 fires, 0 blocks, est-FP 95%. If the file assigns window.Sentry
+    # itself, the channel is live and the rule does not apply.
+    # `=[^=]` — иначе regex совпадает на первом `=` сравнения `window.Sentry === undefined`
+    # (feature-detect) и гасит весь файл вместе с настоящим dead-channel вызовом.
+    lacks: window\.Sentry\s*=[^=]
   message: init.js calls window.Sentry.* — the Sentry SDK is imported as ESM into the Kotlin/Wasm bundle and never exposed on window, so every window.Sentry call is a silent no-op and OAuth diagnostics never reach Sentry (sign-in failures stay undiagnosable).
   fix: Diagnose via console.log + write the outcome to globalThis.__xResult, then poll it from Kotlin (GlobalScope.launch + delay loop) and emit logger.e with the full trail -> a real unfiltered Sentry event.
   source: ci-deploy/apple-signin-web-safari-popup-blocked-diag-relay-2026-06-16.md
@@ -256,6 +270,7 @@
   fix: Capture needed locals OUTSIDE the overlay (val emojiFont = LocalEmojiFont.current; LocalFontFamilyResolver.current; LocalAnalyticsHelper.current), then wrap ONLY the overlay content block in CompositionLocalProvider(LocalEmojiFont provides emojiFont, ...) { ... } — not the BoxScope.align scaffolding. No-op on Android.
   source: kmp/composeover-video-nested-viewport-emoji-z-order-2026-04-29.md; wasm-bugs/dialog-over-video-wasmjs-2026-05-18.md; wasm-bugs/topbanner-empty-text-mobile-safari-nested-viewport-font-2026-05-29.md; wasm-bugs/web-feedback-sheet-compositionlocal-reprovide-2026-06-09.md
 - id: wasmjs-bootstrap-error-handler-suppresses
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: high
   stack:
@@ -270,10 +285,14 @@
     # Только GLOBAL-таргеты: element-level `el.addEventListener("error")` (video/img,
     # vendored lottie-web в generated web-react.js) — легитимные фолбэки, recurring FP.
     has: (window|globalThis|self)\.addEventListener\(\s*['\"](error|unhandledrejection)
+    # narrowed 2026-08-31: 1246 fires, 0 blocks, est-FP 100%. A global handler is only harmful
+    # when it actually suppresses the event; without suppression there is no bug to report.
+    requires: 'preventDefault|stopImmediatePropagation|stopPropagation|return true'
   message: The wasmJs bootstrap installs a global error/unhandledrejection listener — verify it does NOT call event.preventDefault(). Blanket-suppressing the global handler swallows fatal wasm exceptions (e.g. the Base64/.cvr crash), keeping them out of console.error and Crashlytics and sending debugging down a false path.
   fix: Never blanket-suppress errors in the wasm bootstrap. Let exceptions propagate to console.error (and Crashlytics if wired); if you must intercept, log the full error first and only suppress a specific, identified benign case — never all unhandled errors.
   source: docs/solutions/web-infrastructure/splash-hang-corrupted-cvr-cache-2026-05-26.md
 - id: wasmjs-emoji-text-missing-fontfamily
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: medium
   stack:
@@ -285,11 +304,17 @@
   detect:
     type: grep
     has: '"[^"]*[\U0001F300-\U0001FAFF]'
-    unless: LocalEmojiFont|rememberEmojiAwareText|EmojiFont|emojiFont|emojiFontFamily|^\s*(//|\*|/\*)|//.*[\U0001F300-\U0001FAFF]
+    # narrowed 2026-08-31: 851 fires, 0 blocks, est-FP 100%. Emoji in logs/analytics never
+    # reaches a Compose Text, so it cannot render as tofu.
+    # НЕ добавлять `requires: 'Text\('` — пробовали 2026-08-31, откатили: собственный fix правила
+    # предупреждает «Don't assume AppText/AppButton … are auto emoji-aware», то есть строка с
+    # эмодзи может не иметь рядом ни одного вхождения `Text(` и всё равно давать tofu.
+    unless: LocalEmojiFont|rememberEmojiAwareText|EmojiFont|emojiFont|emojiFontFamily|^\s*(//|\*|/\*)|//.*[\U0001F300-\U0001FAFF]|logger\.|println\(|Log\.[dewiv]\(
   message: 'Emoji literal in a commonMain Text with no explicit emoji fontFamily on the line — Skiko canvas has no system emoji fallback on wasmJs, so it renders as tofu on web (the same Text looks fine on Android, masking the bug). Red-flag: the font may be provided elsewhere, confirm by rendering on web.'
   fix: Wrap emoji-bearing text in rememberEmojiAwareText() and pass the returned fontFamily (LocalEmojiFont/Twemoji) on every Text; LocalEmojiFont is a no-op on Android so it is safe to apply unconditionally. Don't assume AppText/AppButton or strings/Remote-Config emoji are auto emoji-aware.
   source: kmp/emoji-rendering-wasms-text-fontfamily-2026-05-07.md; wasm-bugs/premium-price-arrow-tofu-2026-05-22.md; docs/solutions/emoji-rendering-wasms-preloadfont.md
 - id: wasmjs-nonemoji-symbol-glyph-tofu
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: medium
   stack:
@@ -301,7 +326,9 @@
   detect:
     type: grep
     has: '[←-⇿①-⓿☀-➿⬀-⯿]'
-    unless: ^\s*(//|\*|/\*)
+    # narrowed 2026-08-31: 2924 fires, 0 blocks, est-FP 93%. Symbols in logs/analytics are not
+    # rendered by Skiko, so they cannot show up as tofu.
+    unless: ^\s*(//|\*|/\*)|logger\.|println\(|Log\.[dewiv]\(
   message: Non-emoji Unicode symbol literal (arrows/stars/checks/dingbats e.g. ★ ➜ ✓ ⚠) in commonMain Compose code renders as tofu (empty square) on wasmJs — Skiko has no CSS-style font fallback and neither the emoji font nor any web system font covers these ranges (Android's Roboto fallback hides it).
   fix: Render ornamental symbols as a vector AppIcon (composeResources drawable XML) or a Compose Canvas drawPath shape, or gate them out on web via isWebPlatform(); never rely on a font glyph for non-emoji symbols in commonMain shared with wasmJs.
   source: wasm-bugs/premium-price-arrow-tofu-2026-05-22.md; kmp/canvas-glyph-wasmjs-unicode-symbols-2026-04-29.md; ui-bugs/rate-dialog-stars-glyph-web-fix-2026-05-18.md
@@ -378,6 +405,7 @@
   source: wasm-bugs/telegram-webview-no-serviceworker-boot-fix-2026-07-02.md; web-infra/boot-diagnostics-pre-wasm-telemetry-2026-07-02.md
 
 - id: boot-resource-retry-no-terminal-spinner-state
+  narrowed_since: '2026-08-31'
   pain: 2
   mode: runtime
   severity: high
@@ -386,6 +414,9 @@
   detect:
     type: grep
     has: 'onerror'
+    # сужено 2026-08-31: 4602 срабатывания, 0 блокировок, est-FP 100% — детектор ловил любой
+    # onerror. Правило про retry-инжектор: без счётчика попыток exhausted-ветки не существует.
+    requires: 'attempt|retry|MAX_'
   message: "boot-инжектор скрипта с retry (onerror + повторный inject): exhausted-ветка (attempt >= MAX) обязана снять #loading и/или показать fallback, иначе исчерпание retry = вечный спиннер поверх мёртвого boot. Класс infinite-spinner рецидивил: KMP-WEB-75/76 (TG WebView), KMP-WEB-77/74/73 (фильтрующий VPN)."
   fix: "зеркалить app.js-ветку init.js: на attempt >= MAX — getElementById('loading')?.remove() + оставить net-trouble-баннер/показать fallback-экран."
   source: "docs/solutions/wasm-bugs/boot-resource-retry-vpn-filter-resilience-2026-07-02.md"
@@ -452,6 +483,7 @@
 
 # === mined 2026-07-23 (runtime probation) ===
 - id: jsscreen-spinner-before-compose-splash-disposed
+  narrowed_since: '2026-08-31'
   mode: runtime
   severity: medium
   stack: [wasmjs]
@@ -459,6 +491,9 @@
   detect:
     type: grep
     has: 'appendChild\(spinner\)'
+    # сужено 2026-08-31: 457 срабатываний, 0 блокировок, est-FP 100%. Гейт из fix уже стоит —
+    # значит этот класс бага в файле закрыт.
+    lacks: 'BootSplashGone'
   message: "JsScreenHost-фабрика (прозрачный overlay над Compose-canvas) добавляет loading-спиннер сразу на cold-boot, пока Compose boot-splash ещё гаснет -> два кольца / «лоудер + лого правее» в момент хэндовера Splash->контент (DOM overlay не наследует Compose nav-fade)."
   fix: "гейтить показ overlay-спиннера на globalThis.__<yourapp>BootSplashGone (из SplashScreen.onDispose), снимать на React-mount, форсить на error; live-verify на реальном cold-boot (headed, real DPR), не headless. Guest-фабрику (непрозрачный overlay) не трогать."
   source: "docs/active/web-boot-spinner-first-frame-2026-07-23.md (FS-1125 follow-up)"

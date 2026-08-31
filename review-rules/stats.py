@@ -73,6 +73,10 @@ def registry_ids() -> dict[str, dict]:
                     "area": yml.stem,
                     "mode": r.get("mode", "static"),
                     "sev": r.get("severity", ""),
+                    # narrowed_since (YYYY-MM-DD) — когда детектор последний раз сужали.
+                    # Статистика до этой даты относится к старому детектору: прополка обязана
+                    # судить правило по его нынешней форме, а не по той, которую уже починили.
+                    "narrowed_since": str(r.get("narrowed_since") or ""),
                 }
     return out
 
@@ -143,7 +147,35 @@ def analyze(events: list[dict], registry: dict[str, dict]) -> dict:
         for a in e.get("armed", []):
             armed[a] += 1
 
+    # Post-narrow counters: for a rule carrying `narrowed_since`, everything logged BEFORE that
+    # date describes the OLD detector and says nothing about the narrowed one. Weeding must not
+    # judge a rule on statistics its current form never produced.
+    since = {rid: m["narrowed_since"] for rid, m in registry.items() if m.get("narrowed_since")}
+    fires_since: dict[str, int] = defaultdict(int)
+    conf_since: dict[str, int] = defaultdict(int)
+    dism_since: dict[str, int] = defaultdict(int)
+    for e in l1:
+        ts = e.get("ts", "")
+        for r in e.get("rules", []):
+            rid = r.get("id")
+            if rid in since and ts >= since[rid]:
+                fires_since[rid] += 1
+    for e in l2:
+        ts = e.get("ts", "")
+        for j in e.get("judged", []):
+            rid = j.get("id")
+            if rid not in since or ts < since[rid]:
+                continue
+            if j.get("verdict") == "confirmed":
+                conf_since[rid] += 1
+            elif j.get("verdict") == "dismissed":
+                dism_since[rid] += 1
+
     return {
+        "since": since,
+        "fires_since": dict(fires_since),
+        "confirmed_since": dict(conf_since),
+        "dismissed_since": dict(dism_since),
         "l1_runs": len(l1), "l2_runs": len(l2), "l3_runs": len(l3),
         "blocks": sum(1 for e in l1 if e.get("blocked")),
         "by_entry": dict(by_entry),
@@ -204,6 +236,78 @@ def render(a: dict, registry: dict[str, dict], now: str) -> str:
         L.append(f"**Никогда не срабатывали ({len(dead)}/{len(registry)}):** "
                  f"{', '.join(dead)}. Кандидаты на проверку актуальности (либо область просто не трогали).")
         L.append("")
+
+    # Прополка — кандидаты по порогу (docs/backlog/review-rules-noise-reduction.md)
+    WEED_FIRES, WEED_FP, WEED_JUDGED = 200, 90.0, 3
+    since = a.get("since", {})
+    weeds, cooling, noisy_after = [], [], []
+    for rid in sorted(a["fires"], key=lambda r: -a["fires"].get(r, 0)):
+        meta = registry.get(rid, {})
+        narrowed = since.get(rid)
+        if narrowed:
+            # Судим только по тому, что правило нафайрило в нынешней форме.
+            fires = a["fires_since"].get(rid, 0)
+            conf = a["confirmed_since"].get(rid, 0)
+            dism = a["dismissed_since"].get(rid, 0)
+        else:
+            fires = a["fires"].get(rid, 0)
+            conf = a["confirmed"].get(rid, 0)
+            dism = a["dismissed"].get(rid, 0)
+        judged = conf + dism
+        if a["rblocks"].get(rid, 0):
+            continue
+        if fires < WEED_FIRES or judged < WEED_JUDGED:
+            # Сужённое правило судить по FP нечем: L2 поднимается только находкой `static`
+            # (task-gate 2.9), а сужают почти всегда `runtime` — суждений оно больше не набирает.
+            # Поэтому у сужённых второй, независимый от L2 критерий: ОБЪЁМ срабатываний.
+            # Сузили и всё равно ≥порога фаеров — сужение не сработало, это видно без вердиктов.
+            if narrowed and a["fires"].get(rid, 0) >= WEED_FIRES:
+                bucket = noisy_after if fires >= WEED_FIRES else cooling
+                bucket.append((rid, meta.get("area", "?"), narrowed, fires, judged))
+            continue
+        fp = dism / judged * 100
+        if fp < WEED_FP:
+            continue
+        weeds.append((rid, meta.get("area", "?"), fires, conf, dism, fp, narrowed))
+
+    L.append("## Прополка — кандидаты на пересмотр")
+    L.append("")
+    L.append(f"_Порог: ≥{WEED_FIRES} срабатываний, 0 блокировок, ≥{WEED_JUDGED} суждений L2, est-FP ≥{WEED_FP:.0f}%. "
+             "У правила с `narrowed_since` считается только то, что оно нафайрило ПОСЛЕ сужения._")
+    L.append("")
+    if not weeds:
+        L.append("Кандидатов нет — правила либо блокируют, либо не набрали статистики в нынешней форме.")
+    else:
+        L.append("| rule | area | fires | conf | dism | est-FP | сужалось |")
+        L.append("|---|---|--:|--:|--:|--:|---|")
+        for rid, area, fires, conf, dism, fp, narrowed in weeds:
+            L.append(f"| {rid} | {area} | {fires} | {conf} | {dism} | {fp:.0f}% | {narrowed or '**нет**'} |")
+        L.append("")
+        again = [w for w in weeds if w[6]]
+        L.append(f"**{len(weeds)} кандидатов.** По каждому решить: добавить `requires`/`lacks` (контекст, о котором "
+                 "правило — README → «Типы детекторов»), сузить `globs`, понизить severity или удалить. "
+                 "Сужая, проставить правилу `narrowed_since: 'YYYY-MM-DD'` — иначе следующий прогон снова "
+                 "посчитает его по старой статистике.")
+        if again:
+            L.append("")
+            L.append(f"⚠️ **Сужались и снова набрали FP ({len(again)}):** {', '.join(w[0] for w in again)} — "
+                     "здесь сужение уже не помогло, следующий шаг удаление, а не третья попытка.")
+    if noisy_after:
+        L.append("")
+        L.append(f"⚠️ **Сужены, но объём не упал ({len(noisy_after)}):** "
+                 + ", ".join(f"`{rid}` ({narrowed}: {f} fires после сужения)"
+                             for rid, _area, narrowed, f, _j in noisy_after)
+                 + f". Порог тот же ≥{WEED_FIRES}, но по **объёму**, а не по FP: вердиктов L2 у "
+                   "`runtime`-правил больше нет, и ждать их бессмысленно. Сужение не сработало — "
+                   "сужать точнее или удалять.")
+    if cooling:
+        L.append("")
+        L.append(f"_Ждут новых данных после сужения ({len(cooling)}):_ "
+                 + ", ".join(f"{rid} ({narrowed}: {f} fires / {j} суждений)"
+                             for rid, _area, narrowed, f, j in cooling)
+                 + ". Объём срабатываний после сужения упал ниже порога — сужение работает; "
+                   "историческая FP относится к старому детектору и в расчёт не идёт.")
+    L.append("")
 
     # Выводы
     L.append("## Выводы")
