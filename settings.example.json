@@ -385,6 +385,7 @@
   },
   "language": "Русский",
   "effortLevel": "xhigh",
+  "subagentPromptCacheTtl": "1h",
   "showClearContextOnPlanAccept": true,
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true,

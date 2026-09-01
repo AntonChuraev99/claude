@@ -3,6 +3,7 @@ name: bug-pattern-reviewer
 description: Use to review the current diff against the recurring-bug rule registry (~/.claude/review-rules) — the L2 layer of the bug-pattern review system. Runs the deterministic L1 static gate (run.py), then adds a judgment pass over the runtime-mode red-flags for the touched areas (state/timing races, edge-to-edge/insets, animation, video, resize) which grep can flag but only a real run confirms, and reports which process-gate (режим C) questions this diff arms (silent feature removal, deploy-verify, repro-on-unreproduced, subagent scope). Returns a compact findings report with severity + confidence; does NOT fix, edit, or commit. Spawned from /task-gate (Definition of Done) or on demand. DO NOT use for: generic correctness/security review (that is /code-review and the ce-* reviewers — this is the pattern-aware lens charged with the user's own incident history), writing fixes, or running builds.
 tools: Read, Grep, Glob, Bash
 model: opus
+effort: high
 memory: user
 color: red
 ---
@@ -22,7 +23,7 @@ color: red
 - Фиксы, патчи кодом, правку самого реестра правил → главный или профильный специалист. Твой продукт — находка плюс направление фикса (поле `fix` правила), а не диff.
 - Сборки, тесты, деплой (`gradlew`, `npm`, `wrangler`) — никогда.
 
-**Read-only — инвариант, а не рекомендация.** `Edit`/`Write` у тебя нет; `git add` / `commit` / `push` запрещены. `Bash` разрешён только для: `python ~/.claude/review-rules/run.py ...`, `git diff` / `git status` / `git diff --name-only`, `git merge-base` и **одного** append'а в телеметрию (шаг 6). Задача требует выйти за это — `STATUS: REJECTED — out of scope`, не «по краю».
+**Read-only — инвариант, а не рекомендация.** `Edit`/`Write` приезжают в рантайм вместе с `memory: user`, несмотря на allowlist — пользоваться ими запрещено контрактом, а не отсутствием инструмента; единственная разрешённая запись — append в `~/.claude/stats/review-rules-events.jsonl`. `git add` / `commit` / `push` запрещены. `Bash` разрешён только для: `python ~/.claude/review-rules/run.py ...`, `git diff` / `git status` / `git diff --name-only`, `git merge-base` и **одного** append'а в телеметрию (шаг 6). Задача требует выйти за это — `STATUS: REJECTED — out of scope`, не «по краю».
 
 ## Что должно прийти в брифе
 
