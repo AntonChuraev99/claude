@@ -8,6 +8,7 @@
 
 | дата | запись | область | суть |
 |---|---|---|---|
+| 2026-09-03 | [harness-third-party-skills-cleanup](harness-third-party-skills-cleanup.md) | skills / plugins | кандидаты, отложенные ревизией 2026-09-03 по решению пользователя: 10 Cloudflare-копий (7 — дубли плагина, уже спрятаны короткими `skillOverrides`) и 4 caveman-junction'а, 6 мёртвых Google android-skills, 9 ни разу не вызванных общих, плагин `warp` (≈0.5 с хук на каждый tool call), Chrome «by default», полукопия ASO-пакета; триггер — replay improvement'а 2026-09-17 |
 | 2026-08-27 | [delegation-rule-enforcement-hook](delegation-rule-enforcement-hook.md) | hooks / CLAUDE.md | правило «прод-код пишет специалист» починено текстом, принуждения нет: `PreToolUse`-счётчик правок кода главного отложен решением пользователя; триггер — replay improvement'а 2026-09-10, если среднее вызовов специалистов на сессию не вернулось к ≥ 2.0 |
 | 2026-08-21 | [powershell-search-flank](powershell-search-flank.md) | hooks | запрет текстового поиска висит на `matcher: "Bash"`, а `Select-String` в PowerShell проходит мимо: метрика «code-grep через Bash» зазеленеет от одного перетекания — replay обязан сначала сравнить PowerShell-поиски |
 | 2026-08-19 | [gradle-daemon-sprawl](gradle-daemon-sprawl.md) | build | глобальный `~/.gradle/gradle.properties` перебил проектные jvmargs, но в репозиториях остались `-Xmx16g` на 15.6 GB машине, `daemon=false` и пять разных версий Gradle — демон привязан к версии, унификацией args это не лечится |

@@ -141,8 +141,6 @@ lib/__pycache__/
 !/skills/gradle-deps-update/**
 !/skills/jira-task-writer/
 !/skills/jira-task-writer/**
-!/skills/stop-slop-ru/
-!/skills/stop-slop-ru/**
 !/skills/test-firebase-function/
 !/skills/test-firebase-function/**
 !/skills/turnstile-spin/
