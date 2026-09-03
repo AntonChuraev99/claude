@@ -146,6 +146,25 @@ target_date: 2026-09-14
    не растёт, а не что гард сломан (проверяется мутацией, она уже в тестах).
 4. **Не понадобился ли отключённый скилл** — грепом по транскриптам за период.
 
+### Interim 2026-09-03
+
+- Пункт 1 закрыт фактом, и A/B разошёлся по типу скилла, а не по формату ключа. Листинг двух
+  сессий 2026-09-03 (главная и субагент-ревьюер): **8 старых коротких ключей сработали** —
+  `git-worktree-env` и 7 Cloudflare-копий из `~/.claude/skills` в листинге отсутствуют вовсе
+  (каталоги на месте, `user-invocable: false` во frontmatter нет). **70 prefixed-ключей видимого
+  эффекта не дали** — `compound-engineering:ce-*`, `amplitude:*`, `cloudflare:*`, `RevenueCat:*`
+  остались в листинге name-only, но так же name-only стоят и не выключенные соседи
+  (`amplitude:analyze-experiment`, `RevenueCat:revenuecat`): описание показано лишь у ~70 из ~200
+  скиллов, name-only объясняется бюджетом листинга. То есть `skillOverrides` прячет user-скиллы
+  и не прячет плагинные. По критерию пункта 1 экономия на плагинах ищется через `enabledPlugins`:
+  сделано в `2026-09-03-harness-inventory-audit` (`cloudflare`, `context7` выключены,
+  `compound-engineering` удалён), их prefixed-ключи (`cloudflare:*`, `compound-engineering:*`)
+  убраны как мёртвые. Prefixed-ключи `amplitude:*` и `RevenueCat:*` оставлены до replay (плагины
+  включены, ключи дёшевы), короткие — оставлены, они работают.
+- Метрика на replay: вместо подсчёта символов — `claude plugin details <plugin>` (always-on
+  токены по оценке Anthropic; на 2026-09-03: amplitude ~3.5k, RevenueCat ~1.1k, caveman
+  ~0.85k, ast-index ~0.4k, frontend-design ~0.06k) плюс число скиллов с описанием в листинге.
+
 Открытый вопрос, в этой задаче не закрытый: срабатывают ли PreToolUse-хуки на инструменты
 субагентов. Дока Anthropic утверждает, что срабатывают и отдают `agent_id`/`agent_type`;
 формулировка в `CLAUDE.md` утверждает обратное. Проба оказалась неубедительной — репозиторий

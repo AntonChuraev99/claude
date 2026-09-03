@@ -13,8 +13,6 @@
       "WebFetch",
       "WebSearch",
       "Skill(commit)",
-      "mcp__plugin_compound-engineering_context7__resolve-library-id",
-      "mcp__plugin_compound-engineering_context7__query-docs",
       "mcp__mobile__device_list",
       "mcp__mobile__device_set",
       "mcp__mobile__device_get_target",
@@ -209,7 +207,6 @@
       "mcp__claude_ai_Slack__slack_search_public",
       "mcp__claude_ai_Slack__slack_search_public_and_private",
       "mcp__claude_ai_Slack__slack_search_users",
-      "mcp__pencil",
       "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\stats\\**)",
       "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\improvements\\**)",
       "Edit(C:\\Users\\YOUR_USERNAME\\.claude\\projects\\**\\memory\\**)",
@@ -338,24 +335,16 @@
     "command": "python C:/Users/YOUR_USERNAME/.claude/statusline.py"
   },
   "enabledPlugins": {
-    "code-simplifier@claude-plugins-official": true,
-    "compound-engineering@every-marketplace": true,
-    "mcp-apps@mcp-apps": true,
-    "voltagent-lang@voltagent-subagents": false,
-    "voltagent-core-dev@voltagent-subagents": false,
-    "voltagent-qa-sec@voltagent-subagents": false,
-    "skill-creator@claude-plugins-official": true,
-    "figma@claude-plugins-official": true,
     "firebase@firebase": true,
     "frontend-design@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true,
-    "cloudflare@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": false,
     "amplitude@claude-plugins-official": true,
     "warp@claude-code-warp": true,
-    "lazyweb@lazyweb": true,
     "RevenueCat@RevenueCat": true,
-    "context7@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true
+    "context7@claude-plugins-official": false,
+    "caveman@caveman": true,
+    "ast-index@ast-index-marketplace": true,
+    "playwright@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "firebase": {
@@ -370,16 +359,22 @@
         "repo": "warpdotdev/claude-code-warp"
       }
     },
-    "lazyweb": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/aboul3ata/lazyweb-skill.git"
-      }
-    },
     "RevenueCat": {
       "source": {
         "source": "github",
         "repo": "RevenueCat/ai-toolkit"
+      }
+    },
+    "caveman": {
+      "source": {
+        "source": "github",
+        "repo": "JuliusBrussee/caveman"
+      }
+    },
+    "ast-index-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "defendend/Claude-ast-index-search"
       }
     }
   },
