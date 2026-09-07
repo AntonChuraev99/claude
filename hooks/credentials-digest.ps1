@@ -71,8 +71,15 @@ try {
         if ($row[6]) { [void]$sb.AppendLine("| Play package | $($row[6]) |") }
         if ($row[7]) { [void]$sb.AppendLine("| git remote | $($row[7]) |") }
         [void]$sb.AppendLine("")
-        [void]$sb.AppendLine("Деплой, публикация, запись секрета — сверить фактический активный аккаунт с этим ДО выполнения.")
-        [void]$sb.AppendLine("Не совпало — остановиться и сказать пользователю, аккаунт самому не переключать.")
+        [void]$sb.AppendLine("Аккаунт подставляется в команды автоматически (hooks/account-align.js):")
+        [void]$sb.AppendLine("gcloud получает --account/--project, firebase — --account. Не покрыты gsutil и MCP-тулы.")
+        [void]$sb.AppendLine("Переключать конфигурации руками не нужно и не следует — состояние CLI не трогаем.")
+        [void]$sb.AppendLine("")
+        [void]$sb.AppendLine("Вмешательство пользователя нужно ровно в двух случаях:")
+        [void]$sb.AppendLine("1. Токен умер (invalid_grant, Token has been expired or revoked, Failed to authenticate)")
+        [void]$sb.AppendLine("   — попроси пользователя выполнить логин, сам не логинься.")
+        [void]$sb.AppendLine("2. credentials-guard дал deny — значит фактические креды разошлись с реестром")
+        [void]$sb.AppendLine("   вопреки подстановке. Показать расхождение пользователю, блокировку себе не снимать.")
     }
 
     @{ hookSpecificOutput = @{ hookEventName = 'SessionStart'; additionalContext = $sb.ToString() } } |

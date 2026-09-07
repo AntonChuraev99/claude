@@ -97,7 +97,10 @@ try {
     $raw = [Console]::In.ReadToEnd()
     if (-not $raw) { exit 0 }
     $payload = $raw | ConvertFrom-Json
-    if ($payload.tool_name -ne 'Bash') { exit 0 }
+    # Тул PowerShell исполняет ровно те же деплой-команды, что и Bash, и на Windows
+    # он основной. Пока здесь стояло только 'Bash', `firebase deploy` через
+    # PowerShell проходил мимо guard целиком — сверки не было вовсе.
+    if ($payload.tool_name -notin @('Bash', 'PowerShell')) { exit 0 }
     if ($env:CLAUDE_ALLOW_DEPLOY -eq '1') { exit 0 }
 
     $cmd = [string]$payload.tool_input.command
@@ -219,7 +222,20 @@ try {
         switch ($svc) {
             { $_ -in @('gcloud', 'gsutil') } {
                 if (-not $row[3]) { $checks += @{ svc = $svc; label = 'GCP project'; expected = '(в реестре не задан)'; actual = ''; ok = $false }; break }
-                $actual = Get-CmdOutput 'gcloud config get-value project' $cwd (Get-Budget)
+                # Проект, названный в САМОЙ команде, приоритетнее глобального конфига:
+                # исполнится именно он. Так команду и выравнивает hooks/account-align.js
+                # (`CLOUDSDK_CORE_PROJECT=... gcloud ...`), и без этой ветки guard сверял бы
+                # активную конфигурацию, к которой команда уже не относится, — то есть
+                # блокировал бы штатный деплой. Заодно экономит спавн gcloud.
+                # Несколько РАЗНЫХ значений в одной цепочке — доверять нечему, идём пробой.
+                $explicit = @([regex]::Matches($cmd, '(?:CLOUDSDK_CORE_PROJECT=|--project[=\s]+)([^\s;&|]+)') |
+                              ForEach-Object { $_.Groups[1].Value.Trim('"''') } |
+                              Select-Object -Unique)
+                if ($explicit.Count -eq 1) {
+                    $actual = $explicit[0]
+                } else {
+                    $actual = Get-CmdOutput 'gcloud config get-value project' $cwd (Get-Budget)
+                }
                 $checks += @{ svc = $svc; label = 'GCP project'; expected = $row[3]; actual = $actual
                               ok = (Test-CredMatch $actual $row[3]) }
             }

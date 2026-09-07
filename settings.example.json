@@ -307,13 +307,13 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash|Grep",
+        "matcher": "Bash|Grep|PowerShell",
         "hooks": [
           {
             "type": "command",
             "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard-prefilter.js\"",
             "timeout": 20,
-            "statusMessage": "creds guard + дисциплина инструментов"
+            "statusMessage": "creds guard + аккаунт проекта + дисциплина инструментов"
           }
         ]
       },

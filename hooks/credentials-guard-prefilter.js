@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse(Bash) prefilter in front of credentials-guard.ps1.
+// PreToolUse prefilter (тулы Bash и PowerShell, плюс ветка Grep) в front of
+// credentials-guard.ps1.
 //
 // The guard itself is correct but expensive to reach: it ran on EVERY Bash call
 // and a pwsh start costs 1.4–2.4 s on this machine. The overwhelming majority
@@ -64,7 +65,54 @@ function loadDiscipline() {
     return disciplineCache;
 }
 
-const CLAUDE_DIR = path.join(os.homedir(), '.claude');
+// Выравнивание аккаунта живёт в том же процессе по той же причине, что и
+// дисциплина вызовов: этот хук единственный уже висит на каждом вызове шелла,
+// а отдельный стоил бы ещё один спавн. Ленивый require в try/catch — сломанный
+// модуль не имеет права убить процесс до вердикта guard'а.
+let alignCache;
+function loadAlign() {
+    if (alignCache !== undefined) return alignCache;
+    try {
+        alignCache = require('./account-align.js');
+    } catch (e) {
+        noteDisciplineFailure(e);
+        alignCache = null;
+    }
+    return alignCache;
+}
+
+// Тулы, чей ввод — команда шелла. PowerShell на Windows исполняет те же деплои,
+// что и Bash, поэтому и выравнивание, и guard обязаны видеть оба. Синтаксис
+// подстановки от шелла не зависит: аккаунт подставляется флагом самого CLI, а
+// не переменной окружения (см. шапку hooks/account-align.js).
+const SHELL_TOOLS = { Bash: true, PowerShell: true };
+
+// Возвращает выровненную команду либо null. Ошибка здесь не должна ничего
+// блокировать: не выровняли — значит работает прежнее поведение, когда аккаунт
+// сверяет guard и спрашивает пользователя.
+function computeAlign(payload) {
+    if (!payload) return null;
+    if (!SHELL_TOOLS[payload.tool_name]) return null;
+
+    const align = loadAlign();
+    if (!align || !align.alignCommand) return null;
+
+    try {
+        return align.alignCommand(
+            payload.tool_input && payload.tool_input.command,
+            payload.cwd,
+        );
+    } catch (e) {
+        noteDisciplineFailure(e);
+        return null;
+    }
+}
+
+// CLAUDE_HOME override — то же соглашение, что в hooks/claude-md-size-guard.py и
+// hooks/ensure-bash-discipline-registered.ps1. Без него префильтр в worktree
+// звал бы guard из ~/.claude, то есть НЕИЗМЕНЁННУЮ копию: интеграционный прогон
+// зеленел бы, ничего не говоря о правке guard'а рядом с ним.
+const CLAUDE_DIR = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude');
 const GUARD = path.join(CLAUDE_DIR, 'hooks', 'credentials-guard.ps1');
 const PATTERNS = path.join(CLAUDE_DIR, 'config', 'credentials-guard-patterns.json');
 
@@ -77,7 +125,7 @@ function needsGuard(raw) {
         return true; // unparseable input is the guard's problem, not ours
     }
 
-    if (payload.tool_name !== 'Bash') return false;
+    if (!SHELL_TOOLS[payload.tool_name]) return false;
     // The guard honours this too; checking here avoids the spawn entirely.
     if (process.env.CLAUDE_ALLOW_DEPLOY === '1') return false;
 
@@ -127,6 +175,11 @@ function denyBecause(detail) {
 // Runs the real guard and proxies its verdict. Called only once the command is
 // already suspect, so from here on failure means deny, never allow: a silent
 // exit 0 would be a hook that waves a deploy through because of its own bug.
+//
+// Возвращает 'silent', когда guard пропустил команду молча, и 'verdict', когда
+// вердикт уже записан в stdout. Разница нужна вызывающему: подстановка аккаунта
+// выводится только на 'silent' — вместе с deny она была бы вторым решением в
+// одном ответе, а на deny команда всё равно не исполнится.
 function runGuard(raw) {
     const result = spawnSync(
         'pwsh',
@@ -143,7 +196,7 @@ function runGuard(raw) {
 
     if (result.error || result.status === null) {
         denyBecause(result.error ? result.error.message : 'процесс не вернул статус или был убит по таймауту');
-        return 0;
+        return 'verdict';
     }
 
     // The guard exits 0 on every path it takes, including both of its catch
@@ -152,13 +205,13 @@ function runGuard(raw) {
     // be read as consent.
     if (result.status !== 0) {
         denyBecause(`guard завершился с кодом ${result.status}`);
-        return 0;
+        return 'verdict';
     }
 
     if (result.stderr && result.stderr.length) process.stderr.write(result.stderr);
 
     const out = (result.stdout || Buffer.alloc(0)).toString('utf8').trim();
-    if (!out) return 0; // guard stayed silent = allow, its normal pass path
+    if (!out) return 'silent'; // guard stayed silent = allow, its normal pass path
 
     // Anything on stdout is the verdict, so it has to be a verdict: a banner or
     // stray warning would reach the harness as unparseable and be ignored,
@@ -167,11 +220,11 @@ function runGuard(raw) {
         JSON.parse(out);
     } catch (e) {
         denyBecause('guard вернул неразбираемый вывод вместо вердикта');
-        return 0;
+        return 'verdict';
     }
 
     process.stdout.write(out);
-    return 0;
+    return 'verdict';
 }
 
 // Второй, независимый смысл этого хука: он единственный, кто уже висит на
@@ -243,9 +296,11 @@ function renderHardDeny(payload) {
     return emitDeny(verdict.reason);
 }
 
-function renderDiscipline(payload) {
+// Поля подсказки про выбор инструмента — БЕЗ записи в stdout: вывод собирается
+// один раз в main, потому что подстановка аккаунта едет тем же ответом.
+function disciplineFields(payload) {
     const discipline = loadDiscipline();
-    if (!discipline || !payload || payload.tool_name !== 'Bash') return 0;
+    if (!discipline || !payload || payload.tool_name !== 'Bash') return null;
 
     let verdict = null;
     try {
@@ -254,9 +309,9 @@ function renderDiscipline(payload) {
             cooldownKey(payload),
         );
     } catch (e) {
-        return 0; // подсказка не стоит того, чтобы мешать работе
+        return null; // подсказка не стоит того, чтобы мешать работе
     }
-    if (!verdict) return 0;
+    if (!verdict) return null;
 
     // Подсказка идёт БЕЗ permissionDecision: `allow` в этом контракте не «не
     // возражаю», а «пропустить мимо проверки прав», и тогда любая команда,
@@ -264,14 +319,27 @@ function renderDiscipline(payload) {
     // permissions.deny/ask. Решение выносится только на запреты (долгий sleep,
     // поллинг по таймеру, текстовый поиск по исходникам) — их отдаёт judge как
     // `decision: 'deny'`, и они уже отработали выше, в renderHardDeny.
-    const out = verdict.decision === 'deny'
+    return verdict.decision === 'deny'
         ? { permissionDecision: 'deny', permissionDecisionReason: verdict.reason }
         : { additionalContext: verdict.context };
+}
 
+// Единственная точка записи ответа. Пустой объект = молчание = «возражений нет».
+function emitOutput(fields) {
+    if (!fields || !Object.keys(fields).length) return 0;
     process.stdout.write(JSON.stringify({
-        hookSpecificOutput: Object.assign({ hookEventName: 'PreToolUse' }, out),
+        hookSpecificOutput: Object.assign({ hookEventName: 'PreToolUse' }, fields),
     }));
     return 0;
+}
+
+// Подстановка аккаунта отменяется, если тем же ответом уходит deny: два решения
+// в одном ответе несовместимы, а на deny команда всё равно не исполнится.
+function withAlign(fields, aligned) {
+    const out = fields || {};
+    if (!aligned || out.permissionDecision === 'deny') return out;
+    out.updatedInput = { command: aligned.command };
+    return out;
 }
 
 function main() {
@@ -307,15 +375,36 @@ function main() {
 
     if (payload && renderHardDeny(payload)) return 0;
 
+    // Аккаунт подставляется ДО решения о guard, и дальше guard судит уже
+    // выровненную команду: он сверяет то, что реально исполнится, а не активную
+    // конфигурацию, к которой команда может не относиться. Обратный порядок
+    // блокировал бы штатный деплой из проекта, чей аккаунт не совпадает с
+    // глобально активным, — то есть ровно тот случай, ради которого всё это.
+    const aligned = computeAlign(payload);
+    let guardRaw = raw;
+    if (aligned) {
+        try {
+            const patched = Object.assign({}, payload, {
+                tool_input: Object.assign({}, payload.tool_input, { command: aligned.command }),
+            });
+            guardRaw = JSON.stringify(patched);
+        } catch (e) {
+            guardRaw = raw; // не смогли пересобрать — guard судит исходную команду
+        }
+    }
+
     // Deciding is cheap and safe to fail open: needsGuard already answers true
     // for anything it cannot parse.
-    if (!needsGuard(raw)) {
+    if (!needsGuard(guardRaw)) {
         if (!payload) return 0;
-        return renderDiscipline(payload);
+        return emitOutput(withAlign(disciplineFields(payload), aligned));
     }
 
     try {
-        return runGuard(raw);
+        const status = runGuard(guardRaw);
+        // Вердикт guard'а уже в stdout — второй ответ невозможен.
+        if (status === 'verdict') return 0;
+        return emitOutput(withAlign(null, aligned));
     } catch (e) {
         denyBecause(`внутренняя ошибка префильтра: ${e && e.message}`);
         return 0;
