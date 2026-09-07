@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-07 | [account-align](2026-09-07-account-align.md) | applied | 2026-09-21 | pending |
 | 2026-09-03 | [harness-inventory-audit](2026-09-03-harness-inventory-audit.md) | applied | 2026-09-17 | pending |
 | 2026-09-03 | [fable-5-1-overlay](2026-09-03-fable-5-1-overlay.md) | applied | 2026-09-17 | pending |
 | 2026-09-01 | [agents-refactor-effort-and-lazy-refs](2026-09-01-agents-refactor-effort-and-lazy-refs.md) | applied | 2026-09-15 | pending |

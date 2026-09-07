@@ -62,6 +62,14 @@ check('verb without tool', ask('npm run deploy'), false);
 check('non-Bash tool', needsGuard(JSON.stringify({
     tool_name: 'Read', tool_input: { file_path: 'x' },
 })), false);
+// Тул PowerShell исполняет те же деплои, что и Bash, и на Windows он основной.
+// Пока он сюда не входил, `firebase deploy` через него шёл мимо guard целиком.
+check('PowerShell tool reaches the guard', needsGuard(JSON.stringify({
+    tool_name: 'PowerShell', tool_input: { command: 'firebase deploy' },
+})), true);
+check('PowerShell tool, harmless command', needsGuard(JSON.stringify({
+    tool_name: 'PowerShell', tool_input: { command: 'Get-ChildItem' },
+})), false);
 check('empty command', ask(''), false);
 
 console.log('');
