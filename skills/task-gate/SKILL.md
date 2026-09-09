@@ -244,13 +244,14 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 Поверхностная проверка результатов специалистов **этой задачи** (2-3 сигнала; не код-ревью):
 
-- **`@compose-feature-expert`** — Compose/ViewModel/UiState/Navigation созданы, нет TODO, импорты корректны; Material 3 токены (нет `Color(0xFF...)`), design-system обёртки.
+- **`@feature-expert`** — `FEATURE_SPEC` с матрицей состояний есть; ViewModel/UiState/Navigation созданы, нет TODO; `UI_SKELETON` из отчёта закрыт `@compose-expert`; в `REVIEW` — `REVIEW_VERDICT` и находки с `file:line`.
+- **`@compose-expert`** — Screen/Content stateless (данные и колбэки, не ViewModel); Material 3 токены (нет `Color(0xFF...)` вне brand-critical), design-system обёртки; PNG прочитаны и названы в отчёте.
 - **`@android-platform-expert`** — androidMain: Hilt/Room driver/Media3/Resources; нет утечки в commonMain; installDebug smoke на новых DI-биндингах через интерфейс.
 - **`@kmp-expert`** — `commonMain` без Android-импортов, `expect`/`actual` спарены, без заглушек Route/Screen.
 - **`@react-ui-expert`** — компонент создан, type-check, Tailwind вместо inline.
 - **`@nextjs-expert`** — API route корректный тип + авторизация.
 - **`@design-expert`** — отдал `DESIGN_SPEC` (описание дизайна, не прод-код); платформа + метод (native/claude-design) проставлены.
-- **`@kotlin-expert`** — Flow/runCatching/Duration, нет блокирующих вызовов в корутинах.
+- **`@core-expert`** — Flow/runCatching/Duration, нет блокирующих вызовов в корутинах; core не импортирует из feature/*.
 - **`@wasmjs-expert`** — `init.js`/`index.html`/wasmJs стабы синхронны, нет `js("...")` в commonMain.
 - **`@doc-writer`** — активный документ есть, COMPLETE выдал `STATS_ROW`/`INDEX_ROW`.
 

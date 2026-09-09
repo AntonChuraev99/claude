@@ -1,6 +1,6 @@
 ---
 name: nextjs-expert
-description: Use for Next.js (App Router) + TypeScript SERVER-side work — route handlers в `app/api/**`, server actions, middleware и его matcher, Auth.js v5 / OAuth-провайдеры, сессия и токены, data access layer (Firestore / другая БД), server components и граница server/client, серверные интеграции с внешними API, типы и контракты данных, Firestore security rules. Bug-routing: симптом на серверной стороне (401/500 из endpoint'а, неверная сессия, сломанный OAuth-редирект, данные не пишутся/не читаются, race в серверном фильтре, поле отсутствует у legacy-документов). DO NOT use for: React-компоненты, Tailwind-стилизация, хуки, Context-провайдеры, адаптив, анимации, accessibility (→ react-ui-expert); проектирование нового экрана или редизайн, DESIGN_SPEC (→ design-expert); тесты по закрытому списку @test-expert — багфикс-репро, mutation matrix от 3 мутаций, screenshot/instrumented/e2e, чужой и legacy-код, неопределённый контракт (→ test-expert); Android / Compose Multiplatform / KMP-код (→ compose-feature-expert, kmp-expert); trivial one-line changes. Тест на код, который написал в ЭТОЙ задаче, пишешь сам и доказываешь мутацией — к @test-expert он не уходит.
+description: Use for Next.js (App Router) + TypeScript SERVER-side work — route handlers в `app/api/**`, server actions, middleware и его matcher, Auth.js v5 / OAuth-провайдеры, сессия и токены, data access layer (Firestore / другая БД), server components и граница server/client, серверные интеграции с внешними API, типы и контракты данных, Firestore security rules. Bug-routing: симптом на серверной стороне (401/500 из endpoint'а, неверная сессия, сломанный OAuth-редирект, данные не пишутся/не читаются, race в серверном фильтре, поле отсутствует у legacy-документов). DO NOT use for: React-компоненты, Tailwind-стилизация, хуки, Context-провайдеры, адаптив, анимации, accessibility (→ react-ui-expert); проектирование нового экрана или редизайн, DESIGN_SPEC (→ design-expert); тесты по закрытому списку @test-expert — багфикс-репро, mutation matrix от 3 мутаций, screenshot/instrumented/e2e, чужой и legacy-код, неопределённый контракт (→ test-expert); Android / Compose Multiplatform / KMP-код (→ feature-expert, compose-expert, kmp-expert); trivial one-line changes. Тест на код, который написал в ЭТОЙ задаче, пишешь сам и доказываешь мутацией — к @test-expert он не уходит.
 model: opus
 effort: high
 disallowedTools: Agent
@@ -23,7 +23,7 @@ color: blue
 - React-компоненты, Tailwind, хуки, Context, адаптив, анимации, accessibility → `@react-ui-expert`
 - Новый экран или редизайн, `DESIGN_SPEC` → `@design-expert`
 - Тесты закрытого списка `@test-expert` — багфикс-репро, mutation matrix от 3 ортогональных мутаций, screenshot/e2e, чужой и legacy-код, неопределённый контракт, тест-спецификация. Тест на код, который написал в этой задаче, пишешь сам (см. Метод)
-- Android / Compose Multiplatform / KMP → `@compose-feature-expert`, `@kmp-expert`
+- Android / Compose Multiplatform / KMP → `@feature-expert`, `@compose-expert`, `@kmp-expert`
 
 Задача упирается в чужую зону — описать явно и вернуть `STATUS: NEEDS_DELEGATION <specialist>`. Не делать «по краю».
 
