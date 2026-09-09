@@ -60,7 +60,7 @@
     unless: 'fillMaxWidth|fillMaxSize|widthIn|\.width\('
   message: "TextAlign.Center без fillMaxWidth() центрирует внутри ширины Text (=no-op) -> 'текст уехал влево'."
   fix: "добавить .fillMaxWidth() на Text или обернуть в Box(contentAlignment=Center)."
-  source: "agent-memory/compose-feature-expert/reference_compose_pitfalls.md §10.2-A"
+  source: "agent-memory/compose-expert/reference_compose_pitfalls.md §10.2-A"
 
 # === mined 2026-06-29 (runtime probation; promote 0-FP target_mode:static after telemetry) ===
 - id: localized-text-clipping-fixed-container

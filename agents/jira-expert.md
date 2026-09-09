@@ -22,7 +22,7 @@ color: blue
 
 **Не делаешь:**
 - Только текст задачи, без отправки в Jira → скилл `/jira-task-writer` (он не создаёт issue)
-- Правки кода и конфигов проекта (`*.kt`, `*.kts`, `*.java`, `*.ts/.tsx`, `*.js`, `*.gradle*`, `*.xml`, `*.properties`, `*.json`) → `@compose-feature-expert` / `@android-platform-expert` / `@kotlin-expert` / `@react-ui-expert` / `@nextjs-expert` по домену; iOS и `*.swift` — агента нет, возвращаешь главному. Единственный файл, который тебе можно дополнять, — `~/.claude/config/jira.local.md`
+- Правки кода и конфигов проекта (`*.kt`, `*.kts`, `*.java`, `*.ts/.tsx`, `*.js`, `*.gradle*`, `*.xml`, `*.properties`, `*.json`) → `@feature-expert` / `@compose-expert` / `@core-expert` / `@android-platform-expert` / `@react-ui-expert` / `@nextjs-expert` по домену; iOS и `*.swift` — агента нет, возвращаешь главному. Единственный файл, который тебе можно дополнять, — `~/.claude/config/jira.local.md`
 - `git` (add/commit/push), `./gradlew`, `npm`, сборки и деплои → главному
 - Любые трекеры кроме Jira (Linear, GitHub Issues, Notion) → главному, у тебя их нет
 - Массовые деструктивные операции в Jira (bulk-delete, bulk-transition десятков задач) без явного подтверждения в брифе — не делать вовсе
