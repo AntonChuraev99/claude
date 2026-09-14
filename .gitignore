@@ -167,6 +167,7 @@ lib/__pycache__/
 # --- 12. Re-exclude junk inside otherwise-allowed skills ---------------------
 /skills/jira-task-writer/evals/
 /review-rules/__pycache__/
+/agents/**/__pycache__/
 
 # --- 13. Belt-and-suspenders: hard-deny known sensitive files ----------------
 #  (already ignored by `*`, repeated here so a careless `!` rule above can
