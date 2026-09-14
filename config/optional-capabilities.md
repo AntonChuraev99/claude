@@ -27,7 +27,7 @@ tool-вызовов, 798 спавнов субагентов).
 | `cloudflare@claude-plugins-official` | 11 скиллов + 5 MCP (api, docs, bindings, builds, observability), ~1.0k always-on | 2 (оба `authenticate`); MCP не авторизован с 08-28 | `settings.json` → `enabledPlugins` → `true`, затем `/mcp` → авторизация |
 | `context7@claude-plugins-official` | MCP context7 без API-key | 0 — дубль standalone `context7` (93 вызова, с ключом) | там же |
 | MCP `lazyweb` (user, профиль claude-work) + 4 скилла `lazyweb*` | ~50 тулов, длинные server-instructions в каждом turn, version-check на старте | 0 (8 за прошлое окно) | `claude mcp add --transport http lazyweb https://www.lazyweb.com/mcp`; skill-pack — установщик с lazyweb.com (`~/.lazyweb` не удалялся) |
-| MCP `sentry` (user, профиль claude-work) | Sentry issues | 1 (`authenticate`); не авторизован с 08-28 | `claude mcp add --transport http sentry https://mcp.sentry.dev/mcp` |
+| ~~MCP `sentry`~~ **возвращён 2026-09-07** | Sentry issues | 1 (`authenticate`); не авторизован с 08-28 | — уже стоит (user-scope, `.claude-work/.claude.json`), авторизован |
 | MCP `pencil`, `vercel` (профиль `claude`, `~/.claude.json`) | Pencil desktop, Vercel | 0 | `claude mcp add …` заново |
 | Удалены из кэша (были выключены): `code-simplifier`, `mcp-apps`, `voltagent-*` ×3, `skill-creator`, `figma`, `vercel`, `claude-md-management`; маркетплейсы `every-marketplace`, `kotlin-agents-marketplace`, `mcp-apps`, `voltagent-subagents` | — | 0 | `claude plugin marketplace add <repo>` + `claude plugin install <plugin>@<marketplace>` |
 
