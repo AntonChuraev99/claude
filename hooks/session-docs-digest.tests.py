@@ -190,6 +190,68 @@ def case_line_budget(root):
           str(ctx(parsed).count("Запись бэклога номер")))
 
 
+def _nbytes(s):
+    return len(s.encode("utf-8"))
+
+
+def case_context_budget(root):
+    """51 active docs in one project pushed additionalContext past the size the
+    CLI still inlines; the model got a `<persisted-output>` stub instead
+    (2026-09-15, 131 sessions). The budget keeps every entry reachable: one
+    line each first, detail for the newest with what is left."""
+    import re
+    goal = "Цель задачи, расписанная достаточно подробно, чтобы занять всю строку " \
+           "описания с запасом сверх того, как в настоящих доках проекта."
+    for i in range(60):
+        make_active(root, "a%02d.md" % i, "Активная задача номер %02d" % i, days=i + 1, goal=goal)
+
+    _, parsed, _ = run_hook(root)
+    c = ctx(parsed)
+    rows = [l for l in c.splitlines() if l.startswith("- Активная задача номер")]
+    check("context within default budget", _nbytes(c) <= 8000, "%d bytes" % _nbytes(c))
+    check("every entry has a line at the default budget", len(rows) == 60 and "и ещё" not in c,
+          "%d rows" % len(rows))
+    check("newest entry keeps its full form",
+          "- Активная задача номер 00 (" in c and "\n  docs/active/a00.md\n" in c, c[:600])
+    check("oldest entry collapsed to one line with a path",
+          any(l.startswith("- Активная задача номер 59 — docs/active/a59.md") for l in rows),
+          repr(rows[-3:]))
+    check("full entries are the newest ones",
+          re.search(r"— docs/active/a\d\d\.md\n- Активная задача номер \d\d \(", c) is None, c)
+    check("closing note present", "фоновая справка" in c, c[-300:])
+
+    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_CONTEXT_BYTES": "1500"})
+    c = ctx(parsed)
+    m = re.search(r"… и ещё (\d+) — см\. docs/active/", c)
+    shown = sum(1 for l in c.splitlines() if l.startswith("- Активная задача номер"))
+    check("tight budget respected", _nbytes(c) <= 1500, "%d bytes" % _nbytes(c))
+    check("hidden entries counted under a tight budget",
+          m is not None and 0 < shown < 60 and shown + int(m.group(1)) == 60,
+          "shown=%d tail=%r" % (shown, m.group(0) if m else None))
+    check("closing note survives a tight budget", "фоновая справка" in c, c[-300:])
+
+    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_CONTEXT_BYTES": "100000"})
+    c = ctx(parsed)
+    check("raised budget → every entry full",
+          c.count("\n  docs/active/a") == 60 and "и ещё" not in c,
+          "%d paths" % c.count("\n  docs/active/a"))
+
+
+def case_context_hot_first(root):
+    """A due resume trigger is the one line that asks for action today — it is
+    allocated before the active list, even under a budget that hides most of it."""
+    for i in range(60):
+        make_active(root, "a%02d.md" % i, "Активная задача номер %02d" % i, days=i + 1,
+                    goal="Цель задачи, расписанная достаточно подробно, чтобы занять строку.")
+    make_todo(root, "hot.md", "Наступивший триггер", days=4, trigger="после %s" % ago(2))
+    _, parsed, _ = run_hook(root, env_extra={"CLAUDE_DIGEST_CONTEXT_BYTES": "1500"})
+    c = ctx(parsed)
+    check("context within the tight budget with hot todo", _nbytes(c) <= 1500, "%d bytes" % _nbytes(c))
+    check("hot todo kept in full form",
+          "- Наступивший триггер (" in c and "ТРИГГЕР НАСТАЛ\n  docs/todos/hot.md\n" in c, c[-900:])
+    check("most active entries hidden", "… и ещё" in c, c[-300:])
+
+
 def case_priority_and_sections(root):
     make_backlog(root, "b1.md", "Бэклог раз", days=1)
     make_todo(root, "t1.md", "Ждём стор", days=2)
@@ -352,7 +414,8 @@ def case_no_title_fallback(root):
 
 CASES = [
     case_silent_without_docs, case_silent_when_all_done, case_backlog_only,
-    case_source_aware, case_line_budget, case_priority_and_sections,
+    case_source_aware, case_line_budget, case_context_budget, case_context_hot_first,
+    case_priority_and_sections,
     case_hot_resume_trigger, case_index_drift, case_index_in_sync, case_width,
     case_column_alignment, case_color_flag, case_color_does_not_break_width,
     case_active_statuses, case_malformed_input,
