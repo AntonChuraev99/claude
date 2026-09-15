@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-15 | [gate-review-tests-relax](2026-09-15-gate-review-tests-relax.md) | applied | 2026-09-29 | pending |
 | 2026-09-15 | [hook-timeouts-are-paging](2026-09-15-hook-timeouts-are-paging.md) | applied | 2026-09-29 | pending |
 | 2026-09-15 | [doc-writer-dissolve](2026-09-15-doc-writer-dissolve.md) | applied | 2026-09-29 | pending |
 | 2026-09-14 | [agent-watchdog-zero-transcript](2026-09-14-agent-watchdog-zero-transcript.md) | applied | 2026-09-28 | pending |
