@@ -31,9 +31,12 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 
 `feature-expert`, `compose-expert`, `core-expert`, `android-platform-expert`, `kmp-expert`,
 `nextjs-expert`, `react-ui-expert`, `wasmjs-expert`, `design-expert`, `test-expert`,
-`doc-writer`, `knowledge-scout`, `best-practices-scout`. Domain specialists plus two
-"scout" agents that read docs / the web on the main agent's behalf to keep its context
-clean.
+`knowledge-scout`, `best-practices-scout`. Domain specialists plus two "scout" agents
+that read docs / the web on the main agent's behalf to keep its context clean. There is
+deliberately no "doc-writer" agent: task documentation is written by the main agent
+(`skills/doc-task`) because only it holds the facts, and a deterministic hook
+(`hooks/docs-facts-guard.js`) checks every identifier, path, link and measurement in the
+document against the repository.
 
 ### Skills (`skills/`)
 
@@ -45,7 +48,8 @@ subagent), `claude-profiles` (multi-account profiles, linking rules, and the per
 credential registry that guards against deploying with another project's account).
 
 **Workflow skills:** `commit`, `task-gate` (per-task Definition of Done gate; formerly
-`end-session`), `git-commit-conventions`, `git-worktree-env`, `gradle-deps-update`,
+`end-session`), `doc-task` (task document and permanent solution/decision docs, written by
+the main agent and fact-checked by `docs-facts-guard`), `git-commit-conventions`, `git-worktree-env`, `gradle-deps-update`,
 `android-core-module-builder`, `android-feature-module-builder`, `ab-test-dashboard`,
 `amplitude-slack-payload`, `cloudflare-deploy-slack-notify`, `gitlab-release-slack-ci`,
 `jira-task-writer`, `test-firebase-function`, `turnstile-spin`.
@@ -60,14 +64,17 @@ credential registry that guards against deploying with another project's account
 ├── CLAUDE.md                  # global system prompt (< 200 lines)
 ├── settings.example.json      # → copy to settings.json
 ├── rules/                     # path-scoped rules, loaded on matching file access
-├── agents/                    # 15 subagents
+├── agents/                    # 17 subagents
 ├── skills/                    # authored skills (process + workflow)
 ├── commands/                  # 6 slash commands
 ├── references/
 ├── config/                    # *.example.md templates → *.local.md
 ├── hooks/                     # hook scripts (SessionStart / PreToolUse / PostToolUse / Stop)
 │   ├── session-docs-digest.py # SessionStart: digest of in-progress / deferred / backlog task docs
-│   └── claude-md-size-guard.py # SessionStart: warns when a CLAUDE.md passes 200 lines
+│   ├── claude-md-size-guard.py # SessionStart: warns when a CLAUDE.md passes 200 lines
+│   ├── docs-facts-guard.js    # PostToolUse: identifiers/paths/links/numbers in docs/ must exist in the repo
+│   ├── docs-length-guard.js   # PostToolUse: length budget for docs/solutions + docs/decisions
+│   └── iteration-log-reminder.ps1 # PostToolUse(Agent): append an iteration line to the task doc
 ├── lib/                       # shared by the status line and the hooks
 │   ├── term.py                # console width, display width, truncation, ANSI
 │   └── hookout.py             # one output shape for every hook that prints
@@ -77,7 +84,6 @@ credential registry that guards against deploying with another project's account
 ├── statusline.py              # status line (branch · context · cost · RAM · device · state · task)
 ├── statusline-adb.sh          # detached ADB device probe feeding the status line
 ├── statusline.sh              # shim → statusline.py (for sessions started before the switch)
-├── doc-writer-update-reminder.ps1
 ├── toast-action.ps1 / .vbs    # toast button actions (open folder / focus terminal)
 └── LICENSE
 ```

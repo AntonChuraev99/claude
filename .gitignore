@@ -28,7 +28,6 @@
 !/statusline.sh
 !/statusline-adb.sh
 !/graphify-pretool.ps1
-!/doc-writer-update-reminder.ps1
 !/toast-action.ps1
 !/toast-action-launcher.vbs
 
@@ -131,6 +130,8 @@ lib/__pycache__/
 !/skills/commit/**
 !/skills/task-gate/
 !/skills/task-gate/**
+!/skills/doc-task/
+!/skills/doc-task/**
 !/skills/git-commit-conventions/
 !/skills/git-commit-conventions/**
 !/skills/git-worktree-env/

@@ -26,7 +26,7 @@
     has: '--set-(env-vars|secrets)\b'
   message: "--set-env-vars / --set-secrets имеют replace-семантику: на redeploy затирают существующие секреты/env (/secrets/sa-key.json, GEMINI_API_KEY) -> 'работало вчера, сломалось сегодня'."
   fix: "использовать --update-env-vars / --update-secrets (merge-семантика) при инкрементальном деплое."
-  source: "agent-memory/doc-writer/cross-service-deployment-patterns.md Pattern 2"
+  source: "agent-memory (gitignored) cross-service-deployment-patterns, Pattern 2 — прецедент redeploy с затёртыми секретами"
 
 - id: cloud-functions-deploy-skew
   mode: runtime

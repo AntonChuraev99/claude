@@ -289,7 +289,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\doc-writer-update-reminder.ps1\""
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\iteration-log-reminder.ps1\""
           }
         ]
       },
@@ -301,6 +301,12 @@
             "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\docs-length-guard.js\"",
             "timeout": 10,
             "statusMessage": "docs budget: считаю объём документа…"
+          },
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\docs-facts-guard.js\"",
+            "timeout": 15,
+            "statusMessage": "docs facts: сверяю имена, пути и числа с репозиторием…"
           }
         ]
       }

@@ -18,7 +18,7 @@ keywords: [protected-branch, hooks, PreToolUse, bash, git, worktree, MR]
 
 1. **Запись через `Bash`.** `cat > f <<EOF`, `sed -i`, `tee`, `Set-Content`, `git apply`, `git checkout <ref> -- path`. На `Bash` висит только `credentials-guard` (деплой/публикация), путей записи он не смотрит.
 2. **История через `Bash`.** `git merge`, `git cherry-pick`, `git revert`, `git rebase` в транк. `/sync-local-develop` от локального merge в транк уже отговорён (шаг 2a), но это текст команды, а не гейт.
-3. **Фоновые субагенты.** `run_in_background: true` не наследует PreToolUse вовсе. Закрыто процедурно: правило `no-code-on-protected-branch` в `review-rules/process-gate.yaml` + проверка ветки в `agents/doc-writer.md` + пункт 12 чеклиста `subagent-authoring`. Хука по-прежнему нет.
+3. **Фоновые субагенты.** `run_in_background: true` не наследует PreToolUse вовсе. Закрыто процедурно: правило `no-code-on-protected-branch` в `review-rules/process-gate.yaml` + пункт 12 чеклиста `subagent-authoring` (проверка ветки в теле каждого фонового агента с правом записи; единственный такой агент, `doc-writer`, распущен 2026-09-15 — документы теперь пишет главный, которого хук ловит). Хука для фоновых по-прежнему нет.
 4. **Детектор деградации.** Хук fail-open по всей длине (`catch { exit 0 }`). Битый реестр, отсутствующий `pwsh`, таймаут 10 c — правило выключается молча. Replay 2026-08-18 не отличит «ни разу не понадобился» от «сломан и не звал».
 
 ## Почему отложено

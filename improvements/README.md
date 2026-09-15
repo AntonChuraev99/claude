@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-15 | [doc-writer-dissolve](2026-09-15-doc-writer-dissolve.md) | applied | 2026-09-29 | pending |
 | 2026-09-14 | [agent-watchdog-zero-transcript](2026-09-14-agent-watchdog-zero-transcript.md) | applied | 2026-09-28 | pending |
 | 2026-09-14 | [task-gate-artifact-handoff](2026-09-14-task-gate-artifact-handoff.md) | applied | 2026-09-28 | pending |
 | 2026-09-09 | [workspace-session-control-preflight](2026-09-09-workspace-session-control-preflight.md) | applied | 2026-09-23 | pending |
