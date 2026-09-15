@@ -68,8 +68,9 @@ const GROWTH_TOLERANCE = 1.25;
 // это уже не заявление автора, а цитата или пример.
 const MARKER_HEAD_LINES = 15;
 // stdin без EOF не должен держать процесс: matcher безусловный, а таймаут хука в
-// settings — 10 с. Инцидент этого профиля (error-logs/README.md — «stdin-EOF гонка
-// под нагрузкой») уже случался с соседним node-хуком.
+// settings — 10 с. Разбор 2026-09-15 (improvements/2026-09-15-hook-timeouts-are-paging.md)
+// показал, что таймауты node-хуков этого профиля — стойка ДО старта процесса под
+// подкачкой, а не stdin; guard остаётся как дешёвая страховка от зависшего stdin.
 const STDIN_TIMEOUT_MS = 2000;
 const GIT_TIMEOUT_MS = 5000;
 

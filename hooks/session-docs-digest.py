@@ -13,9 +13,16 @@ Output is two different things for two different readers:
   budget**, not by an entry count, and scaled down by `source`: a `/clear` in
   the middle of a working session gets one summary line, an auto-compact gets
   nothing at all.
-* `additionalContext` — what the MODEL sees. Always the complete list,
-  regardless of `source`: `/clear` and `/compact` wipe the model's context, so
-  this is exactly when the full list has to be re-injected.
+* `additionalContext` — what the MODEL sees. Every entry, regardless of
+  `source`: `/clear` and `/compact` wipe the model's context, so this is
+  exactly when the list has to be re-injected. Sized by a **byte budget**
+  (`CLAUDE_DIGEST_CONTEXT_BYTES`, default 8 000): the CLI replaces a hook
+  output past roughly 12 KB with `<persisted-output> Output too large` and a
+  file path, and the model gets nothing (2026-09-15: 131 sessions in one
+  project with 51 active docs). Every entry gets its one-line form first,
+  then the newest are upgraded to three lines while the budget lasts, and
+  whatever did not fit even as one line is counted per section. Hot todo
+  triggers are allocated before everything else.
 
 Rendering rules learned the hard way (2026-08-10):
 
@@ -33,6 +40,8 @@ Any error is swallowed — an informational hook must never break session start.
 
 Env
     CLAUDE_DIGEST_LINES  — line budget for the visible block (default 14)
+    CLAUDE_DIGEST_CONTEXT_BYTES — UTF-8 byte budget for additionalContext
+                           (default 8000, floor 1000)
     CLAUDE_DIGEST_COLOR  — 0/off/false to drop the ANSI dim on the fixed columns;
                            on by default (the CLI forwards escapes to the
                            terminal — verified live 2026-08-10)
@@ -55,6 +64,11 @@ from hookout import WARN, cwd_of, emit, force_utf8, read_payload, width  # noqa:
 from term import DIM, RESET, dpad, dtrunc, dwidth  # noqa: E402
 
 DEFAULT_BUDGET = 14
+# Below the size at which the CLI stops inlining a hook's additionalContext
+# (observed 2026-09-15: 12.3 KB persisted, 16.8 KB still inline — the cut is
+# not a plain byte count, so the margin is a third).
+DEFAULT_CONTEXT_BYTES = 8000
+MIN_CONTEXT_BYTES = 1000
 MIN_TITLE_COLS = 16
 MAX_META_COLS = 20
 SKIP_FILES = ("TEMPLATE.md", "INDEX.md", "README.md")
@@ -351,32 +365,114 @@ def render_screen(project, sections, warns, budget, width, color):
 # rendering — the model-facing context
 # --------------------------------------------------------------------------
 
+def context_budget():
+    try:
+        return max(MIN_CONTEXT_BYTES,
+                   int(os.environ.get("CLAUDE_DIGEST_CONTEXT_BYTES") or DEFAULT_CONTEXT_BYTES))
+    except ValueError:
+        return DEFAULT_CONTEXT_BYTES
+
+
+def size(text):
+    """The CLI's cut is by output size, not by characters — Cyrillic is two
+    bytes a letter, so a character budget would be off by half."""
+    return len(text.encode("utf-8"))
+
+
+HOT_MARK = " — ТРИГГЕР НАСТАЛ"
+
+
+def entry_full(e):
+    """Three lines: title with date/meta, path, first line of the goal."""
+    head = "- %s" % e["title"]
+    bits = [b for b in (e["raw_date"], e["meta"]) if b]
+    if bits:
+        head += " (%s)" % ", ".join(bits)
+    if e["hot"]:
+        head += HOT_MARK
+    lines = [head, "  %s/%s" % (e["folder"], e["file"])]
+    if e["desc"]:
+        lines.append("  %s" % e["desc"])
+    return "\n".join(lines)
+
+
+def entry_short(e):
+    """One line: enough to name the doc and open it."""
+    return "- %s — %s/%s%s" % (e["title"], e["folder"], e["file"], HOT_MARK if e["hot"] else "")
+
+
+def plan_context(sections, budget, fixed_size):
+    """Rendered text per entry (keyed by `id(entry)`) under a byte budget;
+    an entry with no text did not fit even as one line.
+
+    Hot todo triggers go first, in full. Then two passes over document order
+    (each section is already newest-first): pass one reserves the one-line
+    form for as many entries as fit, so every doc keeps a path before any doc
+    gets its detail; pass two upgrades entries to the full form while the
+    difference still fits.
+    """
+    remaining = budget - fixed_size
+    for sec in sections:
+        if sec["entries"]:
+            remaining -= size("%s (%d)%s:" % (sec["title"], len(sec["entries"]), sec["note"])) + 2
+            remaining -= 60                     # room for a possible "… и ещё N" line
+    rendered = {}
+
+    def take(e, text):
+        nonlocal remaining
+        if size(text) + 1 > remaining:
+            return False
+        rendered[id(e)] = text
+        remaining -= size(text) + 1
+        return True
+
+    hot = [e for sec in sections for e in sec["entries"] if e["hot"]]
+    rest = [e for sec in sections for e in sec["entries"] if not e["hot"]]
+    for e in hot:
+        take(e, entry_full(e)) or take(e, entry_short(e))
+    for e in rest:
+        take(e, entry_short(e))
+    for e in rest:
+        if id(e) not in rendered:
+            break                               # nothing after this one has a line either
+        extra = size(entry_full(e)) - size(rendered[id(e)])
+        if extra > remaining:
+            break                               # keep the newest-first shape: no skipping ahead
+        rendered[id(e)] = entry_full(e)
+        remaining -= extra
+    return rendered
+
+
 def render_context(sections, warns):
-    out = ["Дайджест доков задач проекта (docs/active + docs/todos + docs/backlog):"]
+    budget = context_budget()
+    header = "Дайджест доков задач проекта (docs/active + docs/todos + docs/backlog):"
+    tail = ["ВНИМАНИЕ: %s" % w for w in warns]
+    tail.append("Это фоновая справка о незавершённых/отложенных задачах проекта — не начинай "
+                "работу по этим докам без явного запроса пользователя. В терминале пользователю "
+                "показана сокращённая версия — на вопрос «что в работе/отложено/в бэклоге?» "
+                "отвечай из этого списка; запись, свёрнутую до одной строки или в счётчик "
+                "«ещё N», открывай по её папке.")
+    fixed_size = size(header) + sum(size(t) + 2 for t in tail)
+    rendered = plan_context(sections, budget, fixed_size)
+
+    out = [header]
     for sec in sections:
         if not sec["entries"]:
             continue
         out.append("")
         out.append("%s (%d)%s:" % (sec["title"], len(sec["entries"]), sec["note"]))
+        hidden = 0
         for e in sec["entries"]:
-            head = "- %s" % e["title"]
-            bits = [b for b in (e["raw_date"], e["meta"]) if b]
-            if bits:
-                head += " (%s)" % ", ".join(bits)
-            if e["hot"]:
-                head += " — ТРИГГЕР НАСТАЛ"
-            out.append(head)
-            out.append("  %s/%s" % (e["folder"], e["file"]))
-            if e["desc"]:
-                out.append("  %s" % e["desc"])
-    for w in warns:
+            text = rendered.get(id(e))
+            if text is None:
+                hidden += 1
+                continue
+            out.append(text)
+        if hidden:
+            out.append("  … и ещё %d — см. %s/" % (hidden, sec["entries"][0]["folder"]))
+    for t in tail:
         out.append("")
-        out.append("ВНИМАНИЕ: %s" % w)
-    out.append("")
-    out.append("Это фоновая справка о незавершённых/отложенных задачах проекта — не начинай "
-               "работу по этим докам без явного запроса пользователя. В терминале пользователю "
-               "показана сокращённая версия — на вопрос «что в работе/отложено/в бэклоге?» "
-               "отвечай из этого полного списка.")
+        out.append(t)
     return "\n".join(out)
 
 
