@@ -110,7 +110,9 @@ try {
     #    Инструмент ищется В ПОЗИЦИИ КОМАНДЫ (начало строки либо после ; && || |), иначе
     #    блокировалось всё, где слово встречается внутри строки: `echo "firebase deploy"`,
     #    `git commit -m "fix wrangler deploy"`, тексты отчётов. До перевода на deny эти
-    #    ложные срабатывания были не видны — CLI проглатывал ask.
+    #    ложные срабатывания были не видны — CLI проглатывал ask. Скобка открывает
+    #    позицию команды только как subshell — не после буквы: `fix(firebase): deploy`
+    #    в commit-message — scope Conventional Commits, а не вызов (ревью 2026-09-18).
     #    Позицию команды открывают и обёртки: `npx wrangler deploy` — канонический вызов
     #    wrangler, и без этого он обходил guard целиком (как и `pnpm dlx`, `bash -c`,
     #    префикс `VAR=1 gcloud ...`). Паттерн один на детект и на разбор сервисов —
@@ -131,7 +133,7 @@ try {
         }
     } catch { }
     $wrap = '(?:(?:npx|pnpm|yarn|bunx|sudo|env|command|time|nice)\s+(?:dlx\s+|exec\s+|-\S+\s+)*|\w+=\S+\s+|bash\s+-c\s+["'']?|sh\s+-c\s+["'']?)*'
-    $posRe = "(?m)(?:^|[;&|(]|&&|\|\|)\s*$wrap"
+    $posRe = "(?m)(?:^|[;&|]|(?<![\w)])\(|&&|\|\|)\s*$wrap"
     if ($cmd -notmatch "$posRe($tool)\b" -or $cmd -notmatch "\b($verb)") { exit 0 }
 
     # Какие именно сервисы задействованы — от этого зависит, что сверять.

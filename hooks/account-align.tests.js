@@ -119,6 +119,28 @@ check('subshell (gcloud …) — по-прежнему позиция коман
 check('подстановка $(gcloud …) — по-прежнему позиция команды',
     align('TOKEN=$(gcloud auth print-access-token)', ALPHA),
     'TOKEN=$(gcloud --account=personal@example.com --project=alpha-1 auth print-access-token)');
+// Класс, а не экземпляр: внутри кавычек любой разделитель — текст. Ревью 2026-09-18
+// показало, что одна скобка scope закрывает наблюдавшийся случай, но не `(` после
+// пробела, `;` и `&&` в теле сообщения.
+check('скобка после пробела внутри commit-message — текст',
+    align('git commit -m "docs: описать (gcloud storage cp) для экспорта"', ALPHA), null);
+check('точка с запятой внутри commit-message — текст',
+    align('git commit -m "fix: убрать gsutil; gcloud storage ls теперь основной"', ALPHA), null);
+check('heredoc commit-message внутри "$(cat <<EOF …)" — текст',
+    align('git commit -m "$(cat <<\'EOF\'\nchore(gcloud): перейти на gcloud storage\nEOF\n)"', ALPHA), null);
+check('одинарные кавычки — текст',
+    align("git commit -m 'fix(firebase): deploy hotfix'", ALPHA), null);
+check('экранированная кавычка не закрывает строку',
+    align('echo "say \\"hi\\"; gcloud run deploy" && gcloud storage ls', ALPHA),
+    'echo "say \\"hi\\"; gcloud run deploy" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('PowerShell: `" внутри двойных кавычек не закрывает строку',
+    align('echo "say `"hi`"; gcloud run deploy"', ALPHA), null);
+check('команда после строки с тем же словом выравнивается, строка — нет',
+    align('echo "run gcloud later" && gcloud storage ls', ALPHA),
+    'echo "run gcloud later" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('firebase выравнивается, gcloud в его аргументе — нет',
+    align('firebase deploy -m "see gcloud"', ALPHA),
+    'firebase --account=personal@example.com deploy -m "see gcloud"');
 check('каталог вне реестра', align('firebase deploy', 'C:\\Users\\U\\Projects\\unknown'), null);
 check('пустая команда', align('   ', ALPHA), null);
 

@@ -148,9 +148,8 @@ function effectiveDir(command, cwd) {
 // строки, после разделителя, после подстановки или обёртки вроде `npx`. Иначе
 // слово `firebase` внутри пути или grep-паттерна тоже получило бы флаг.
 // Скобка — позиция команды только как subshell, то есть после пробела, начала
-// строки или другого разделителя. `chore(gcloud): …` в commit-message — это
-// scope Conventional Commits, а не subshell: 2026-09-18 хук вписал туда
-// `--account=<почта>`, и коммит с почтой ушёл бы в публичный репозиторий.
+// строки или другого разделителя, не после буквы: `chore(gcloud)` без кавычек
+// shell всё равно не примет, а вот `if(gcloud …)` PowerShell — примет.
 function commandPositionRe(tool) {
     return new RegExp(
         // 1: всё, что легально стоит перед именем команды
@@ -161,8 +160,54 @@ function commandPositionRe(tool) {
     );
 }
 
+// Содержимое кавычек — данные команды, не команда: `git commit -m "chore(gcloud):
+// …"`, `-m "описать (gcloud storage cp)"`, `-m "…; gcloud …"` — всё это текст,
+// и разделители внутри него позицией команды не являются. 2026-09-18 хук вписал
+// `--account=<почта>` в scope commit-message, и коммит с почтой ушёл бы в
+// публичный репозиторий. Маска заменяет содержимое кавычек пробелами той же
+// длины: позиции совпадений в маске равны позициям в исходной строке, замена
+// делается по исходной. Цена — `"$(gcloud …)"` внутри кавычек не выравнивается
+// (исполнится под глобальным аккаунтом, как и `bash -c "gcloud …"` до этого);
+// guard при расхождении такую команду блокирует, утечки нет.
+function maskQuoted(command) {
+    const cmd = String(command || '');
+    let out = '';
+    let i = 0;
+    while (i < cmd.length) {
+        const ch = cmd[i];
+        if (ch !== '"' && ch !== "'") { out += ch; i++; continue; }
+        const quote = ch;
+        out += quote;
+        i++;
+        while (i < cmd.length && cmd[i] !== quote) {
+            // `\"` (bash) и `` `" `` (PowerShell) внутри двойных кавычек строку не закрывают.
+            if (quote === '"' && (cmd[i] === '\\' || cmd[i] === '`') && i + 1 < cmd.length) { out += '  '; i += 2; continue; }
+            out += cmd[i] === '\n' ? '\n' : ' ';
+            i++;
+        }
+        if (i < cmd.length) { out += quote; i++; }
+    }
+    return out;
+}
+
 function mentionsTool(command, tool) {
-    return commandPositionRe(tool).test(String(command || ''));
+    return commandPositionRe(tool).test(maskQuoted(command));
+}
+
+// Дописывает `suffix` после каждого вхождения инструмента в позиции команды —
+// позиции ищутся по маске, текст берётся из исходной строки.
+function appendAfterTool(command, tool, suffix) {
+    const masked = maskQuoted(command);
+    const re = commandPositionRe(tool);
+    let out = '';
+    let last = 0;
+    let m;
+    while ((m = re.exec(masked)) !== null) {
+        const end = m.index + m[0].length;
+        out += command.slice(last, end) + suffix;
+        last = end;
+    }
+    return out + command.slice(last);
 }
 
 // Команды, которые сами управляют авторизацией. Подставлять в них аккаунт
@@ -227,14 +272,13 @@ function alignCommand(command, cwd, options) {
     if (mentionsTool(out, 'gcloud')) {
         const flags = gcloudFlags(row, hasAccount, hasProject);
         if (flags) {
-            out = out.replace(commandPositionRe('gcloud'), (m, lead, gap, tool) => `${lead}${gap}${tool}${flags}`);
+            out = appendAfterTool(out, 'gcloud', flags);
             applied.push('gcloud');
         }
     }
 
     if (mentionsTool(out, 'firebase') && !hasAccount && row.account) {
-        const flag = `--account=${shellQuote(row.account)}`;
-        out = out.replace(commandPositionRe('firebase'), (m, lead, gap, tool) => `${lead}${gap}${tool} ${flag}`);
+        out = appendAfterTool(out, 'firebase', ` --account=${shellQuote(row.account)}`);
         applied.push('firebase');
     }
 
