@@ -107,6 +107,18 @@ check('слово firebase внутри пути, не команда',
     align('cat /c/proj/firebase.json', ALPHA), null);
 check('слово gcloud в аргументе, не команда',
     align('echo "run gcloud later"', ALPHA), null);
+// Скобка scope в Conventional Commits — не subshell. Прецедент 2026-09-18:
+// `chore(gcloud): …` получил `--account=<почта>` и чуть не уехал в публичный репо.
+check('scope commit-message: chore(gcloud) — не позиция команды',
+    align('git commit -m "chore(gcloud): перейти с gsutil на gcloud storage"', ALPHA), null);
+check('scope commit-message: fix(firebase) — не позиция команды',
+    align('git commit -m "fix(firebase): reauth flow"', ALPHA), null);
+check('subshell (gcloud …) — по-прежнему позиция команды',
+    align('(gcloud storage ls)', ALPHA),
+    '(gcloud --account=personal@example.com --project=alpha-1 storage ls)');
+check('подстановка $(gcloud …) — по-прежнему позиция команды',
+    align('TOKEN=$(gcloud auth print-access-token)', ALPHA),
+    'TOKEN=$(gcloud --account=personal@example.com --project=alpha-1 auth print-access-token)');
 check('каталог вне реестра', align('firebase deploy', 'C:\\Users\\U\\Projects\\unknown'), null);
 check('пустая команда', align('   ', ALPHA), null);
 

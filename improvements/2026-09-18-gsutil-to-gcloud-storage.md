@@ -33,6 +33,7 @@ target_date: 2026-10-02
 - `hooks/credentials-guard.ps1` — комментарий, почему детект `gsutil` остаётся.
 - `hooks/credentials-guard-prefilter.tests.js` — кейс `gcloud storage rm -r` (30/30 зелёные).
 - `docs/decisions/credentials-account-injection-2026-09-07.md` — граница покрытия актуализирована.
+- `hooks/account-align.js` — баг, вскрытый коммитом этой задачи: `commandPositionRe` считал любую `(` позицией команды, и `git commit -m "chore(gcloud): …"` получил `chore(gcloud --account=<почта>): …` — почта в публичном репозитории (коммит amend'нут до push). Скобка теперь позиция команды только как subshell — не после буквы или `)`. Красный репро: на старом регексе 2 из 40 кейсов падают (`chore(gcloud)`, `fix(firebase)`), subshell `(gcloud …)` и `$(gcloud …)` по-прежнему выравниваются.
 
 ## Target
 
