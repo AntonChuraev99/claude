@@ -160,44 +160,166 @@ function commandPositionRe(tool) {
     );
 }
 
-// Содержимое кавычек — данные команды, не команда: `git commit -m "chore(gcloud):
-// …"`, `-m "описать (gcloud storage cp)"`, `-m "…; gcloud …"` — всё это текст,
-// и разделители внутри него позицией команды не являются. 2026-09-18 хук вписал
-// `--account=<почта>` в scope commit-message, и коммит с почтой ушёл бы в
-// публичный репозиторий. Маска заменяет содержимое кавычек пробелами той же
-// длины: позиции совпадений в маске равны позициям в исходной строке, замена
-// делается по исходной. Цена — `"$(gcloud …)"` внутри кавычек не выравнивается
-// (исполнится под глобальным аккаунтом, как и `bash -c "gcloud …"` до этого);
-// guard при расхождении такую команду блокирует, утечки нет.
-function maskQuoted(command) {
+// Текст команды — не команда: содержимое кавычек, heredoc, PowerShell here-string
+// и комментарии. `git commit -m "chore(gcloud): …"`, `-m "описать (gcloud storage
+// cp)"`, `-m "…; gcloud …"`, тело `<<'EOF'` — разделители внутри этого позицией
+// команды не являются. 2026-09-18 хук вписал `--account=<почта>` в scope
+// commit-message, и коммит с почтой ушёл бы в публичный репозиторий.
+//
+// Маска заменяет текст пробелами той же длины (переводы строк сохраняются):
+// позиции совпадений в маске равны позициям в исходной строке, замена делается
+// по исходной. Правила экранирования — по шеллу, а не обоих разом: bash — `\`
+// внутри "…" и в $'…'; PowerShell — `` ` `` внутри "…", `""` и `''` как
+// экранированная кавычка. Применить оба набора сразу нельзя: `\"` в
+// PowerShell-пути или `` `" `` в bash съедали бы закрывающую кавычку, и следующая
+// строка в кавычках оказывалась бы «снаружи» — ровно инверсия, которую ревью
+// 2026-09-18 показало на первой версии маски. Подстановка `$(…)` внутри "…"
+// разбирается как код, чтобы её кавычки и heredoc'и не закрыли внешнюю строку,
+// но скрывается целиком: `"$(gcloud …)"` не выравнивается (исполнится под
+// глобальным аккаунтом, как и `bash -c "gcloud …"`); guard при расхождении
+// такую команду блокирует, утечки нет.
+function maskText(command, shell) {
     const cmd = String(command || '');
-    let out = '';
+    const ps = shell === 'powershell';
+    const n = cmd.length;
+    const out = new Array(n);
     let i = 0;
-    while (i < cmd.length) {
-        const ch = cmd[i];
-        if (ch !== '"' && ch !== "'") { out += ch; i++; continue; }
-        const quote = ch;
-        out += quote;
-        i++;
-        while (i < cmd.length && cmd[i] !== quote) {
-            // `\"` (bash) и `` `" `` (PowerShell) внутри двойных кавычек строку не закрывают.
-            if (quote === '"' && (cmd[i] === '\\' || cmd[i] === '`') && i + 1 < cmd.length) { out += '  '; i += 2; continue; }
-            out += cmd[i] === '\n' ? '\n' : ' ';
-            i++;
+    const pendingHeredocs = [];
+    const hide = () => { out[i] = cmd[i] === '\n' ? '\n' : ' '; i++; };
+    const keep = () => { out[i] = cmd[i]; i++; };
+    const at = (k) => (k < n ? cmd[k] : '');
+
+    // "…" — до неэкранированной закрывающей кавычки, всё внутри скрыто.
+    function double() {
+        hide();
+        while (i < n) {
+            const ch = cmd[i];
+            if (ch === '"') {
+                if (ps && at(i + 1) === '"') { hide(); hide(); continue; }
+                hide();
+                return;
+            }
+            if (!ps && ch === '\\' && i + 1 < n) { hide(); hide(); continue; }
+            if (ps && ch === '`' && i + 1 < n) { hide(); hide(); continue; }
+            if (ch === '$' && at(i + 1) === '(') { subst(); continue; }
+            if (ch === '\n') { hide(); drainHeredocs(); continue; }
+            hide();
         }
-        if (i < cmd.length) { out += quote; i++; }
     }
-    return out;
+
+    // '…' — bash без экранирования, PowerShell со '' как кавычкой, $'…' с `\`.
+    function single(ansiC) {
+        hide();
+        while (i < n) {
+            const ch = cmd[i];
+            if (ch === "'") {
+                if (ps && at(i + 1) === "'") { hide(); hide(); continue; }
+                hide();
+                return;
+            }
+            if (ansiC && ch === '\\' && i + 1 < n) { hide(); hide(); continue; }
+            hide();
+        }
+    }
+
+    // $(…) внутри кавычек — код со своими кавычками, heredoc'ами и скобками;
+    // скрывается целиком, но разбирается, чтобы найти настоящую закрывающую скобку.
+    function subst() {
+        hide();
+        hide();
+        let depth = 1;
+        while (i < n && depth > 0) {
+            const ch = cmd[i];
+            if (ch === '"') { double(); continue; }
+            if (ch === "'") { single(false); continue; }
+            if (!ps && ch === '$' && at(i + 1) === "'") { hide(); single(true); continue; }
+            if (!ps && ch === '\\' && i + 1 < n) { hide(); hide(); continue; }
+            if (!ps && ch === '<' && at(i + 1) === '<' && at(i + 2) !== '<') { heredocMarker(hide); continue; }
+            if (ch === '$' && at(i + 1) === '(') { subst(); continue; }
+            if (ch === '\n') { hide(); drainHeredocs(); continue; }
+            if (ch === '(') depth++;
+            else if (ch === ')') depth--;
+            hide();
+        }
+    }
+
+    // bash `<<[-]WORD` — маркер остаётся кодом, тело начнётся со следующей строки.
+    function heredocMarker(emit) {
+        emit();
+        emit();
+        let stripTabs = false;
+        if (at(i) === '-') { stripTabs = true; emit(); }
+        while (at(i) === ' ' || at(i) === '\t') emit();
+        let q = null;
+        if (at(i) === '"' || at(i) === "'") { q = at(i); emit(); }
+        let word = '';
+        while (i < n && /[\w-]/.test(cmd[i])) { word += cmd[i]; emit(); }
+        if (q && at(i) === q) emit();
+        if (word) pendingHeredocs.push({ word, stripTabs });
+    }
+
+    // Тела heredoc'ов, объявленных на прошлой строке, — до строки-терминатора.
+    function drainHeredocs() {
+        while (pendingHeredocs.length) {
+            const { word, stripTabs } = pendingHeredocs.shift();
+            while (i < n) {
+                let lineEnd = cmd.indexOf('\n', i);
+                if (lineEnd < 0) lineEnd = n;
+                let line = cmd.slice(i, lineEnd);
+                if (stripTabs) line = line.replace(/^\t+/, '');
+                const done = line === word;
+                while (i < lineEnd) hide();
+                if (i < n) hide();
+                if (done) break;
+            }
+        }
+    }
+
+    // PowerShell here-string `@"…"@` / `@'…'@` — от открывающей до `\n"@`.
+    function hereString(q) {
+        const term = '\n' + q + '@';
+        const end = cmd.indexOf(term, i + 2);
+        const stop = end < 0 ? n : end + term.length;
+        while (i < stop) hide();
+    }
+
+    function lineComment() {
+        while (i < n && cmd[i] !== '\n') hide();
+    }
+
+    function blockComment() {
+        const end = cmd.indexOf('#>', i + 2);
+        const stop = end < 0 ? n : end + 2;
+        while (i < stop) hide();
+    }
+
+    while (i < n) {
+        const ch = cmd[i];
+        if (ch === '\n') { keep(); drainHeredocs(); continue; }
+        if (ch === '"') { double(); continue; }
+        if (ch === "'") { single(false); continue; }
+        if (!ps && ch === '$' && at(i + 1) === "'") { keep(); single(true); continue; }
+        // Экранированная кавычка вне строки — не открывающая: `echo \"`, `` echo `" ``.
+        if (!ps && ch === '\\' && i + 1 < n) { keep(); keep(); continue; }
+        if (ps && ch === '`' && i + 1 < n) { keep(); keep(); continue; }
+        if (!ps && ch === '<' && at(i + 1) === '<' && at(i + 2) !== '<') { heredocMarker(keep); continue; }
+        if (ps && ch === '@' && (at(i + 1) === '"' || at(i + 1) === "'")
+            && (at(i + 2) === '\n' || (at(i + 2) === '\r' && at(i + 3) === '\n'))) { hereString(at(i + 1)); continue; }
+        if (ps && ch === '<' && at(i + 1) === '#') { blockComment(); continue; }
+        if (ch === '#' && (i === 0 || /[\s;&|(]/.test(cmd[i - 1]))) { lineComment(); continue; }
+        keep();
+    }
+    return out.join('');
 }
 
-function mentionsTool(command, tool) {
-    return commandPositionRe(tool).test(maskQuoted(command));
+function mentionsTool(command, tool, shell) {
+    return commandPositionRe(tool).test(maskText(command, shell));
 }
 
 // Дописывает `suffix` после каждого вхождения инструмента в позиции команды —
 // позиции ищутся по маске, текст берётся из исходной строки.
-function appendAfterTool(command, tool, suffix) {
-    const masked = maskQuoted(command);
+function appendAfterTool(command, tool, suffix, shell) {
+    const masked = maskText(command, shell);
     const re = commandPositionRe(tool);
     let out = '';
     let last = 0;
@@ -265,20 +387,23 @@ function alignCommand(command, cwd, options) {
     // «пользователь указал аккаунт вручную».
     const hasAccount = EXPLICIT_ACCOUNT.test(cmd);
     const hasProject = EXPLICIT_PROJECT.test(cmd);
+    // Шелл задаёт правила экранирования маски (см. maskText); префильтр берёт его
+    // из tool_name. Не назван — bash: это тул по умолчанию и у команд, и у тестов.
+    const shell = String(opts.shell || '').toLowerCase() === 'powershell' ? 'powershell' : 'bash';
 
     let out = cmd;
     const applied = [];
 
-    if (mentionsTool(out, 'gcloud')) {
+    if (mentionsTool(out, 'gcloud', shell)) {
         const flags = gcloudFlags(row, hasAccount, hasProject);
         if (flags) {
-            out = appendAfterTool(out, 'gcloud', flags);
+            out = appendAfterTool(out, 'gcloud', flags, shell);
             applied.push('gcloud');
         }
     }
 
-    if (mentionsTool(out, 'firebase') && !hasAccount && row.account) {
-        out = appendAfterTool(out, 'firebase', ` --account=${shellQuote(row.account)}`);
+    if (mentionsTool(out, 'firebase', shell) && !hasAccount && row.account) {
+        out = appendAfterTool(out, 'firebase', ` --account=${shellQuote(row.account)}`, shell);
         applied.push('firebase');
     }
 
@@ -289,6 +414,7 @@ function alignCommand(command, cwd, options) {
 module.exports = {
     alignCommand,
     // экспортируется для тестов и для guard-совместимой сверки
+    maskText,
     parseRegistry,
     matchRow,
     effectiveDir,
