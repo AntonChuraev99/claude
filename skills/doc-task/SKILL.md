@@ -17,7 +17,7 @@ description: Документ задачи и постоянный докуме�
 2. `git rev-parse HEAD` → Start SHA (не git — `none`); project slug — basename `git rev-parse --show-toplevel`.
 3. `docs/active/<slug>-<YYYY-MM-DD>.md`, slug — 3-5 слов kebab-case. Шаблон шапки и секций — `references/templates.md` → «Документ задачи».
 
-Ветку проверяет `protected-branch-guard`: `Write` в транке заблокируется, отдельной проверки не нужно.
+Ветку проверяет `protected-branch-guard`: первый `Write` в транке заблокируется с текстом правила, отдельной проверки не нужно.
 
 ## Итерация — одна строка после возврата специалиста
 
