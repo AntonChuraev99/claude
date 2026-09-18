@@ -166,6 +166,17 @@ check("PowerShell here-string @'…'@ с апострофом в теле — т
     align("git commit -m @'\nfix: don't use (gcloud storage) here\n'@", ALPHA, PS), null);
 check('PowerShell here-string @"…"@ — текст',
     align('git commit -m @"\nchore(gcloud): перейти на gcloud storage\n"@', ALPHA, PS), null);
+// Ревью run #4: `<<<` — herestring, не маркер heredoc; перевод строки внутри
+// кавычек не открывает тело heredoc.
+check('bash herestring <<<"…" не считается heredoc, команда после выравнивается',
+    align('cat <<<"a b" && gcloud storage ls', ALPHA),
+    'cat <<<"a b" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('bash herestring <<<"$var" на своей строке не прячет следующие строки',
+    align('cat <<<"$var" && gcloud storage ls', ALPHA),
+    'cat <<<"$var" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('перевод строки внутри кавычек на строке маркера heredoc — ещё команда, тело позже',
+    align('cat <<EOF "x\ny" && gcloud storage ls\nbody\nEOF\ngit commit -m "fix: ; gcloud x"', ALPHA),
+    'cat <<EOF "x\ny" && gcloud --account=personal@example.com --project=alpha-1 storage ls\nbody\nEOF\ngit commit -m "fix: ; gcloud x"');
 check('комментарий с апострофом не открывает строку',
     align("gcloud storage ls # don't touch (gcloud x)", ALPHA),
     "gcloud --account=personal@example.com --project=alpha-1 storage ls # don't touch (gcloud x)");

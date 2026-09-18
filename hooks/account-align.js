@@ -202,7 +202,8 @@ function maskText(command, shell) {
             if (!ps && ch === '\\' && i + 1 < n) { hide(); hide(); continue; }
             if (ps && ch === '`' && i + 1 < n) { hide(); hide(); continue; }
             if (ch === '$' && at(i + 1) === '(') { subst(); continue; }
-            if (ch === '\n') { hide(); drainHeredocs(); continue; }
+            // Перевод строки внутри кавычек — часть строки, не конец команды:
+            // тело heredoc здесь не начинается (ревью 2026-09-18, run #4).
             hide();
         }
     }
@@ -234,7 +235,11 @@ function maskText(command, shell) {
             if (ch === "'") { single(false); continue; }
             if (!ps && ch === '$' && at(i + 1) === "'") { hide(); single(true); continue; }
             if (!ps && ch === '\\' && i + 1 < n) { hide(); hide(); continue; }
-            if (!ps && ch === '<' && at(i + 1) === '<' && at(i + 2) !== '<') { heredocMarker(hide); continue; }
+            if (!ps && ch === '<' && at(i + 1) === '<') {
+                if (at(i + 2) === '<') { hide(); hide(); hide(); continue; }   // herestring <<<
+                heredocMarker(hide);
+                continue;
+            }
             if (ch === '$' && at(i + 1) === '(') { subst(); continue; }
             if (ch === '\n') { hide(); drainHeredocs(); continue; }
             if (ch === '(') depth++;
@@ -302,7 +307,12 @@ function maskText(command, shell) {
         // Экранированная кавычка вне строки — не открывающая: `echo \"`, `` echo `" ``.
         if (!ps && ch === '\\' && i + 1 < n) { keep(); keep(); continue; }
         if (ps && ch === '`' && i + 1 < n) { keep(); keep(); continue; }
-        if (!ps && ch === '<' && at(i + 1) === '<' && at(i + 2) !== '<') { heredocMarker(keep); continue; }
+        if (!ps && ch === '<' && at(i + 1) === '<') {
+            // `<<<word` — herestring, не heredoc: слово дальше разбирается как код.
+            if (at(i + 2) === '<') { keep(); keep(); keep(); continue; }
+            heredocMarker(keep);
+            continue;
+        }
         if (ps && ch === '@' && (at(i + 1) === '"' || at(i + 1) === "'")
             && (at(i + 2) === '\n' || (at(i + 2) === '\r' && at(i + 3) === '\n'))) { hereString(at(i + 1)); continue; }
         if (ps && ch === '<' && at(i + 1) === '#') { blockComment(); continue; }
