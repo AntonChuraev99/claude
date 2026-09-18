@@ -1,17 +1,30 @@
 # PreToolUse(Write|Edit|NotebookEdit|…Edit) guard: не дать писать код прямо на защищённой
-# ветке (main / master / develop и т.п.). Правило: работа идёт в отдельной ветке и
-# вливается в транк через MR/PR.
+# ветке (main / master / develop и т.п.) НЕЗАМЕЧЕННЫМ. Правило: работа идёт в отдельной
+# ветке и вливается в транк через MR/PR.
 #
 # Реестр веток по проектам — ~/.claude/config/protected-branches.local.json
 # (шаблон — protected-branches.example.json). Реестра нет / репозитория в нём нет
 # => применяются defaults.
 #
-# Решение — `deny`, а не `ask`. Проверено вживую 2026-08-04: при
+# Решение — «deny один раз, повтор проходит» (с 2026-09-18; до того — безусловный deny).
+# Первая правка на защищённой ветке блокируется с текстом правила и worktree-процедуры;
+# повтор того же вызова (та же ветка, тот же репозиторий, тот же агент) проходит, и
+# хук лишь добавляет короткое напоминание в контекст (`additionalContext`) плюс
+# `systemMessage` пользователю. Агент нарушает правило сознательно, а не постфактум,
+# и не упирается в стену, когда правка в транке действительно нужна (hotfix, конфиг,
+# явная просьба пользователя).
+#
+# «Тот же агент» — ключ состояния по transcript_path (у каждого субагента свой), с
+# откатом на session_id: субагенты фан-аута наследуют session_id родителя, и на ключе
+# по сессии предупреждение увидел бы один из них. Состояние — файл в
+# %TEMP%\claude-branch-guard\<sha1(ключ)>.json, TTL сутки, override каталога —
+# env CLAUDE_BRANCH_GUARD_STATE_DIR (тесты).
+#
+# Почему `deny`, а не `ask`: проверено вживую 2026-08-04 — при
 # `defaultMode: bypassPermissions` (плюс skipAutoPermissionPrompt) CLI молча
-# проглатывает `ask` — хук отрабатывает, печатает решение, запись всё равно
-# проходит. `deny` в той же конфигурации блокирует. Документация обещает
-# обратное, поэтому менять обратно только после нового живого прогона.
-# Разовые исключения покрывает escape-hatch внизу, а не мягкость решения.
+# проглатывает `ask`, запись проходит; `deny` блокирует. Документация обещает
+# обратное, менять только после нового живого прогона. Пропуск повтора — НЕ `allow`
+# (он снял бы штатный permission-flow), а отсутствие permissionDecision вовсе.
 #
 # No-op (тихий exit 0), если: инструмент не пишет файл · путь вне git-репозитория ·
 # репозиторий самого профиля Claude (~/.claude, ~/.claude-work — их правки должны
@@ -23,14 +36,16 @@
 # субагентов (run_in_background не наследует PreToolUse) хук НЕ видит — они
 # закрываются процедурно (process-gate.yaml → no-code-on-protected-branch).
 #
-# Escape-hatch: env CLAUDE_ALLOW_PROTECTED_BRANCH=1 либо файл-флаг
-# <repo>\.claude\.allow-protected-branch-edits
+# Escape-hatch (глушит проверку целиком, ставит пользователь): env
+# CLAUDE_ALLOW_PROTECTED_BRANCH=1 либо файл-флаг <repo>\.claude\.allow-protected-branch-edits
 #
 # $ErrorActionPreference намеренно 'SilentlyContinue', а не 'Stop' как у соседних
 # хуков: под 'Stop' нативный `git ... 2>$null` бросает NativeCommandError и хук
 # разваливается на штатном пути.
 #
-# Запуск: pwsh 7+, stdin = hook JSON ({tool_name, tool_input:{file_path|notebook_path}, cwd, ...}).
+# Запуск: pwsh 7+, stdin = hook JSON ({tool_name, tool_input:{file_path|notebook_path},
+# cwd, session_id, transcript_path, ...}). Тесты: hooks/protected-branch-guard.tests.ps1
+# (реестр подменяется env CLAUDE_BRANCH_GUARD_REGISTRY).
 #
 # ВАЖНО: файл публикуется в открытый репозиторий — никаких абсолютных путей,
 # имён проектов и логинов в коде.
@@ -41,6 +56,8 @@ $ErrorActionPreference = 'SilentlyContinue'
 # (в консоли Windows кодировка по умолчанию OEM). Собственный try: падение
 # установки кодировки не должно убивать весь хук.
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+
+$STATE_TTL_SEC = 24 * 60 * 60
 
 function ConvertTo-WindowsPath([string]$p) {
     if ([string]::IsNullOrWhiteSpace($p)) { return $p }
@@ -70,6 +87,54 @@ function Test-RepoKeyMatch([string]$repoKey, [string]$key) {
 function Test-HasProperty($obj, [string]$name) {
     if ($null -eq $obj) { return $false }
     return $null -ne $obj.PSObject.Properties[$name]
+}
+
+# --- состояние «уже предупреждал» ---------------------------------------------------
+
+function Get-StateDir {
+    if ($env:CLAUDE_BRANCH_GUARD_STATE_DIR) { return $env:CLAUDE_BRANCH_GUARD_STATE_DIR }
+    return (Join-Path ([System.IO.Path]::GetTempPath()) 'claude-branch-guard')
+}
+
+# Имя файла — sha1 ключа, а не сам ключ: transcript_path'ы делят длинный общий
+# префикс, и усечённая строка сталкивала бы разных агентов в один файл.
+function Get-StateFile([string]$key) {
+    if (-not $key) { $key = 'nosession' }
+    $sha = [System.Security.Cryptography.SHA1]::Create()
+    $hash = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($key))
+    $name = ([System.BitConverter]::ToString($hash) -replace '-', '').ToLowerInvariant()
+    return (Join-Path (Get-StateDir) "$name.json")
+}
+
+function Read-State([string]$file) {
+    try {
+        if (-not (Test-Path -LiteralPath $file)) { return @{} }
+        $obj = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+        if ($obj -is [hashtable]) { return $obj }
+        return @{}
+    } catch { return @{} }
+}
+
+# Подметает чужие протухшие файлы. Только при первой записи агента — readdir не
+# платится на каждом вызове.
+function Remove-StaleState([string]$dir) {
+    try {
+        $cutoff = (Get-Date).AddSeconds(-$STATE_TTL_SEC)
+        Get-ChildItem -LiteralPath $dir -Filter '*.json' -File | Where-Object { $_.LastWriteTime -lt $cutoff } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch { }
+}
+
+function Write-State([string]$file, [hashtable]$state, [bool]$firstWrite) {
+    try {
+        $dir = Split-Path $file -Parent
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        if ($firstWrite) { Remove-StaleState $dir }
+        ($state | ConvertTo-Json -Compress) | Set-Content -LiteralPath $file -Encoding UTF8 -NoNewline
+    } catch {
+        # Напоминание — не то, ради чего стоит ронять хук; без состояния хук
+        # деградирует до «deny каждый раз», что безопаснее пропуска.
+    }
 }
 
 try {
@@ -141,8 +206,11 @@ try {
         if (-not $detachedAt) { exit 0 }
     }
 
-    # 5. Реестр. Рядом со скриптом (работает для любого профиля), иначе — дефолтный профиль.
-    $registryCandidates = @((Join-Path (Split-Path $PSScriptRoot -Parent) 'config\protected-branches.local.json'))
+    # 5. Реестр. Override для тестов, иначе рядом со скриптом (работает для любого
+    #    профиля), иначе — дефолтный профиль.
+    $registryCandidates = @()
+    if ($env:CLAUDE_BRANCH_GUARD_REGISTRY) { $registryCandidates += $env:CLAUDE_BRANCH_GUARD_REGISTRY }
+    $registryCandidates += (Join-Path (Split-Path $PSScriptRoot -Parent) 'config\protected-branches.local.json')
     if ($env:USERPROFILE) {
         $registryCandidates += (Join-Path $env:USERPROFILE '.claude\config\protected-branches.local.json')
     }
@@ -201,24 +269,54 @@ try {
 
     $where = if ($detachedAt) { "detached HEAD на вершине защищённой ветки '$matched'" } else { "защищённой ветке '$matched'" }
 
+    # 7. Уже предупреждали этого агента про эту ветку этого репозитория? Тогда
+    #    правка проходит — с напоминанием в контекст и строкой пользователю.
+    $agentKey = [string]$payload.transcript_path
+    if (-not $agentKey) { $agentKey = [string]$payload.session_id }
+    $stateFile = Get-StateFile $agentKey
+    $state = Read-State $stateFile
+    $seenKey = "$repoKey|$matched"
+
+    # Возраст записи сверяется на чтении, как в bash-tool-discipline: иначе своя запись
+    # никогда не истекает, и `claude --resume` через сутки пропускал бы первую правку
+    # без текста правила.
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $seenAt = if ($state.ContainsKey($seenKey)) { [int64]$state[$seenKey] } else { 0 }
+    if ($seenAt -gt 0 -and ($now - $seenAt) -lt $STATE_TTL_SEC) {
+        $note = "protected-branch-guard: правка на $where ($repoLabel) пропущена как сознательное исключение — " +
+                "назвать причину в отчёте; результат уходит в '$mrTarget' только через MR/PR."
+        @{
+            systemMessage = "⚠ branch guard: правка на $where ($repoLabel) — повтор, пропущено."
+            hookSpecificOutput = @{ hookEventName = 'PreToolUse'; additionalContext = $note }
+        } | ConvertTo-Json -Depth 5 -Compress
+        exit 0
+    }
+
+    $firstWrite = ($state.Count -eq 0)
+    $state[$seenKey] = $now
+    Write-State $stateFile $state $firstWrite
+
     $msg = @"
 Правка файла на $where ($repoLabel).
 
 Правило: на $($protected -join ' / ') код не пишем. Работа идёт в отдельной ветке
 и попадает в '$mrTarget' только через MR/PR — прямых коммитов в транк нет.
 
-Порядок вместо этой правки (<slug> заменить на короткое имя задачи,
-<type> — feat / fix / chore по смыслу):
+Порядок вместо этой правки: тул EnterWorktree({name: "<slug>"}) — заведёт
+.claude/worktrees/<slug> на новой ветке от транка и переключит сессию туда;
+затем повторить правку уже по пути внутри worktree. Без тула:
   git -C "$repoRoot" worktree add .claude/worktrees/<slug> -b <type>/<slug> $trunk
   # скопировать gitignored-конфиги сборки (local.properties / secrets.properties / .env.local)
   # убедиться, что сборка стартует из нового каталога — ДО первой правки
-  # повторить правку уже по пути внутри worktree
 
-Правка сознательно делается в транке (hotfix, конфиг, который обязан примениться сразу,
-явная просьба работать в текущем checkout)? Это решает пользователь, не агент: попроси
-его подтвердить и снять блокировку — `setx CLAUDE_ALLOW_PROTECTED_BRANCH 1` на сессию
-либо файл-флаг "$repoRoot\.claude\.allow-protected-branch-edits". Самостоятельно
-выставлять их нельзя — это обход правила, а не его исполнение.
+Правка сознательно делается в транке (hotfix по согласованию, конфиг, который обязан
+примениться сразу, явная просьба пользователя работать в текущем checkout)? Это
+предупреждение, а не стена: повтори тот же вызов — второй и последующие пройдут
+(эта ветка, этот репозиторий, этот агент, в течение суток) — и назови причину в отчёте.
+Выключить проверку целиком может пользователь: файл-флаг
+"$repoRoot\.claude\.allow-protected-branch-edits" (действует сразу) либо
+CLAUDE_ALLOW_PROTECTED_BRANCH=1 в окружении, из которого запущен claude (хук наследует
+env CLI — нужен перезапуск сессии; `setx` текущую сессию не меняет).
 "@
 
     @{ hookSpecificOutput = @{ hookEventName = 'PreToolUse'; permissionDecision = 'deny'; permissionDecisionReason = $msg } } |
