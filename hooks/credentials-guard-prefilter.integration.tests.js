@@ -298,6 +298,11 @@ if (REGISTRY_GCP) {
     guardCase('два разных проекта в цепочке — доверять нечему, идём пробой',
         `CLOUDSDK_CORE_PROJECT=${REGISTRY_GCP} gcloud run deploy `
         + '&& CLOUDSDK_CORE_PROJECT=some-other-project-1234 gcloud run deploy', 'deny');
+    // Скобка scope в commit-message — не позиция команды (ревью 2026-09-18). Чужой
+    // `--project` в тексте делает кейс детерминированным: старый регекс брал
+    // `(gcloud` за вызов, находил `deploy` и денаил коммит по расхождению проекта.
+    guardCase('scope commit-message: fix(gcloud) — не вызов, коммит проходит',
+        'git commit -m "fix(gcloud): deploy --project some-other-project-1234 notes"', 'allow');
 }
 
 console.log('');

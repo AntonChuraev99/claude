@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | pending |
 | 2026-09-18 | [branch-guard-deny-once](2026-09-18-branch-guard-deny-once.md) | applied | 2026-10-02 | pending |
 | 2026-09-15 | [gate-review-tests-relax](2026-09-15-gate-review-tests-relax.md) | applied | 2026-09-29 | pending |
 | 2026-09-15 | [hook-timeouts-are-paging](2026-09-15-hook-timeouts-are-paging.md) | applied | 2026-09-29 | pending |

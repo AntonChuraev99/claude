@@ -101,6 +101,8 @@ function computeAlign(payload) {
         return align.alignCommand(
             payload.tool_input && payload.tool_input.command,
             payload.cwd,
+            // Правила экранирования маски текста — по шеллу (см. maskText).
+            { shell: payload.tool_name === 'PowerShell' ? 'powershell' : 'bash' },
         );
     } catch (e) {
         noteDisciplineFailure(e);

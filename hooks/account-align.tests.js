@@ -45,10 +45,11 @@ const rows = parseRegistry(REGISTRY_FIXTURE);
 const ALPHA = 'C:\\Users\\U\\Projects\\AlphaApp';
 const WORKAPP = 'C:\\Users\\U\\Projects\\workapp';
 
-function align(command, cwd) {
-    const r = alignCommand(command, cwd, { rows });
+function align(command, cwd, extra) {
+    const r = alignCommand(command, cwd, Object.assign({ rows }, extra || {}));
     return r ? r.command : null;
 }
+const PS = { shell: 'powershell' };
 
 console.log('=== разбор реестра ===');
 check('строк основной таблицы', rows.length, 5);
@@ -107,6 +108,97 @@ check('слово firebase внутри пути, не команда',
     align('cat /c/proj/firebase.json', ALPHA), null);
 check('слово gcloud в аргументе, не команда',
     align('echo "run gcloud later"', ALPHA), null);
+// Скобка scope в Conventional Commits — не subshell. Прецедент 2026-09-18:
+// `chore(gcloud): …` получил `--account=<почта>` и чуть не уехал в публичный репо.
+check('scope commit-message: chore(gcloud) — не позиция команды',
+    align('git commit -m "chore(gcloud): перейти с gsutil на gcloud storage"', ALPHA), null);
+check('scope commit-message: fix(firebase) — не позиция команды',
+    align('git commit -m "fix(firebase): reauth flow"', ALPHA), null);
+check('subshell (gcloud …) — по-прежнему позиция команды',
+    align('(gcloud storage ls)', ALPHA),
+    '(gcloud --account=personal@example.com --project=alpha-1 storage ls)');
+check('подстановка $(gcloud …) — по-прежнему позиция команды',
+    align('TOKEN=$(gcloud auth print-access-token)', ALPHA),
+    'TOKEN=$(gcloud --account=personal@example.com --project=alpha-1 auth print-access-token)');
+// Класс, а не экземпляр: внутри кавычек любой разделитель — текст. Ревью 2026-09-18
+// показало, что одна скобка scope закрывает наблюдавшийся случай, но не `(` после
+// пробела, `;` и `&&` в теле сообщения.
+check('скобка после пробела внутри commit-message — текст',
+    align('git commit -m "docs: описать (gcloud storage cp) для экспорта"', ALPHA), null);
+check('точка с запятой внутри commit-message — текст',
+    align('git commit -m "fix: убрать gsutil; gcloud storage ls теперь основной"', ALPHA), null);
+check('heredoc commit-message внутри "$(cat <<EOF …)" — текст',
+    align('git commit -m "$(cat <<\'EOF\'\nchore(gcloud): перейти на gcloud storage\nEOF\n)"', ALPHA), null);
+check('одинарные кавычки — текст',
+    align("git commit -m 'fix(firebase): deploy hotfix'", ALPHA), null);
+check('экранированная кавычка не закрывает строку',
+    align('echo "say \\"hi\\"; gcloud run deploy" && gcloud storage ls', ALPHA),
+    'echo "say \\"hi\\"; gcloud run deploy" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('PowerShell: `" внутри двойных кавычек не закрывает строку',
+    align('echo "say `"hi`"; gcloud run deploy"', ALPHA, PS), null);
+check('PowerShell: "" внутри двойных кавычек — экранированная кавычка',
+    align('git commit -m "say ""hi""; gcloud run deploy"', ALPHA, PS), null);
+// Правила экранирования — по шеллу, не оба разом (ревью 2026-09-18, run #3):
+// `\"` в PowerShell-пути и `` `" `` в bash — литералы, иначе закрывающая кавычка
+// съедается и следующая строка оказывается «снаружи».
+check('PowerShell: \\ перед закрывающей кавычкой — литерал, commit-message остаётся текстом',
+    align('Write-Output "C:\\proj\\"; git commit -m "docs: (gcloud storage cp) export"', ALPHA, PS), null);
+check('PowerShell: \\ перед закрывающей кавычкой — команда после неё выравнивается',
+    align('Write-Output "C:\\proj\\"; gcloud run deploy', ALPHA, PS),
+    'Write-Output "C:\\proj\\"; gcloud --account=personal@example.com --project=alpha-1 run deploy');
+check('bash: ` перед закрывающей кавычкой — литерал, commit-message остаётся текстом',
+    align('echo "`date`" && git commit -m "docs: (gcloud storage) export"', ALPHA), null);
+check('bash: ` перед закрывающей кавычкой — команда после неё выравнивается',
+    align('echo "`date`" && gcloud storage ls', ALPHA),
+    'echo "`date`" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('bash: экранированная кавычка вне строки не открывает строку',
+    align('echo \\" && gcloud storage ls', ALPHA),
+    'echo \\" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+// heredoc и here-string — текст целиком.
+check('bash heredoc без кавычек вокруг — тело не команда',
+    align("git commit -F - <<'EOF'\nfix: use (gcloud storage) now\nEOF", ALPHA), null);
+check('bash heredoc: команда на строке маркера выравнивается, тело — нет',
+    align('cat <<EOF > notes.txt && gcloud storage ls\nsee (gcloud storage)\nEOF', ALPHA),
+    'cat <<EOF > notes.txt && gcloud --account=personal@example.com --project=alpha-1 storage ls\nsee (gcloud storage)\nEOF');
+check('bash: кавычки внутри "$(cat <<EOF …)" не закрывают внешнюю строку',
+    align('git commit -m "$(cat <<\'EOF\'\nfix: say "hi" (gcloud storage)\nEOF\n)"', ALPHA), null);
+check("PowerShell here-string @'…'@ с апострофом в теле — текст",
+    align("git commit -m @'\nfix: don't use (gcloud storage) here\n'@", ALPHA, PS), null);
+check('PowerShell here-string @"…"@ — текст',
+    align('git commit -m @"\nchore(gcloud): перейти на gcloud storage\n"@', ALPHA, PS), null);
+// Ревью run #4: `<<<` — herestring, не маркер heredoc; перевод строки внутри
+// кавычек не открывает тело heredoc.
+check('bash herestring <<<"…" не считается heredoc, команда после выравнивается',
+    align('cat <<<"a b" && gcloud storage ls', ALPHA),
+    'cat <<<"a b" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('bash herestring <<<"$var" на своей строке не прячет следующие строки',
+    align('cat <<<"$var" && gcloud storage ls', ALPHA),
+    'cat <<<"$var" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('перевод строки внутри кавычек на строке маркера heredoc — ещё команда, тело позже',
+    align('cat <<EOF "x\ny" && gcloud storage ls\nbody\nEOF\ngit commit -m "fix: ; gcloud x"', ALPHA),
+    'cat <<EOF "x\ny" && gcloud --account=personal@example.com --project=alpha-1 storage ls\nbody\nEOF\ngit commit -m "fix: ; gcloud x"');
+check('комментарий с апострофом не открывает строку',
+    align("gcloud storage ls # don't touch (gcloud x)", ALPHA),
+    "gcloud --account=personal@example.com --project=alpha-1 storage ls # don't touch (gcloud x)");
+// Инвариант маски: длина равна длине исходной строки — иначе позиции разъедутся.
+{
+    const { maskText } = require('./account-align.js');
+    const samples = [
+        ['git commit -m "$(cat <<\'EOF\'\nfix: say "hi" (gcloud storage)\nEOF\n)"', 'bash'],
+        ['echo "a\\"b" \'c\' $\'d\\\'e\' <<EOF\nbody\nEOF\nx', 'bash'],
+        ["git commit -m @'\nfix: don't\n'@; echo `\"x`\" \"a`\"b\" 'c''d'", 'powershell'],
+        ['unterminated "quote (gcloud x', 'bash'],
+        ['trailing backslash "a\\', 'bash'],
+    ];
+    const bad = samples.filter(([s, sh]) => maskText(s, sh).length !== s.length).length;
+    check('maskText сохраняет длину строки на всех образцах', bad, 0);
+}
+check('команда после строки с тем же словом выравнивается, строка — нет',
+    align('echo "run gcloud later" && gcloud storage ls', ALPHA),
+    'echo "run gcloud later" && gcloud --account=personal@example.com --project=alpha-1 storage ls');
+check('firebase выравнивается, gcloud в его аргументе — нет',
+    align('firebase deploy -m "see gcloud"', ALPHA),
+    'firebase --account=personal@example.com deploy -m "see gcloud"');
 check('каталог вне реестра', align('firebase deploy', 'C:\\Users\\U\\Projects\\unknown'), null);
 check('пустая команда', align('   ', ALPHA), null);
 
