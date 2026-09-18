@@ -223,7 +223,7 @@ try {
         if ($row[7]) { [void]$sb.AppendLine("| git remote | $($row[7]) |") }
         [void]$sb.AppendLine("")
         [void]$sb.AppendLine("Аккаунт подставляется в команды автоматически (hooks/account-align.js):")
-        [void]$sb.AppendLine("gcloud получает --account/--project, firebase — --account. Не покрыты gsutil и MCP-тулы.")
+        [void]$sb.AppendLine("gcloud получает --account/--project (в том числе gcloud storage; gsutil — legacy, не использовать), firebase — --account. MCP-тулы не видит ни хук, ни guard — сверяй сам.")
         [void]$sb.AppendLine("Переключать конфигурации руками не нужно и не следует — состояние CLI не трогаем.")
         [void]$sb.AppendLine("")
         [void]$sb.AppendLine("Позвать пользователя — только в трёх случаях, сам не логинься:")

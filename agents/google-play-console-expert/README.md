@@ -113,9 +113,14 @@ Play Console сам складывает отчёты в бакет `pubsite_pro
 (URI: Play Console → **Download reports** → Copy Cloud Storage URI).
 
 ```bash
-gsutil ls gs://pubsite_prod_rev_<id>/stats/crashes/
-gsutil cp gs://pubsite_prod_rev_<id>/stats/crashes/crashes_<package>_202606*.csv .
+gcloud storage ls gs://pubsite_prod_rev_<id>/stats/crashes/
+gcloud storage cp "gs://pubsite_prod_rev_<id>/stats/crashes/crashes_<package>_202606*.csv" .
 ```
+
+- Только `gcloud storage`, не `gsutil`: Google убирает `gsutil` из состава Cloud CLI после марта 2027
+  (дальше — только standalone через PyPI), а `gcloud storage` как обычный `gcloud` получает
+  `--account`/`--project` от хука `account-align` — `gsutil` своего флага аккаунта не имел.
+- Wildcard в `gs://`-URI — в кавычках: раскрывает его сам `gcloud storage`, а не shell.
 
 - Годится для: исторические месячные агрегаты, bulk-выгрузки, финансовые отчёты.
 - Для оперативной статы — Reporting API выше (свежее, гранулярнее).

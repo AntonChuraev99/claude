@@ -141,6 +141,9 @@ try {
     }
     $services = @($services | Select-Object -Unique)
     # gsutil сверяется тем же GCP-проектом, что и gcloud — не гонять пробу дважды.
+    # Сам gsutil — legacy (Google убирает его из Cloud CLI после марта 2027; штатно —
+    # `gcloud storage`, которое сюда приходит как обычный gcloud); детект оставлен
+    # сетью под отдельно установленный бинарь.
     if ($services -contains 'gcloud' -and $services -contains 'gsutil') {
         $services = @($services | Where-Object { $_ -ne 'gsutil' })
     }

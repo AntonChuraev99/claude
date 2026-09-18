@@ -44,7 +44,9 @@ when_to_use: правка симлинков и junction между профил
 
 Флаги, а не переменные окружения: префикс `VAR=… команда` пишется по-разному в bash и PowerShell, а в PowerShell присваивание отделяется `;` и разрывает `&&`-цепочку — команда исполнилась бы даже после провала предыдущего звена, из чужого каталога и без аккаунта.
 
-Не покрыты: `gsutil` (нет своего флага аккаунта), MCP-тулы Firebase (своя авторизация), прочие тулы кроме `Bash`/`PowerShell`. Там работает прежняя схема — guard сверяет и при расхождении блокирует.
+Не покрыты: MCP-тулы Firebase (своя авторизация) и любые тулы, кроме `Bash`/`PowerShell`. Их не видит и `credentials-guard` (`hooks/credentials-guard.ps1` выходит на любом другом `tool_name`) — перед записью через MCP аккаунт сверяет главный сам по реестру (`firebase_get_environment` против колонки `firebase_project`).
+
+`gsutil` — legacy, не использовать: своего флага аккаунта у него нет, и Google убирает его из состава Cloud CLI после марта 2027 (дальше только standalone через PyPI). Для Cloud Storage — `gcloud storage …`: это обычный `gcloud`, хук выравнивает его штатно. Старый бинарь, если стоит отдельно, guard по-прежнему сверяет и при расхождении блокирует.
 
 Смысл — убрать ручное переключение аккаунтов, которое раньше требовалось почти каждую сессию. Глобальное состояние CLI при этом НЕ меняется: ни `gcloud config configurations activate`, ни `firebase login:use`. Причины:
 
@@ -54,7 +56,7 @@ when_to_use: правка симлинков и junction между профил
 
 Не трогаются: `gcloud auth login|revoke|application-default`, `firebase login|logout` (ими пользователь чинит токен), команды с уже указанным вручную `--account`/`--project`/`--configuration`, и любой каталог, которого нет в реестре.
 
-**Хук-гейт:** `hooks/credentials-guard.ps1`, зарегистрирован на `PreToolUse` с матчером `Bash`. Срабатывает, когда команда содержит инструмент внешнего сервиса (`gcloud`, `wrangler`, `firebase`, `gh`, `adb`, `gsutil`) **и** глагол, меняющий состояние (`deploy`, `publish`, `release create`, `secret set/put`, `apps release`, `repo delete`, `uninstall`). Чтение — `list`, `describe`, `whoami`, `status`, `logs` — не трогает.
+**Хук-гейт:** `hooks/credentials-guard.ps1` за node-префильтром `hooks/credentials-guard-prefilter.js`, зарегистрирован на `PreToolUse` с матчером `Bash|Grep|PowerShell` (сам ps1 судит только `Bash` и `PowerShell`). Срабатывает, когда команда содержит инструмент внешнего сервиса **и** глагол, меняющий состояние; оба списка — `tools` и `verbs` — живут в `config/credentials-guard-patterns.json`, это единственный источник правды (в `verbs` есть и `rm -r` — по нему до guard доходят `gcloud storage rm -r` и `gsutil rm -r`). Чтение — `list`, `describe`, `whoami`, `status`, `logs` — не трогает.
 
 Что делает хук: находит строку реестра по каталогу команды (учитывает `cd <path> &&`, иначе берёт `cwd` сессии), **сам сверяет фактические креды** и при совпадении пропускает команду молча — штатный деплой не требует никаких действий.
 

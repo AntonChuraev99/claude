@@ -46,7 +46,9 @@ Guard судит **уже выровненную** команду, и проек
 
 ## Границы покрытия
 
-`gsutil` (нет своего флага аккаунта), MCP-тулы Firebase, и жёсткие запреты `bash-tool-discipline` на тул `PowerShell` — см. `docs/backlog/powershell-tool-discipline.md`.
+MCP-тулы Firebase и жёсткие запреты `bash-tool-discipline` на тул `PowerShell` — см. `docs/backlog/powershell-tool-discipline.md`.
+
+`gsutil` (нет своего флага аккаунта) с 2026-09-18 — legacy: Google убирает его из состава Cloud CLI после марта 2027, штатный путь к Cloud Storage — `gcloud storage`, который хук выравнивает как обычный `gcloud`. Детект `gsutil` в `credentials-guard` оставлен как сеть под отдельно установленный бинарь.
 
 ## Связанные файлы
 
