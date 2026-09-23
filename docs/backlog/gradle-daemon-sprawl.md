@@ -1,10 +1,19 @@
 ---
 title: "Gradle: размножение демонов — почистить проектные gradle.properties и свести версии"
 date: 2026-08-19
-status: backlog
+status: cancelled
+resolved: 2026-09-23
 area: build
 keywords: [gradle, daemon, kotlin-daemon, jvmargs, memory, swap, includeBuild, configuration-cache]
 ---
+
+> **Отменено 2026-09-23** — без работ, см. ниже.
+
+## Закрыто 2026-09-23 без работ
+
+Закрыть без работ решил пользователь; оставить файл справочником, а не удалять, решил главный: на запись ссылается [hook-refactor-followups](hook-refactor-followups.md). Раздел «Триггер к работе» ниже — справочный.
+
+Остаток задачи — правки проектных gradle.properties (не проверено — файлы в чужих репозиториях) и сведение версий Gradle в проектных репозиториях, из `~/.claude` не делается. Нехватка памяти 09-21 оказалась commit-исчерпанием от эмулятора, игр и параллельных сессий, а не проектными jvmargs; настоящее лечение — RAM. Запись оставлена справочником: ловушки и «чего не делать» ниже актуальны при сведении версий в конкретном проекте.
 
 # Демоны Gradle плодятся, глобальный конфиг это только маскирует
 
@@ -15,7 +24,7 @@ keywords: [gradle, daemon, kotlin-daemon, jvmargs, memory, swap, includeBuild, c
 Закрыто централизацией в `~/.gradle/gradle.properties` — `GRADLE_USER_HOME` перебивает проектные файлы по совпадающим ключам, поэтому проектные репозитории не трогались:
 
 - `org.gradle.jvmargs` — общий для всех проектов, `-Xmx2g` + `-XX:G1PeriodicGCInterval=60000` (JEP 346: демон возвращает неиспользуемый committed-heap ОС в простое, вместо удержания всего Xmx до смерти);
-- `kotlin.daemon.jvmargs=-Xmx2g -XX:+UseParallelGC` — GC-политика Kotlin-демона **не наследуется** от `org.gradle.jvmargs`, только явно;
+- `kotlin.daemon.jvmargs=-Xmx3g -XX:+UseParallelGC` (2g → 4g → 3g, последняя правка 2026-09-21) — GC-политика Kotlin-демона **не наследуется** от `org.gradle.jvmargs`, только явно;
 - `org.gradle.daemon=true` — перебивает проектное отключение демона;
 - `org.gradle.daemon.idletimeout=3600000` — вместо дефолтных 3 часов.
 

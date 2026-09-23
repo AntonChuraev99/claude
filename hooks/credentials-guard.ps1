@@ -348,6 +348,14 @@ try {
 }
 catch {
     # Сюда попадают только сбои разбора stdin и детекта опасности — команда ещё
-    # не признана опасной, поэтому fail-open (хук не должен ломать сессию).
+    # не признана опасной, поэтому fail-open (хук не должен ломать сессию). Но не
+    # молча: строка в stats/ отличает «не сработал» от «упал» (журнал общий с
+    # protected-branch-guard). Сбой записи журнала хук не роняет.
+    try {
+        $log = Join-Path (Split-Path $PSScriptRoot -Parent) 'stats\hook-degraded.log'
+        New-Item -ItemType Directory -Force -Path (Split-Path $log -Parent) | Out-Null
+        Add-Content -LiteralPath $log -Encoding UTF8 -Value ("{0}`tcredentials-guard`t{1}" -f
+            (Get-Date -Format 'yyyy-MM-ddTHH:mm:ss'), ($_.Exception.Message -replace '\s+', ' '))
+    } catch { }
     exit 0
 }
