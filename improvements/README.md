@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-23 | [backlog-triage-skills-and-guard-log](2026-09-23-backlog-triage-skills-and-guard-log.md) | applied | 2026-10-07 | pending |
 | 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | pending |
 | 2026-09-18 | [branch-guard-deny-once](2026-09-18-branch-guard-deny-once.md) | applied | 2026-10-02 | pending |
 | 2026-09-15 | [gate-review-tests-relax](2026-09-15-gate-review-tests-relax.md) | applied | 2026-09-29 | pending |
@@ -82,7 +83,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-09-09 | [workspace-session-control-preflight](2026-09-09-workspace-session-control-preflight.md) | applied | 2026-09-23 | pending |
 | 2026-09-09 | [split-compose-feature-expert](2026-09-09-split-compose-feature-expert.md) | applied | 2026-09-23 | pending |
 | 2026-09-07 | [account-align](2026-09-07-account-align.md) | applied | 2026-09-21 | interim 2026-09-09 |
-| 2026-09-03 | [harness-inventory-audit](2026-09-03-harness-inventory-audit.md) | applied | 2026-09-17 | pending |
+| 2026-09-03 | [harness-inventory-audit](2026-09-03-harness-inventory-audit.md) | applied | 2026-09-17 | interim 2026-09-23 |
 | 2026-09-03 | [fable-5-1-overlay](2026-09-03-fable-5-1-overlay.md) | applied | 2026-09-17 | pending |
 | 2026-09-01 | [agents-refactor-effort-and-lazy-refs](2026-09-01-agents-refactor-effort-and-lazy-refs.md) | applied | 2026-09-15 | pending |
 | 2026-08-31 | [anthropic-harness-alignment](2026-08-31-anthropic-harness-alignment.md) | applied | 2026-09-14 | interim 2026-09-03 |

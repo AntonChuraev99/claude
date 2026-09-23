@@ -29,7 +29,8 @@
 # No-op (тихий exit 0), если: инструмент не пишет файл · путь вне git-репозитория ·
 # репозиторий самого профиля Claude (~/.claude, ~/.claude-work — их правки должны
 # применяться к текущей сессии) · ветка не защищена · выставлен escape-hatch.
-# Любая внутренняя ошибка => exit 0 (хук не должен ломать сессию).
+# Любая внутренняя ошибка => exit 0 (хук не должен ломать сессию) плюс строка в
+# stats/hook-degraded.log — иначе «сломан» неотличим от «не понадобился».
 #
 # ИЗВЕСТНОЕ ОГРАНИЧЕНИЕ: покрывает только файловые инструменты. Запись через Bash
 # (`cat > f`, `sed -i`, `git apply`, `git checkout -- path`) и правки фоновых
@@ -324,5 +325,14 @@ env CLI — нужен перезапуск сессии; `setx` текущую 
     exit 0
 }
 catch {
+    # Fail-open, но не молча: без строки в журнале replay не отличит «ни разу не
+    # понадобился» от «сломан и не звал». stats/ — вне git (тот же каталог у
+    # credentials-guard). Сбой записи журнала хук не роняет.
+    try {
+        $log = Join-Path (Split-Path $PSScriptRoot -Parent) 'stats\hook-degraded.log'
+        New-Item -ItemType Directory -Force -Path (Split-Path $log -Parent) | Out-Null
+        Add-Content -LiteralPath $log -Encoding UTF8 -Value ("{0}`tprotected-branch-guard`t{1}" -f
+            (Get-Date -Format 'yyyy-MM-ddTHH:mm:ss'), ($_.Exception.Message -replace '\s+', ' '))
+    } catch { }
     exit 0
 }
