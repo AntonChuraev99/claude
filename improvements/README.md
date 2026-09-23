@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-23 | [claude-md-char-trim](2026-09-23-claude-md-char-trim.md) | applied | 2026-10-07 | pending |
 | 2026-09-23 | [backlog-triage-skills-and-guard-log](2026-09-23-backlog-triage-skills-and-guard-log.md) | applied | 2026-10-07 | pending |
 | 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | pending |
 | 2026-09-18 | [branch-guard-deny-once](2026-09-18-branch-guard-deny-once.md) | applied | 2026-10-02 | pending |
