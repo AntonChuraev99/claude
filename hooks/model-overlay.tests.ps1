@@ -3,8 +3,11 @@
 # Overlay dir is redirected to a temp fixture via $env:CLAUDE_MODEL_OVERLAY_DIR, so the suite
 # never touches the real ~/.claude/model-overlays. Exit code = number of failed assertions.
 #
-# Contract: fable* -> fable.md ; *opus-5* -> opus-5.md ; everything else (opus 4.x, unknown,
-# absent, malformed) -> opus.md. opus.md is BOTH the Opus 4.x overlay AND the fallback.
+# Contract: fable* -> fable.md ; *opus-5-5* -> opus-5-5.md ; *opus-5* -> opus-5.md ; any other
+# known id (opus 4.x, sonnet, haiku) -> opus.md. A present model id is cached in the state file;
+# absent / empty / malformed model -> the cached id (SessionStart on /clear carries no model),
+# no cache -> opus-5-5.md (newest). Any missing overlay file -> opus.md; opus.md missing -> silent.
+# State file is redirected via $env:CLAUDE_MODEL_OVERLAY_STATE.
 # Run: pwsh -NoProfile -File hooks/model-overlay.tests.ps1
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -14,14 +17,20 @@ $script:pass = 0
 $script:fail = 0
 
 function Invoke-Hook {
-    param([string]$Json, [string]$OverlayDir)
+    param([string]$Json, [string]$OverlayDir, [switch]$KeepState)
+    # every call starts with an empty model cache unless -KeepState (cache scenarios)
+    if (-not $KeepState -and (Test-Path -LiteralPath $script:state)) { Remove-Item -LiteralPath $script:state -Force }
     $prev = $env:CLAUDE_MODEL_OVERLAY_DIR
+    $prevState = $env:CLAUDE_MODEL_OVERLAY_STATE
     $env:CLAUDE_MODEL_OVERLAY_DIR = $OverlayDir
+    $env:CLAUDE_MODEL_OVERLAY_STATE = $script:state
     try {
         $out = $Json | pwsh -NoProfile -ExecutionPolicy Bypass -File $hook 2>$null
     } finally {
         if ($null -eq $prev) { Remove-Item Env:CLAUDE_MODEL_OVERLAY_DIR -ErrorAction SilentlyContinue }
         else { $env:CLAUDE_MODEL_OVERLAY_DIR = $prev }
+        if ($null -eq $prevState) { Remove-Item Env:CLAUDE_MODEL_OVERLAY_STATE -ErrorAction SilentlyContinue }
+        else { $env:CLAUDE_MODEL_OVERLAY_STATE = $prevState }
     }
     return ($out -join "`n")
 }
@@ -48,6 +57,8 @@ New-Item -ItemType Directory -Force -Path $fx | Out-Null
 Set-Content -LiteralPath (Join-Path $fx 'opus.md')   -Value 'OPUS_SENTINEL'   -NoNewline -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $fx 'fable.md')  -Value 'FABLE_SENTINEL'  -NoNewline -Encoding UTF8
 Set-Content -LiteralPath (Join-Path $fx 'opus-5.md') -Value 'OPUS5_SENTINEL'  -NoNewline -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $fx 'opus-5-5.md') -Value 'OPUS55_SENTINEL' -NoNewline -Encoding UTF8
+$script:state = Join-Path $fx 'state\last-model.txt'
 
 Write-Host "model-overlay.ps1 — TDD suite"
 
@@ -57,25 +68,38 @@ Assert-Eq 'FABLE_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-fable-5"}' $fx)) 
 Assert-Eq 'OPUS5_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5"}' $fx))       'opus 5 id -> opus-5.md'
 Assert-Eq 'OPUS5_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5[1m]"}' $fx))   'opus 5 [1m] id -> opus-5.md'
 
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5-5"}' $fx))    'opus 5.5 id -> opus-5-5.md'
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5-5[1m]"}' $fx)) 'opus 5.5 [1m] id -> opus-5-5.md (not opus-5.md)'
+
 # regression: 4.x ids must NOT be swallowed by the *opus-5* pattern
 Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"claude-opus-4-5"}' $fx))     'opus 4.5 -> opus.md (not opus-5.md)'
 Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"claude-opus-4-5-20251101"}' $fx)) 'opus 4.5 dated -> opus.md'
 
-# fallback: any non-fable / unknown / absent / empty / null model -> opus.md
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"claude-sonnet-5"}' $fx))     'sonnet (unknown) -> opus.md (fallback)'
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"claude-haiku-4-5"}' $fx))    'haiku (unknown) -> opus.md (fallback)'
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"source":"startup"}' $fx))            'no model field -> opus.md (fallback)'
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":""}' $fx))                    'empty model -> opus.md (fallback)'
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":null}' $fx))                  'null model -> opus.md (fallback)'
+# known non-opus-5 id (sonnet / haiku) -> opus.md
+Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"claude-sonnet-5"}' $fx))     'sonnet -> opus.md'
+Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"claude-haiku-4-5"}' $fx))    'haiku -> opus.md'
+
+# absent / empty / null model, no cache -> newest overlay (opus-5-5.md)
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '{"source":"clear"}' $fx))            'no model, no cache -> opus-5-5.md'
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '{"model":""}' $fx))                  'empty model, no cache -> opus-5-5.md'
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '{"model":null}' $fx))                'null model, no cache -> opus-5-5.md'
+
+# cache: present model is remembered and reused when a later payload has none (/clear, /compact)
+Invoke-Hook '{"model":"claude-opus-4-8"}' $fx | Out-Null
+Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"source":"clear"}' $fx -KeepState))   'cached opus 4.8 + no model -> opus.md'
+Invoke-Hook '{"model":"claude-fable-5"}' $fx | Out-Null
+Assert-Eq 'FABLE_SENTINEL' (Ctx (Invoke-Hook '{"source":"compact"}' $fx -KeepState)) 'cached fable + no model -> fable.md'
+Assert-Eq 'OPUS5_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5"}' $fx -KeepState)) 'present model wins over cache'
+Assert-Eq 'OPUS5_SENTINEL' (Ctx (Invoke-Hook '{"source":"clear"}' $fx -KeepState))   'cache updated by latest present model'
 
 # edge: case-insensitive + substring (bedrock-style arn)
 Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '{"model":"CLAUDE-OPUS-4-8"}' $fx))     'uppercase OPUS -> opus.md'
 Assert-Eq 'FABLE_SENTINEL' (Ctx (Invoke-Hook '{"model":"US.ANTHROPIC.CLAUDE-FABLE-5-V1"}' $fx)) 'bedrock fable arn (uppercase) -> fable.md'
 Assert-Eq 'OPUS5_SENTINEL' (Ctx (Invoke-Hook '{"model":"US.ANTHROPIC.CLAUDE-OPUS-5"}' $fx)) 'bedrock opus 5 arn (uppercase) -> opus-5.md'
 
-# error: malformed / empty stdin -> opus.md (fallback), never crash
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook 'not json at all' $fx))                 'malformed stdin -> opus.md (fallback)'
-Assert-Eq 'OPUS_SENTINEL'  (Ctx (Invoke-Hook '' $fx))                                'empty stdin -> opus.md (fallback)'
+# error: malformed / empty stdin -> treated as absent model, never crash
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook 'not json at all' $fx))               'malformed stdin, no cache -> opus-5-5.md'
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '' $fx))                              'empty stdin, no cache -> opus-5-5.md'
 
 # output shape
 $evt = try { (ConvertFrom-Json (Invoke-Hook '{"model":"claude-opus-4-8"}' $fx)).hookSpecificOutput.hookEventName } catch { $null }
@@ -86,6 +110,9 @@ Remove-Item -LiteralPath (Join-Path $fx 'fable.md') -Force
 Assert-Eq 'OPUS_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-fable-5"}' $fx))       'fable.md missing -> opus.md (fallback)'
 Remove-Item -LiteralPath (Join-Path $fx 'opus-5.md') -Force
 Assert-Eq 'OPUS_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5"}' $fx))        'opus-5.md missing -> opus.md (fallback)'
+Remove-Item -LiteralPath (Join-Path $fx 'opus-5-5.md') -Force
+Assert-Eq 'OPUS_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-opus-5-5"}' $fx))      'opus-5-5.md missing -> opus.md (fallback)'
+Assert-Eq 'OPUS_SENTINEL' (Ctx (Invoke-Hook '{"source":"clear"}' $fx))              'no model + opus-5-5.md missing -> opus.md'
 
 # fallback: opus.md (the fallback itself) also gone -> empty stdout, exit 0 (never crash)
 Remove-Item -LiteralPath (Join-Path $fx 'opus.md') -Force
