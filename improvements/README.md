@@ -75,7 +75,8 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-09-25 | [mcp-memory-on-demand](2026-09-25-mcp-memory-on-demand.md) | applied | 2026-10-09 | pending |
 | 2026-09-23 | [opus-5-5-calibration](2026-09-23-opus-5-5-calibration.md) | applied | 2026-10-07 | pending |
 | 2026-09-23 | [claude-md-char-trim](2026-09-23-claude-md-char-trim.md) | applied | 2026-10-07 | pending |
-| 2026-09-23 | [backlog-triage-skills-and-guard-log](2026-09-23-backlog-triage-skills-and-guard-log.md) | applied | 2026-10-07 | pending || 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | pending |
+| 2026-09-23 | [backlog-triage-skills-and-guard-log](2026-09-23-backlog-triage-skills-and-guard-log.md) | applied | 2026-10-07 | pending |
+| 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | pending |
 | 2026-09-18 | [branch-guard-deny-once](2026-09-18-branch-guard-deny-once.md) | applied | 2026-10-02 | pending |
 | 2026-09-15 | [gate-review-tests-relax](2026-09-15-gate-review-tests-relax.md) | applied | 2026-09-29 | pending |
 | 2026-09-15 | [hook-timeouts-are-paging](2026-09-15-hook-timeouts-are-paging.md) | applied | 2026-09-29 | pending |
