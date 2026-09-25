@@ -31,6 +31,18 @@ tool-вызовов, 798 спавнов субагентов).
 | MCP `pencil`, `vercel` (профиль `claude`, `~/.claude.json`) | Pencil desktop, Vercel | 0 | `claude mcp add …` заново |
 | Удалены из кэша (были выключены): `code-simplifier`, `mcp-apps`, `voltagent-*` ×3, `skill-creator`, `figma`, `vercel`, `claude-md-management`; маркетплейсы `every-marketplace`, `kotlin-agents-marketplace`, `mcp-apps`, `voltagent-subagents` | — | 0 | `claude plugin marketplace add <repo>` + `claude plugin install <plugin>@<marketplace>` |
 
+## Выключено 2026-09-25 — память, не контекст
+
+stdio-MCP стартует **в каждой сессии** отдельным набором процессов; при 5 параллельных сессиях на
+16 GB это ощутимо (замер 2026-09-25: сессия ≈ 1,3–1,5 GB, из них MCP ≈ 730 MB).
+
+| Возможность | Что давала | Цена на сессию | Вернуть |
+|---|---|--:|---|
+| MCP `layout-debug` (был user-scope в обоих профилях) | выбор слоя на живом UI → агенту | 6 процессов (`cmd → npx → tsx → node`), ~200 MB | В PowerShell, только в профиле текущей сессии (`claude` — с `$env:CLAUDE_CONFIG_DIR=$null`): `claude mcp add --transport stdio --scope user layout-debug -- cmd /c npx tsx "$HOME/.claude/layout-debug-mcp/src/mcp/index.ts"`, рестарт сессии. **После работы** — `claude mcp remove layout-debug -s user`, иначе сервер снова стартует в каждой сессии |
+
+`firebase` (~240 MB) и `playwright` (~160 MB) оставлены сознательно: выключенный плагин убирает из
+сессии и имена тулов, и скиллы — агент перестаёт знать, что они есть (решение пользователя 2026-09-25).
+
 **Добавлено 2026-09-03:** плагин `playwright@claude-plugins-official` (`@playwright/mcp` от
 Microsoft, официальный маркетплейс Anthropic) и скилл `playwright-cli` (`npm i -g @playwright/cli`,
 `playwright-cli install --skills claude --global` → `~/.claude/skills/playwright-cli`) — браузерные
