@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-28 | [delegation-rule-relax](2026-09-28-delegation-rule-relax.md) | applied | 2026-10-12 | pending |
 | 2026-09-28 | [worktree-shell-sweep-hook](2026-09-28-worktree-shell-sweep-hook.md) | applied | 2026-10-12 | pending |
 | 2026-09-25 | [mcp-memory-on-demand](2026-09-25-mcp-memory-on-demand.md) | applied | 2026-10-09 | pending |
 | 2026-09-23 | [opus-5-5-calibration](2026-09-23-opus-5-5-calibration.md) | applied | 2026-10-07 | pending |
@@ -97,7 +98,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-08-29 | [device-mirror-skill](2026-08-29-device-mirror-skill.md) | applied | 2026-09-12 | pending |
 | 2026-08-27 | [caveman-lite-default](2026-08-27-caveman-lite-default.md) | applied | 2026-09-10 | pending |
 | 2026-08-27 | [scroll-clip-rule-covers-rounded-clip](2026-08-27-scroll-clip-rule-covers-rounded-clip.md) | applied | 2026-09-10 | pending |
-| 2026-08-27 | [delegation-rule-erosion](2026-08-27-delegation-rule-erosion.md) | applied | 2026-09-10 | pending |
+| 2026-08-27 | [delegation-rule-erosion](2026-08-27-delegation-rule-erosion.md) | applied | 2026-09-10 | replayed |
 | 2026-08-26 | [improvements-published](2026-08-26-improvements-published.md) | applied | 2026-09-09 | pending |
 | 2026-08-26 | [task-gate-review-fanout](2026-08-26-task-gate-review-fanout.md) | applied | 2026-09-09 | pending |
 | 2026-08-26 | [resident-context-trim](2026-08-26-resident-context-trim.md) | applied | 2026-09-09 | pending |
