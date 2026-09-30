@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-09-30 | [artemis-primary-mobile-testing](2026-09-30-artemis-primary-mobile-testing.md) | applied | 2026-10-14 | pending |
 | 2026-09-28 | [delegation-rule-relax](2026-09-28-delegation-rule-relax.md) | applied | 2026-10-12 | pending |
 | 2026-09-28 | [worktree-shell-sweep-hook](2026-09-28-worktree-shell-sweep-hook.md) | applied | 2026-10-12 | pending |
 | 2026-09-25 | [mcp-memory-on-demand](2026-09-25-mcp-memory-on-demand.md) | applied | 2026-10-09 | pending |
