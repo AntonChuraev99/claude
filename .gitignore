@@ -154,6 +154,8 @@ lib/__pycache__/
 !/skills/screenshot-driven-ui/**
 !/skills/device-mirror/
 !/skills/device-mirror/**
+!/skills/ui-demo-video/
+!/skills/ui-demo-video/**
 
 # --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
 !/skills/claude-profiles/
