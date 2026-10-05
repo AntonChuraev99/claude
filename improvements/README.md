@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-05 | [ui-demo-video-skill](2026-10-05-ui-demo-video-skill.md) | applied | 2026-10-19 | pending |
 | 2026-10-01 | [artemis-default-guard](2026-10-01-artemis-default-guard.md) | applied | 2026-10-14 | pending |
 | 2026-09-30 | [artemis-primary-mobile-testing](2026-09-30-artemis-primary-mobile-testing.md) | applied | 2026-10-14 | pending |
 | 2026-09-28 | [delegation-rule-relax](2026-09-28-delegation-rule-relax.md) | applied | 2026-10-12 | pending |
