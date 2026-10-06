@@ -358,7 +358,7 @@
     "cloudflare@claude-plugins-official": false,
     "amplitude@claude-plugins-official": true,
     "warp@claude-code-warp": true,
-    "RevenueCat@RevenueCat": true,
+    "revenuecat@RevenueCat": true,
     "context7@claude-plugins-official": false,
     "ast-index@ast-index-marketplace": true,
     "playwright@claude-plugins-official": true
