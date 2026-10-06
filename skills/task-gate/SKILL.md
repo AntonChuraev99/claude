@@ -213,7 +213,7 @@ node ~/.claude/hooks/docs-facts-guard.js <все файлы из DOCS_WRITTEN и
 
 Кратко:
 1. `git diff -U0 <BASE_SHA>` (нет BASE_SHA → `HEAD`) по code-расширениям → grep `\b(TODO|FIXME|STOPSHIP):` в `^+` строках (test-файлы исключены).
-2. Категории: 0 совпадений → `✅ no unbacked TODO`; с `// Pending: docs/todos/<file>` anchor + файл существует → `✅ TODO anchors valid`; без anchor или файл отсутствует → `⚠️ unbacked TODO` / `⚠️ broken Pending anchor`.
+2. Категории: 0 совпадений → `✅ no unbacked TODO`; с `// Pending: docs/todos/<file>` anchor + файл существует → `✅ TODO anchors valid`; без anchor или файл отсутствует → `⚠️ unbacked TODO` / `⚠️ broken Pending anchor`. В репозитории харнесса `~/.claude` валиден и anchor `// Issue: <url GitHub issue>` (скилл `harness-contributing`), опция «Create GitHub issue» заменяет там «Create docs/todos».
 3. Unbacked TODO — gate не блокируется (warning), но 5.1.1 Auto-commit **не запускать** до `AskUserQuestion` (Create docs/todos / Delete TODO / Override / Defer).
 4. `docs/todos/INDEX.md` есть → проверить `## Open` ссылки + memory desync.
 5. `/commit` уже был в рамках этой задачи со своим scan → `✅ verified by /commit at <sha>`.
@@ -302,7 +302,7 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 Проверить: (1) `git rev-parse --abbrev-ref HEAD` — не защищённая ветка (иначе `⚠️ committed to trunk`, Step 6 не запускать); (2) апстрим — `git rev-parse --abbrev-ref '@{u}'`, нет → `branch not pushed yet`, это норма, пушит Step 6; (3) MR/PR уже открыт — `gh pr view --json url,state -q '.url'` либо `glab mr list --source-branch <branch>`; (4) **триггерит ли merge деплой** — есть ли в репозитории CI-джоба на push в транк (`.gitlab-ci.yml`, `.github/workflows/*`, Cloudflare Workers Builds, Vercel): да → в отчёт строка `⚠️ merge в <транк> запускает деплой <куда>`. Пользователь подтверждает результат, зная это.
 
-Статус в отчёт: `📦 Ready to merge: <branch> → <trunk>` + строки (2)(3)(4). Репозиторий самого профиля (`~/.claude`, `~/.claude-work`) и согласованная работа в транке → `✅ N/A`, Step 6 пропускается — **кроме уборки worktree (шаг 5 Step 6): она выполняется всегда, независимо от гардов.** Скорлупы от неубранных worktree накапливались именно в профильном репозитории, потому что уборка считалась частью пропускаемого шага (замер 2026-08-31).
+Статус в отчёт: `📦 Ready to merge: <branch> → <trunk>` + строки (2)(3)(4). Согласованная работа в транке → `✅ N/A`, Step 6 пропускается (репозиторий харнесса `~/.claude` сюда не относится — он идёт через PR, скилл `harness-contributing`) — **кроме уборки worktree (шаг 5 Step 6): она выполняется всегда, независимо от гардов.** Скорлупы от неубранных worktree накапливались именно в профильном репозитории, потому что уборка считалась частью пропускаемого шага (замер 2026-08-31).
 
 ### 5.1b Артефакт для подтверждения (ОБЯЗАТЕЛЬНЫЙ, режимом не снимается)
 
@@ -318,7 +318,7 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 ### 5.1.1 Auto-commit (когда коммит — единственный блокер)
 
-Скилл вызывает `/commit` автоматически, **если все 6 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.8 без unbacked TODO; (6) `git rev-parse --abbrev-ref HEAD` — **не защищённая ветка** (`main`/`master`/`develop`/`release/*`, реестр `~/.claude/config/protected-branches.local.json`), кроме репозиториев самого профиля (`~/.claude`, `~/.claude-work`).
+Скилл вызывает `/commit` автоматически, **если все 6 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.8 без unbacked TODO; (6) `git rev-parse --abbrev-ref HEAD` — **не защищённая ветка** (`main`/`master`/`develop`/`release/*`, реестр `~/.claude/config/protected-branches.local.json`). Репозиторий харнесса `~/.claude` исключением не является: он публичный, правки идут через PR (скилл `harness-contributing`).
 
 Условие (6) не выполнено → auto-commit НЕ запускать, статус `⚠️ protected branch`: правки лежат в транке, решение (перенести в ветку через `git stash` + worktree / признать согласованным hotfix) принимает пользователь через `AskUserQuestion`.
 
@@ -379,7 +379,7 @@ printf '{"ts":"%s","repo":"%s","mode":"lite","gate_sec":null,"review_sec":null,"
 
 **Разрешение = подтверждение результата пользователем** после отчёта gate: «да», «готово», «мержи», «подтверждаю», «всё верно» — этого достаточно на всю цепочку, переспрашивать по шагам нельзя. Пользователь молчит, ушёл в новую задачу, попросил паузу или назвал недостаток → Step 6 не запускается, в отчёте `⚠️ merge pending confirmation`.
 
-**Гарды (не выполнено любое → Step 6 стоп, строка в отчёт):** вердикт Step 5 — `READY` или `READY WITH WARNINGS`, ни одного `❌`; текущая ветка не защищённая; `git status --porcelain` пуст (незакоммиченного нет); 2.1 Validation не `❌`; репозиторий не `~/.claude` / `~/.claude-work`; пользователь не запрещал merge в этой сессии.
+**Гарды (не выполнено любое → Step 6 стоп, строка в отчёт):** вердикт Step 5 — `READY` или `READY WITH WARNINGS`, ни одного `❌`; текущая ветка не защищённая; `git status --porcelain` пуст (незакоммиченного нет); 2.1 Validation не `❌`; пользователь не запрещал merge в этой сессии.
 
 **Не гард:** `⚠️ diff review incomplete` (ревьюер 2.3b не вернулся, `references/diff-review-flow.md` → «Ось не вернулась»). Строка стоит в отчёте, по которому пользователь подтверждает результат; подтвердил — Step 6 идёт, `reviewedSha` при этом не двигается, и следующий прогон ветки ревьюит тот же диапазон.
 
