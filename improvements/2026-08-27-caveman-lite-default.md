@@ -1,7 +1,7 @@
 ---
 date: 2026-08-27
 slug: caveman-lite-default
-status: applied
+status: reverted
 goal: снизить ущерб от caveman-плагина на русском, переведя его с уровня full на lite, и проверить, окупается ли он вообще
 metric: output-токены на задачу vs входная цена впрыска SKILL.md; читаемость русского вывода
 baseline_date: 2026-08-27
@@ -90,4 +90,4 @@ README-таблица на 65% построена именно по методи
 
 ## Replay (заполняется 2026-09-10)
 
-_pending_
+**Superseded 2026-10-06.** Replay не проводился. Плагин удалён решением пользователя: стиль ответов теперь задаёт output style `ste-ru` — запись [ste-ru-output-style](2026-10-06-ste-ru-output-style.md).
