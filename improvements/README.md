@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-06 | [revenuecat-plugin-rename](2026-10-06-revenuecat-plugin-rename.md) | applied | 2026-10-20 | pending |
 | 2026-10-06 | [harness-contributing](2026-10-06-harness-contributing.md) | applied | 2026-10-20 | pending |
 | 2026-10-06 | [video-expert-agent](2026-10-06-video-expert-agent.md) | applied | 2026-10-20 | pending |
 | 2026-10-06 | [ste-ru-output-style](2026-10-06-ste-ru-output-style.md) | applied | 2026-10-20 | pending |
