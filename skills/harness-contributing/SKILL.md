@@ -15,7 +15,7 @@ when_to_use: правка CLAUDE.md, rules, agents, skills, hooks, scripts, sett
    Правка, которая должна подействовать в текущей сессии, может идти в живом checkout (исключение CLAUDE.md), но коммит всё равно уходит веткой и PR.
 3. Правка `CLAUDE.md`, `rules/`, `agents/`, `skills/`, `model-overlays/`, settings → запись в `improvements/` + строка в index (`improvements/README.md`).
 4. Анти-утечка — CLAUDE.md → «Публичный репозиторий»; pre-commit не обходить.
-5. Коммит — `/commit`; PR — `/task-gate` Step 6 (`gh pr create --base main`, squash-merge после подтверждения). В теле PR — `Closes #N`, если правка закрывает issue.
+5. Коммит — `/commit`; PR — `/task-gate` Step 6 (`gh pr create --base main`, squash-merge после подтверждения; дифф только из `docs/`, `improvements/`, корневых `README.md`/`CONTRIBUTING.md` — без подтверждения, `references/mr-merge.md` → «Без подтверждения»). В теле PR — `Closes #N`, если правка закрывает issue.
 
 ## Не чиним сейчас → issue
 

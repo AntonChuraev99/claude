@@ -75,6 +75,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-10-06 | [harness-contributing](2026-10-06-harness-contributing.md) | applied | 2026-10-20 | pending |
 | 2026-10-06 | [video-expert-agent](2026-10-06-video-expert-agent.md) | applied | 2026-10-20 | pending |
 | 2026-10-06 | [ste-ru-output-style](2026-10-06-ste-ru-output-style.md) | applied | 2026-10-20 | pending |
+| 2026-10-06 | [docs-only-auto-merge](2026-10-06-docs-only-auto-merge.md) | applied | 2026-10-20 | pending |
 | 2026-10-05 | [ui-demo-video-skill](2026-10-05-ui-demo-video-skill.md) | applied | 2026-10-19 | pending |
 | 2026-10-01 | [sibling-elements-propose](2026-10-01-sibling-elements-propose.md) | applied | 2026-10-20 | pending |
 | 2026-10-01 | [artemis-default-guard](2026-10-01-artemis-default-guard.md) | applied | 2026-10-14 | pending |
