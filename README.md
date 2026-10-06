@@ -40,11 +40,12 @@ document against the repository.
 
 ### Skills (`skills/`)
 
-**Process skills** — deliberately only three. A skill earns its place when it is needed rarely,
+**Process skills** — deliberately only a few. A skill earns its place when it is needed rarely,
 carries commands the model can't guess, and isn't already covered by an agent `description`, a
 plugin skill, or a condensed rule in `CLAUDE.md`: `instruction-routing` (where a new instruction
 belongs — CLAUDE.md vs rules vs skill vs hook), `subagent-authoring` (how to write and review a
-subagent), `claude-profiles` (multi-account profiles, linking rules, and the per-project
+subagent), `harness-contributing` (changes to this repo go through a PR, unfixed bugs through
+an issue), `claude-profiles` (multi-account profiles, linking rules, and the per-project
 credential registry that guards against deploying with another project's account).
 
 **Workflow skills:** `commit`, `task-gate` (per-task Definition of Done gate; formerly
@@ -109,6 +110,11 @@ Pick what you want — there is no need to take everything.
   gitignored `config/*.local.md` — copy the matching `*.example.md` and fill it in.
 - `CLAUDE.md` is heavily tailored to my stack (Android/KMP + Next.js). Keep the structure,
   swap the specifics.
+
+## Contributing
+
+Found a bug you can't fix right now — open an issue. Want to change something — open a pull
+request; nobody commits to `main` directly. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security model
 

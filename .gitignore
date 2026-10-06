@@ -19,7 +19,11 @@
 !/.gitattributes
 !/README.md
 !/LICENSE
+!/CONTRIBUTING.md
 !/CLAUDE.md
+#  Issue and PR templates — the contribution flow from CONTRIBUTING.md.
+!/.github/
+!/.github/**
 !/settings.example.json
 
 # --- 3. Hook & status-line scripts (referenced from settings.example.json) --
@@ -168,6 +172,8 @@ lib/__pycache__/
 !/skills/subagent-authoring/**
 !/skills/instruction-routing/
 !/skills/instruction-routing/**
+!/skills/harness-contributing/
+!/skills/harness-contributing/**
 !/skills/workflow-orchestration/
 !/skills/workflow-orchestration/**
 

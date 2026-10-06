@@ -14,7 +14,7 @@ Create a well-formed git commit following the [Conventional Commits](https://www
    - *(Recommended)* перенести правки в отдельную ветку: `git stash` → `EnterWorktree({name: "<type>/<slug>"})` (тул переключает CWD сессии в worktree; `git worktree add` этого не делает) → `git stash pop` уже в worktree → коммит там → push + MR/PR;
    - согласованный hotfix — коммитить в транк как есть.
 
-   Без вопроса продолжать, если: репозиторий самого `~/.claude` / `~/.claude-work`; каталог вне git; ветка не защищена; пользователь уже в этой сессии подтвердил работу в транке.
+   Без вопроса продолжать, если: каталог вне git; ветка не защищена; пользователь уже в этой сессии подтвердил работу в транке.
 
 1. Run `git status` to see what has changed.
 2. Run `git diff` (unstaged) and `git diff --staged` (staged) to understand the actual changes.
