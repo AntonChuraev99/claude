@@ -24,7 +24,7 @@ when_to_use: правка симлинков и junction между профил
 
 ## Что можно и нельзя линковать
 
-**Можно** (junction `mklink /J`): папки общей инфраструктуры — `agents/`, `commands/`, `skills/`, `rules/`, `plugins/`, `agent-memory/`, `config/`, `improvements/`, `stats/`. `CLAUDE.md` — symlink. `settings.json` — symlink только если нет per-account хуков.
+**Можно** (junction `mklink /J`): папки общей инфраструктуры — `agents/`, `commands/`, `skills/`, `rules/`, `plugins/`, `agent-memory/`, `config/`, `improvements/`, `stats/`, `output-styles/`. `CLAUDE.md` — symlink. `settings.json` — symlink только если нет per-account хуков.
 
 **Категорически нельзя** (никаким способом): `.claude.json`, `.credentials.json`, `todos/`, `statsig/`, `shell-snapshots/` — линковка сломает раздельный логин.
 

@@ -2,6 +2,7 @@
   "env": {
     "CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY_HERE"
   },
+  "outputStyle": "ste-ru",
   "attribution": {
     "commit": "",
     "pr": ""
@@ -359,7 +360,6 @@
     "warp@claude-code-warp": true,
     "RevenueCat@RevenueCat": true,
     "context7@claude-plugins-official": false,
-    "caveman@caveman": true,
     "ast-index@ast-index-marketplace": true,
     "playwright@claude-plugins-official": true
   },
@@ -380,12 +380,6 @@
       "source": {
         "source": "github",
         "repo": "RevenueCat/ai-toolkit"
-      }
-    },
-    "caveman": {
-      "source": {
-        "source": "github",
-        "repo": "JuliusBrussee/caveman"
       }
     },
     "ast-index-marketplace": {

@@ -65,6 +65,10 @@ lib/__pycache__/
 !/model-overlays/
 !/model-overlays/**
 
+# --- 7b2. Output styles (selected by `outputStyle` in settings.json) ---------
+!/output-styles/
+!/output-styles/**
+
 # --- 7c. Path-scoped rules (auto-loaded when Claude touches matching files) ---
 !/rules/
 !/rules/**

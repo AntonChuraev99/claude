@@ -19,6 +19,12 @@ Anthropic по always-on токенам) плюс замер реальных в
 (не упоминания). Окна: 2026-08-01…08-19 (2097 файлов) и 2026-08-19…09-03 (951 файл, 59k
 tool-вызовов, 798 спавнов субагентов).
 
+## Удалено 2026-10-06
+
+| Возможность | Что давала | Почему снята | Вернуть |
+|---|---|---|---|
+| `caveman@caveman` + marketplace `caveman` | стиль сжатых ответов (lite) через SessionStart/UserPromptSubmit-хуки, скиллы `caveman:*`, агенты `cavecrew-*` | заменён output style `ste-ru` (`output-styles/ste-ru.md`) — решение пользователя; обрывки фраз caveman противоречат полным предложениям STE | `claude plugin marketplace add JuliusBrussee/caveman` → `claude plugin install caveman@caveman`, убрать `outputStyle` из `settings.json` |
+
 ## Выключено / удалено 2026-09-03
 
 | Возможность | Что давала | Вызовов 08-19…09-03 | Вернуть |
@@ -56,8 +62,7 @@ Microsoft, официальный маркетплейс Anthropic) и скил�
 `RevenueCat` (плагин) 82 · `atlassian` 34 · `firebase` 23 · `Gmail` 9 · `Slack` 5 · `appstore` 2.
 
 Без вызовов, но оставлено сознательно: `warp` (только уведомления Warp; 6 хуков, PostToolUse
-≈0.5 с на tool call — решение пользователя 2026-09-03), `caveman` (режим активен,
-`cavecrew-reviewer` 11 спавнов), `ast-index` (CLI через Bash — 444 вызова), `frontend-design`
+≈0.5 с на tool call — решение пользователя 2026-09-03), `ast-index` (CLI через Bash — 444 вызова), `frontend-design`
 (22 вызова скилла).
 
 `skillOverrides: "off"` работает по-разному (проверено 2026-09-03 в двух сессиях, главной и

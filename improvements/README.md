@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-06 | [ste-ru-output-style](2026-10-06-ste-ru-output-style.md) | applied | 2026-10-20 | pending |
 | 2026-10-05 | [ui-demo-video-skill](2026-10-05-ui-demo-video-skill.md) | applied | 2026-10-19 | pending |
 | 2026-10-01 | [artemis-default-guard](2026-10-01-artemis-default-guard.md) | applied | 2026-10-14 | pending |
 | 2026-09-30 | [artemis-primary-mobile-testing](2026-09-30-artemis-primary-mobile-testing.md) | applied | 2026-10-14 | pending |
@@ -99,7 +100,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-08-31 | [test-expert-scope-and-cost](2026-08-31-test-expert-scope-and-cost.md) | applied | 2026-09-14 | pending |
 | 2026-08-31 | [review-threshold](2026-08-31-review-threshold.md) | applied | 2026-09-14 | pending |
 | 2026-08-29 | [device-mirror-skill](2026-08-29-device-mirror-skill.md) | applied | 2026-09-12 | pending |
-| 2026-08-27 | [caveman-lite-default](2026-08-27-caveman-lite-default.md) | applied | 2026-09-10 | pending |
+| 2026-08-27 | [caveman-lite-default](2026-08-27-caveman-lite-default.md) | reverted | 2026-09-10 | superseded |
 | 2026-08-27 | [scroll-clip-rule-covers-rounded-clip](2026-08-27-scroll-clip-rule-covers-rounded-clip.md) | applied | 2026-09-10 | pending |
 | 2026-08-27 | [delegation-rule-erosion](2026-08-27-delegation-rule-erosion.md) | applied | 2026-09-10 | replayed |
 | 2026-08-26 | [improvements-published](2026-08-26-improvements-published.md) | applied | 2026-09-09 | pending |
