@@ -1,16 +1,40 @@
 # video-expert — справочник
 
-Сверено 2026-10-06 (скаут по README и докам вендоров). Цифры и команды — снимок на эту дату: перед установкой и публикацией сверить с первоисточником, по памяти не воспроизводить.
+Сверено 2026-10-06 (скаут по README и докам вендоров). Цифры и команды — снимок на эту дату: перед обновлением копии и публикацией сверить с первоисточником, по памяти не воспроизводить.
 
-## Внешние скиллы — ставятся по требованию, не заранее
+## Скиллы движков — локальная копия, читаются через `Read`
 
-Решение пользователя 2026-10-06: глобально не ставить, агент называет команду, когда движок выбран. Ставить в **проект** (`npx skills add` кладёт в `.claude/skills/` проекта) — только с согласия пользователя в этой задаче.
+Решение пользователя 2026-10-06: скиллы доступны агенту, но их описания не попадают в контекст главного. Поэтому они лежат **вне** каталога скиллов — в gitignored `~/.claude/agent-memory/video-expert/vendor/` (sparse-клоны, только каталог `skills/`), а агент открывает `SKILL.md` по пути. Инструмент `Skill` их не видит, и это намеренно.
 
-| Движок | Когда | Установка (из README) | Лицензия, состояние на 2026-10-06 |
+| Движок | Корень скиллов | Вход | Лицензия на 2026-10-06 |
 |---|---|---|---|
-| HyperFrames | промо, рилс, объяснялка, кинетическая типографика, субтитры, TTS — **дефолт** для ролика с нуля | скиллы: `npx skills add heygen-com/hyperframes` · плагин: `claude plugin marketplace add heygen-com/hyperframes` → `claude plugin install hyperframes@hyperframes` (команда `/hyperframes:hyperframes`) · CLI: `npx hyperframes init` / `preview` / `render` | Apache-2.0, 57k★, 21 скилл, нужны Node 22+ и FFmpeg |
-| Remotion | проект уже на Remotion, нужен React-компонентный ролик или параметрический рендер из данных | `npx skills add remotion-dev/skills` (12 скиллов: best-practices, captions, render…) | бесплатно физлицам, некоммерческим и компаниям ≤3 человек; больше — платная Company License (remotion.pro/license) |
-| ui-demo-video (свой) | демо интерфейса, сцена живёт на сайте и экспортируется в MP4 | уже стоит: `~/.claude/skills/ui-demo-video/` | — |
+| HyperFrames (дефолт) | `~/.claude/agent-memory/video-expert/vendor/hyperframes/skills/` | `hyperframes/SKILL.md` — роутер, читать первым | Apache-2.0, 21 скилл; CLI `npx hyperframes …` (Node 22+, FFmpeg) |
+| Remotion | `~/.claude/agent-memory/video-expert/vendor/remotion-skills/skills/` | `remotion-best-practices/SKILL.md` — роутер | репозиторий скиллов без лицензии (поэтому не в публичном репо); сам Remotion бесплатен физлицам, некоммерческим и компаниям ≤3 человек, больше — Company License (remotion.pro/license) |
+| ui-demo-video (свой) | `~/.claude/skills/ui-demo-video/` | `SKILL.md`, рендер — `references/render-pipeline.md` | — |
+
+Как читать:
+- Ссылка `/name` внутри скилла HyperFrames означает файл `<корень>/name/SKILL.md`; относительные пути (`references/…`, `../media-use/…`) — от каталога текущего скилла.
+- Частые входы HyperFrames: промо по URL или брифу — `product-launch-video`; короткая типографика, стат, логотип — `motion-graphics`; субтитры к готовому видео — `embedded-captions`; объяснялка без съёмки — `faceless-explainer`; остальное — `general-video`. Контракт композиции — `hyperframes-core` (читать до первой строки HTML), CLI — `hyperframes-cli`.
+- **Скиллы никуда не ставить.** Не запускать `npx hyperframes skills update`, `npx hyperframes skills`, `npx skills add` — роутер HyperFrames просит их на шаге «Install and enter the workflow». `npx hyperframes init` тоже ставит core-набор скиллов (`hyperframes-cli/references/init-and-scaffold.md`; флаг `--skip-skills` временно игнорируется) — поэтому **каждая** команда `npx hyperframes …` идёт с `HYPERFRAMES_SKIP_SKILLS=1`. Иначе скиллы попадают в общий или проектный каталог, и их описания уезжают в контекст главного. Все 21 скилл уже лежат в копии.
+- Копия читается роутером как standalone-установка (`plugin.json` в sparse-копию не попадает) — шаги «plugin installs» и «Keep the project's CLI current» про скиллы не относятся к нам; `upgrade --check` CLI-пина в проекте — можно, с той же переменной.
+- Workflow HyperFrames ждут одобрений пользователя (план, скетчи, «render only after approval») и открывают Studio preview. Субагент работает в autonomous mode: бриф заменяет интервью и одобрения, preview не запускается.
+- Каталога нет — `STATUS: NEEDS_INPUT` с командами из «Обновление копии».
+
+Обновление копии (раз в месяц или когда скилл ссылается на отсутствующий файл):
+
+```bash
+# обновить (shallow-клон: pull падает на «unrelated histories», поэтому fetch + reset; sparse-шаблон сохраняется)
+cd ~/.claude/agent-memory/video-expert/vendor
+for r in hyperframes remotion-skills; do git -C $r fetch --depth 1 origin && git -C $r reset --hard FETCH_HEAD; done
+# с нуля:
+mkdir -p ~/.claude/agent-memory/video-expert/vendor && cd ~/.claude/agent-memory/video-expert/vendor
+git clone --depth 1 --filter=blob:none --sparse https://github.com/heygen-com/hyperframes.git hyperframes
+git clone --depth 1 --filter=blob:none --sparse https://github.com/remotion-dev/skills.git remotion-skills
+MSYS_NO_PATHCONV=1 git -C hyperframes sparse-checkout set --no-cone '/skills/'
+MSYS_NO_PATHCONV=1 git -C remotion-skills sparse-checkout set --no-cone '/skills/'
+```
+
+`--filter=blob:none` обязателен: без него `.git` HyperFrames весит ~600 МБ, с ним — десятки МБ. Шаблон `'/skills/'` — с ведущим слешем, иначе в копию попадают служебные `.claude/skills/` репозитория; `MSYS_NO_PATHCONV=1` нужен в Git Bash, иначе слеш превращается в путь Windows.
 
 Грабли:
 - HyperFrames на Windows: ниже v0.7.27 `npx spawn` без `shell:true` падал молча — брать свежий релиз.
