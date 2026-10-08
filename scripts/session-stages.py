@@ -272,9 +272,10 @@ def analyze_session(path):
             "n_prompts": sum(1 for e in events if e[1] == "human")}
 
 REVIEW_KINDS = [
-    ("gate 2.3b Standards+Spec", re.compile(r"2\.3b|standards|spec review|spec axis|spec-axis|standards\+spec|standards \+ spec", re.I)),
     ("L2 bug-pattern", re.compile(r"bug-pattern|L2", re.I)),
-    ("fresh/independent diff review", re.compile(r"fresh|independent|независим|свеж|diff review|ревью дифф|review .*diff|review diff", re.I)),
+    # С 2026-09-15 отдельного fresh-ревью нет: «Diff review …» — это ревьюер гейта 2.3b.
+    ("gate 2.3b Standards+Spec", re.compile(r"2\.3b|standards|spec review|spec axis|spec-axis|standards\+spec|standards \+ spec|diff review|ревью дифф|review .*diff|review diff|task-gate|gate", re.I)),
+    ("fresh/independent diff review", re.compile(r"fresh|independent|независим|свеж", re.I)),
     ("PR/release review", re.compile(r"\bPR\b|release|MR", re.I)),
     ("verify/sanity", re.compile(r"verify|sanity|верифи|проверь", re.I)),
 ]

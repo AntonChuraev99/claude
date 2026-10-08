@@ -105,6 +105,20 @@ Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '' $fx))                          
 $evt = try { (ConvertFrom-Json (Invoke-Hook '{"model":"claude-opus-4-8"}' $fx)).hookSpecificOutput.hookEventName } catch { $null }
 Assert-Eq 'SessionStart' $evt 'output hookEventName = SessionStart'
 
+# PostModelSwitch (`/model` mid-session, CLI >= 2.1.251): to_model picks the overlay, output is
+# tagged PostModelSwitch, cache follows the switch; same-overlay switch stays silent (once per change).
+$sw = Invoke-Hook '{"hook_event_name":"PostModelSwitch","from_model":"claude-opus-5-5","to_model":"claude-fable-5","source":"command"}' $fx
+Assert-Eq 'FABLE_SENTINEL' (Ctx $sw) 'switch opus-5-5 -> fable: fable.md injected'
+$evt = try { (ConvertFrom-Json $sw).hookSpecificOutput.hookEventName } catch { $null }
+Assert-Eq 'PostModelSwitch' $evt 'switch output hookEventName = PostModelSwitch'
+Assert-Eq 'FABLE_SENTINEL' (Ctx (Invoke-Hook '{"source":"clear"}' $fx -KeepState)) 'after switch to fable, /clear reuses fable (cache updated)'
+$same = Invoke-Hook '{"hook_event_name":"PostModelSwitch","from_model":"claude-opus-5-5","to_model":"claude-opus-5-5[1m]","source":"command"}' $fx
+Assert-Eq $true ([string]::IsNullOrWhiteSpace($same)) 'switch within one overlay family -> silent'
+Assert-Eq 'OPUS55_SENTINEL' (Ctx (Invoke-Hook '{"source":"clear"}' $fx -KeepState)) 'silent switch still updates the cache'
+Invoke-Hook '{"model":"claude-opus-5-5"}' $fx | Out-Null
+$noTo = Invoke-Hook '{"hook_event_name":"PostModelSwitch","from_model":"claude-opus-5-5"}' $fx -KeepState
+Assert-Eq $true ([string]::IsNullOrWhiteSpace($noTo)) 'switch payload without to_model -> silent'
+
 # fallback: fable.md / opus-5.md missing -> opus.md
 Remove-Item -LiteralPath (Join-Path $fx 'fable.md') -Force
 Assert-Eq 'OPUS_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-fable-5"}' $fx))       'fable.md missing -> opus.md (fallback)'

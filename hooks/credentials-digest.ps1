@@ -111,6 +111,39 @@ function Get-ProbeCachePath([string]$claudeHome, [string]$account) {
     $hex = -join ($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($account.ToLowerInvariant())) | ForEach-Object { $_.ToString('x2') })
     return Join-Path $claudeHome "stats\credentials-probe\$hex.ok"
 }
+# Последний вердикт пробы любого состояния — для SubagentStart. Метка .ok выше живёт
+# только для «живая», а субагенту важнее всего как раз «ПРОСРОЧЕНА»: без файла с
+# вердиктом он узнавал о ней из `Reauthentication failed` посреди работы (replay
+# 2026-10-08: 6 случаев за месяц). Сетевой пробы на SubagentStart нет — только чтение.
+function Get-VerdictPath([string]$okPath) { return [System.IO.Path]::ChangeExtension($okPath, '.verdict') }
+function Save-Verdict([string]$okPath, [string]$state) {
+    try {
+        $f = Get-VerdictPath $okPath
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $f) | Out-Null
+        Set-Content -LiteralPath $f -Value ("{0}`t{1}" -f $state, [datetime]::UtcNow.ToString('o')) -NoNewline -Encoding ascii
+    } catch { }
+}
+# Логин пользователя (`! gcloud auth login`) переписывает credentials.db в каталоге
+# конфигурации gcloud. Если файл новее вердикта — вердикт устарел, и пересказывать
+# субагенту «ПРОСРОЧЕНА» после того, как пользователь уже залогинился, нельзя.
+function Get-GcloudLoginTimeUtc {
+    $dir = if ($env:CLOUDSDK_CONFIG) { $env:CLOUDSDK_CONFIG } elseif ($env:APPDATA) { Join-Path $env:APPDATA 'gcloud' } else { $null }
+    if (-not $dir) { return $null }
+    $db = Join-Path $dir 'credentials.db'
+    if (-not (Test-Path -LiteralPath $db)) { return $null }
+    return (Get-Item -LiteralPath $db).LastWriteTimeUtc
+}
+function Read-Verdict([string]$okPath) {
+    $f = Get-VerdictPath $okPath
+    if (-not (Test-Path -LiteralPath $f)) { return $null }
+    $parts = ([string](Get-Content -LiteralPath $f -Raw)).Trim() -split "`t"
+    if ($parts.Count -lt 2) { return $null }
+    $at = [datetime]::Parse($parts[1], [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()
+    $login = Get-GcloudLoginTimeUtc
+    if ($login -and $login -gt $at) { return $null }
+    return @{ state = $parts[0]; at = $at }
+}
+
 function Get-CachedOkTime([string]$path) {
     if (-not (Test-Path -LiteralPath $path)) { return $null }
     $item = Get-Item -LiteralPath $path
@@ -122,12 +155,14 @@ function Get-CachedOkTime([string]$path) {
 try {
     $cwd = $null
     $source = ''
+    $hookEvent = ''
     try {
         $stdin = [Console]::In.ReadToEnd()
         if ($stdin) {
             $payload = ConvertFrom-Json $stdin
             $cwd = $payload.cwd
             $source = [string]$payload.source
+            $hookEvent = [string]$payload.hook_event_name
         }
     } catch { }
     if (-not $cwd) { $cwd = (Get-Location).Path }
@@ -161,6 +196,27 @@ try {
         }
     }
 
+    # SubagentStart: субагент получает ОДНУ строку про сессию gcloud/firebase, а не весь
+    # дайджест (таблицу и инструкции главный уже видел и при нужде передаёт в брифе).
+    # Вердикт — из файла последней пробы SessionStart; своей пробы здесь нет: сетевой
+    # вызов на каждый спавн субагента стоил бы секунды на фан-ауте.
+    if ($hookEvent -eq 'SubagentStart') {
+        if ($ignored -or -not $row) { exit 0 }
+        $account = Get-AccountEmail $row[2]
+        if (-not $account -or -not ($row[3] -or $row[5])) { exit 0 }
+        $v = Read-Verdict (Get-ProbeCachePath $claudeHome $account)
+        $at = if ($v) { $v.at.ToLocalTime().ToString('HH:mm') } else { '' }
+        $line = switch ($(if ($v) { $v.state } else { '' })) {
+            'reauth'  { '⚠ gcloud: сессия {0} ПРОСРОЧЕНА (проба в {1}) — Workspace session control. Не запускай gcloud/firebase и не ретрай: верни главному, что пользователю нужно выполнить `! gcloud auth login {0}` и `! firebase login --reauth`.' -f $account, $at }
+            'revoked' { '⚠ gcloud: токен {0} отозван (проба в {1}). Не запускай gcloud/firebase: верни главному команду для пользователя `! gcloud auth login {0}`.' -f $account, $at }
+            'nologin' { '⚠ gcloud: аккаунт {0} не залогинен (проба в {1}). Не запускай gcloud/firebase: верни главному команду для пользователя `! gcloud auth login {0}`.' -f $account, $at }
+            default   { 'gcloud/firebase ({0}): на `Reauthentication failed` / `invalid_rapt` — стоп, без ретраев и без другого аккаунта; верни главному команду для пользователя `! gcloud auth login {0}` и `! firebase login --reauth`.' -f $account }
+        }
+        @{ hookSpecificOutput = @{ hookEventName = 'SubagentStart'; additionalContext = $line } } |
+            ConvertTo-Json -Depth 5 -Compress
+        exit 0
+    }
+
     $sb = [System.Text.StringBuilder]::new()
 
     if ($ignored) {
@@ -190,6 +246,7 @@ try {
                 $verdict = 'gcloud: сессия {0} живая (проверено в {1}, кеш {2} мин). firebase — отдельный логин под той же политикой: на invalid_rapt → `! firebase login --reauth`.' -f $account, $since.ToString('HH:mm'), $script:ProbeCacheTtlMin
             } else {
                 $v = Get-SessionVerdict $account
+                Save-Verdict $cache $v.state
                 if ($v.state -eq 'ok') {
                     try {
                         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $cache) | Out-Null

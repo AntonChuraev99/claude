@@ -81,22 +81,27 @@ exit /b 0
 # A live verdict is cached for 30 min under <profile>\stats\credentials-probe; every case
 # starts from an empty cache unless it opts in with -KeepCache.
 $cacheDir = Join-Path $profileDir 'stats\credentials-probe'
+$gcloudCfg = Join-Path $fx 'gcloudcfg'
+New-Item -ItemType Directory -Force -Path $gcloudCfg | Out-Null
 
 function Invoke-Hook {
-    param([string]$Cwd, [string]$Source = 'startup', [string]$Mode = 'ok', [string]$Path = $null, [string]$Profile = $profileDir, [switch]$KeepCache)
-    $prev = @{ CLAUDE_HOME = $env:CLAUDE_HOME; PATH = $env:PATH; MODE = $env:FAKE_GCLOUD_MODE; ARGS = $env:FAKE_GCLOUD_ARGS }
+    param([string]$Cwd, [string]$Source = 'startup', [string]$Mode = 'ok', [string]$Path = $null, [string]$Profile = $profileDir, [switch]$KeepCache, [string]$Event = 'SessionStart')
+    $prev = @{ CLAUDE_HOME = $env:CLAUDE_HOME; PATH = $env:PATH; MODE = $env:FAKE_GCLOUD_MODE; ARGS = $env:FAKE_GCLOUD_ARGS; CFG = $env:CLOUDSDK_CONFIG }
     Remove-Item -LiteralPath $argsFile -Force -ErrorAction SilentlyContinue
     if (-not $KeepCache) { Remove-Item -LiteralPath $cacheDir -Recurse -Force -ErrorAction SilentlyContinue }
     $env:CLAUDE_HOME = $Profile
     $env:PATH = if ($Path) { $Path } else { "$bin;$($prev.PATH)" }
     $env:FAKE_GCLOUD_MODE = $Mode
     $env:FAKE_GCLOUD_ARGS = $argsFile
+    # Каталог конфигурации gcloud — фикстура: по mtime credentials.db хук решает,
+    # не залогинился ли пользователь после пробы. Реальный %APPDATA%\gcloud не трогаем.
+    $env:CLOUDSDK_CONFIG = $gcloudCfg
     try {
-        $json = @{ cwd = $Cwd; source = $Source } | ConvertTo-Json -Compress
+        $json = @{ cwd = $Cwd; source = $Source; hook_event_name = $Event } | ConvertTo-Json -Compress
         $out = $json | & $pwshExe -NoProfile -ExecutionPolicy Bypass -File $hook 2>$null
     } finally {
         $env:CLAUDE_HOME = $prev.CLAUDE_HOME; $env:PATH = $prev.PATH
-        $env:FAKE_GCLOUD_MODE = $prev.MODE; $env:FAKE_GCLOUD_ARGS = $prev.ARGS
+        $env:FAKE_GCLOUD_MODE = $prev.MODE; $env:FAKE_GCLOUD_ARGS = $prev.ARGS; $env:CLOUDSDK_CONFIG = $prev.CFG
     }
     return ($out -join "`n")
 }
@@ -255,6 +260,45 @@ Assert-True ([string]::IsNullOrWhiteSpace($o)) 'no registry -> silent'
 
 $evt = try { (ConvertFrom-Json (Invoke-Hook $gcp -Mode ok)).hookSpecificOutput.hookEventName } catch { $null }
 Assert-True ($evt -eq 'SessionStart') 'output hookEventName = SessionStart' "got [$evt]"
+
+# --- SubagentStart: one line from the SessionStart verdict, no probe of its own ---
+function SubCtx { param([string]$Cwd, [switch]$KeepCache)
+    $o = Invoke-Hook $Cwd -Mode ok -Event SubagentStart -KeepCache:$KeepCache
+    return @{ ctx = (Ctx $o); evt = $(try { (ConvertFrom-Json $o).hookSpecificOutput.hookEventName } catch { $null }); probed = (Probed) } }
+$credDb = Join-Path $gcloudCfg 'credentials.db'
+Remove-Item -LiteralPath $credDb -Force -ErrorAction SilentlyContinue
+
+$null = Invoke-Hook $gcp -Mode reauth
+$s = SubCtx $gcp -KeepCache
+Assert-Match '^⚠ gcloud: сессия user@example\.com ПРОСРОЧЕНА \(проба в \d\d:\d\d\)' $s.ctx 'subagent: reauth verdict of SessionStart reaches the subagent'
+Assert-Match '`! gcloud auth login user@example\.com`' $s.ctx 'subagent: reauth -> exact login command'
+Assert-True (-not $s.probed) 'subagent: no probe of its own (verdict read from file)'
+Assert-True ($s.evt -eq 'SubagentStart') 'subagent: hookEventName = SubagentStart' "got [$($s.evt)]"
+Assert-True (@($s.ctx -split "`r?`n").Count -eq 1) 'subagent: exactly one line, not the whole digest' "ctx: [$($s.ctx)]"
+Assert-NotMatch '\| GCP project' $s.ctx 'subagent: no credentials table'
+
+$s = SubCtx (Join-Path $gcp '.claude\worktrees\t') -KeepCache
+Assert-Match 'ПРОСРОЧЕНА' $s.ctx 'subagent in a worktree of the repo -> same verdict'
+
+# Пользователь залогинился после пробы — вердикт «ПРОСРОЧЕНА» устарел и не пересказывается.
+Set-Content -LiteralPath $credDb -Value 'x'
+(Get-Item -LiteralPath $credDb).LastWriteTimeUtc = [datetime]::UtcNow.AddMinutes(5)
+$s = SubCtx $gcp -KeepCache
+Assert-NotMatch 'ПРОСРОЧЕНА' $s.ctx 'subagent: login after the probe -> stale reauth verdict dropped'
+Assert-Match 'Reauthentication failed.*без ретраев' $s.ctx 'subagent: stale/absent verdict -> one-line stop rule'
+Remove-Item -LiteralPath $credDb -Force
+
+$null = Invoke-Hook $gcp -Mode revoked
+Assert-Match '^⚠ gcloud: токен user@example\.com отозван' (SubCtx $gcp -KeepCache).ctx 'subagent: revoked verdict reaches the subagent'
+
+$s = SubCtx $gcp
+Assert-Match '^gcloud/firebase \(user@example\.com\): на `Reauthentication failed`' $s.ctx 'subagent: no verdict file -> one-line stop rule'
+Assert-True (-not $s.probed) 'subagent: no verdict file -> still no probe'
+
+$o = Invoke-Hook (Join-Path $repos 'plain') -Mode ok -Event SubagentStart
+Assert-True ([string]::IsNullOrWhiteSpace($o)) 'subagent: row without gcp/firebase -> silent'
+$o = Invoke-Hook (Join-Path $repos 'unknown') -Mode ok -Event SubagentStart
+Assert-True ([string]::IsNullOrWhiteSpace($o)) 'subagent: repo outside registry -> silent (no «не заведён» block)'
 
 # --- teardown + summary ---
 Remove-Item -LiteralPath $fx -Recurse -Force -ErrorAction SilentlyContinue

@@ -33,9 +33,10 @@
 # stats/hook-degraded.log — иначе «сломан» неотличим от «не понадобился».
 #
 # ИЗВЕСТНОЕ ОГРАНИЧЕНИЕ: покрывает только файловые инструменты. Запись через Bash
-# (`cat > f`, `sed -i`, `git apply`, `git checkout -- path`) и правки фоновых
-# субагентов (run_in_background не наследует PreToolUse) хук НЕ видит — они
-# закрываются процедурно (process-gate.yaml → no-code-on-protected-branch).
+# (`cat > f`, `sed -i`, `git apply`, `git checkout -- path`) хук НЕ видит — она
+# закрывается процедурно (process-gate.yaml → no-code-on-protected-branch).
+# Фоновые субагенты PreToolUse получают: транскрипт 2026-10-08 (CLI 2.1.293,
+# requestShape background) — у субагента есть hook_success от этого хука.
 #
 # Escape-hatch (глушит проверку целиком, ставит пользователь): env
 # CLAUDE_ALLOW_PROTECTED_BRANCH=1 либо файл-флаг <repo>\.claude\.allow-protected-branch-edits

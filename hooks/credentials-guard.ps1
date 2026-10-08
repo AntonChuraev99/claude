@@ -134,14 +134,39 @@ try {
     } catch { }
     $wrap = '(?:(?:npx|pnpm|yarn|bunx|sudo|env|command|time|nice)\s+(?:dlx\s+|exec\s+|-\S+\s+)*|\w+=\S+\s+|bash\s+-c\s+["'']?|sh\s+-c\s+["'']?)*'
     $posRe = "(?m)(?:^|[;&|]|(?<![\w)])\(|&&|\|\|)\s*$wrap"
-    if ($cmd -notmatch "$posRe($tool)\b" -or $cmd -notmatch "\b($verb)") { exit 0 }
 
-    # Какие именно сервисы задействованы — от этого зависит, что сверять.
+    # Позиции ищутся по МАСКЕ инертного текста, если её передал префильтр
+    # (guard_code: та же длина, сообщение коммита / тело issue / строки-значения
+    # заменены пробелами, см. guardCode в credentials-guard-prefilter.js). Иначе
+    # строка heredoc'а, начатая с `gcloud … deploy`, — «начало строки», то есть
+    # вызов (replay 2026-10-08: 5 deny на тексте команд, которые ничего не деплоят).
+    # Маски нет или длина не сошлась — судим исходную команду, как раньше.
+    $detect = $cmd
+    if ($payload.guard_code -is [string] -and $payload.guard_code.Length -eq $cmd.Length) { $detect = $payload.guard_code }
+
+    # Глагол засчитывается, только если он в СЕГМЕНТЕ своего инструмента: от имени
+    # инструмента до разделителя команды (; & | ) перевод строки), кавычки и
+    # продолжение строки (`\`+перевод, PowerShell-бэктик) сегмент не рвут. Раньше
+    # хватало глагола где угодно в команде: `TOK=$(gcloud auth print-access-token);
+    # curl …/publishers/…` и `node deploy_rules.mjs` с токеном из gcloud сверялись как
+    # деплой gcloud — 2 deny за месяц, плюс `adb shell … && rm -rf rec` (replay
+    # 2026-10-08). Сервис в списке сверки — только тот, чей сегмент меняет состояние.
+    $segBody = '(?:\\\r?\n|`\r?\n|\\.|`.|"(?:[^"\\`]|[\\`][\s\S])*"|''[^'']*''|[^;&|)\r\n"''\\`])*'
     $services = @()
+    $segments = @{}
     foreach ($t in $tool.Split('|')) {
-        if ($cmd -match "$posRe$t\b") { $services += $t }
+        $segRe = [regex]::new("\G(?:$t)\b$segBody", 'IgnoreCase')
+        foreach ($h in [regex]::Matches($detect, "$posRe(?<t>$t)\b", 'IgnoreCase')) {
+            $seg = $segRe.Match($detect, $h.Groups['t'].Index)
+            if ($seg.Success -and $seg.Value -match "\b($verb)") {
+                $services += $t
+                if (-not $segments.ContainsKey($t)) { $segments[$t] = @() }
+                $segments[$t] += $seg.Value
+            }
+        }
     }
     $services = @($services | Select-Object -Unique)
+    if ($services.Count -eq 0) { exit 0 }
     # gsutil сверяется тем же GCP-проектом, что и gcloud — не гонять пробу дважды.
     # Сам gsutil — legacy (Google убирает его из Cloud CLI после марта 2027; штатно —
     # `gcloud storage`, которое сюда приходит как обычный gcloud); детект оставлен
@@ -166,17 +191,79 @@ try {
     # ПОСЛЕДНЯЯ смена каталога в цепочке (`cd A && cd B && deploy` деплоит из B), учтены
     # pushd и cmd-флаг `/d`, кавычная и голая формы пути. Смена каталога есть, но не
     # разобралась — это не повод молча сверять каталог сессии: тогда deny.
-    $cdHits = [regex]::Matches($cmd, '(?i)(?:^|[;&|]|&&)\s*(?:cd|pushd|set-location|sl)\s+(?:/d\s+)?(?:"([^"]+)"|([^\s&|;]+))')
+    #
+    # Разбор пути (replay 2026-10-08: 9 deny за месяц на разборе `cd`, ни одного по делу):
+    #   * POSIX-форма Git Bash `/c/Users/...` -> `C:\Users\...`;
+    #   * `~`, `~/x` -> профиль пользователя;
+    #   * `$VAR`, `${VAR}`, `$env:VAR` — из присваиваний В САМОЙ команде до этого `cd`
+    #     (`S="..."; cd "$S/x"`), затем из окружения. Состояние шелла между вызовами
+    #     тулов не живёт, так что других источников у переменной нет;
+    #   * PowerShell `Set-Location '...'` — одинарные кавычки.
+    # Каталог так и не разобрался — deny остаётся, КРОМЕ случая, когда все сверяемые
+    # сервисы от каталога не зависят (gcloud/gsutil — проект из флага или глобального
+    # конфига, adb — пакет из аргумента): там каталог задаёт только строку реестра, и
+    # сверка по строке каталога сессии проверяет ровно то, что исполнится. Для
+    # firebase/wrangler/gh каталог определяет фактический проект (.firebaserc,
+    # wrangler.toml, git remote) — сверять их по каталогу сессии значило бы пропустить
+    # деплой из неизвестного каталога, поэтому там deny.
+    $cdHits = [regex]::Matches($detect, '(?im)(?:^|[;&|]|&&)\s*(?:cd|pushd|set-location|sl)\s+(?:/d\s+)?')
     if ($cdHits.Count -gt 0) {
         $last = $cdHits[$cdHits.Count - 1]
-        $cdTarget = if ($last.Groups[1].Success) { $last.Groups[1].Value } else { $last.Groups[2].Value }
-        $cdTarget = $cdTarget.Trim()
-        if ($cdTarget -and -not [System.IO.Path]::IsPathRooted($cdTarget)) { $cdTarget = Join-Path $cwd $cdTarget }
-        if ($cdTarget -and (Test-Path -LiteralPath $cdTarget -PathType Container)) {
-            $cwd = (Resolve-Path -LiteralPath $cdTarget).Path
-        } else {
+        $tm = [regex]::new('\G(?:"([^"]+)"|''([^'']+)''|([^\s&|;]+))').Match($cmd, $last.Index + $last.Length)
+        $cdTarget = ''
+        if ($tm.Success) { foreach ($g in 1..3) { if ($tm.Groups[$g].Success) { $cdTarget = $tm.Groups[$g].Value.Trim(); break } } }
+
+        # Присваивания до этого cd: bash `NAME=value` и PowerShell `$NAME = 'value'`.
+        $assign = @{}
+        $before = $cmd.Substring(0, $last.Index)
+        foreach ($a in [regex]::Matches($before, '(?m)(?:^|[;&|\s])\$?(\w+)\s*=\s*(?:"([^"]*)"|''([^'']*)''|([^\s;&|]*))')) {
+            $val = if ($a.Groups[2].Success) { $a.Groups[2].Value } elseif ($a.Groups[3].Success) { $a.Groups[3].Value } else { $a.Groups[4].Value }
+            $assign[$a.Groups[1].Value] = $val
+        }
+        $expand = {
+            param([string]$s)
+            for ($k = 0; $k -lt 4 -and $s -match '\$'; $k++) {
+                $s = $s -replace '\$\{(\w+)\}|\$env:(\w+)|\$(\w+)', {
+                    $m = $_
+                    $n = if ($m.Groups[1].Success) { $m.Groups[1].Value } elseif ($m.Groups[2].Success) { $m.Groups[2].Value } else { $m.Groups[3].Value }
+                    if (-not $m.Groups[2].Success -and $assign.ContainsKey($n)) { return $assign[$n] }
+                    $e = [Environment]::GetEnvironmentVariable($n)
+                    if ($null -ne $e) { return $e }
+                    return $m.Value
+                }
+            }
+            return $s
+        }
+        $resolved = & $expand $cdTarget
+        if ($resolved -match '\$') { $resolved = $null }   # переменная не раскрылась
+        if ($resolved) {
+            $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+            if ($resolved -eq '~') { $resolved = $homeDir }
+            elseif ($resolved -match '^~[\\/](.*)$') { $resolved = Join-Path $homeDir $Matches[1] }
+            if ($resolved -match '^/([a-zA-Z])(?:/(.*))?$') {
+                $resolved = "$($Matches[1].ToUpperInvariant()):\" + ([string]$Matches[2] -replace '/', '\')
+            }
+            if (-not [System.IO.Path]::IsPathRooted($resolved)) { $resolved = Join-Path $cwd $resolved }
+        }
+        if ($resolved -and (Test-Path -LiteralPath $resolved -PathType Container)) {
+            $cwd = (Resolve-Path -LiteralPath $resolved).Path
+        } elseif (@($services | Where-Object { $_ -notin @('gcloud', 'gsutil', 'adb') }).Count -gt 0) {
             Deny "Команда меняет каталог перед деплоем, но целевой каталог не разобран или не существует ('$cdTarget'). Сверить креды не с чем — выполни деплой из каталога проекта явно, либо попроси пользователя разрешить разово (CLAUDE_ALLOW_DEPLOY=1)."
         }
+        # иначе: сервисы от каталога не зависят — строка реестра по каталогу сессии
+    }
+
+    # Scratchpad сессии (`%TEMP%\claude\<проект>\<uuid>\scratchpad`): шелл главного
+    # агента сохраняет cwd между вызовами, и после одного `cd` в scratchpad все
+    # следующие команды шли с cwd вне реестра — «креды не заданы» (replay 2026-10-08).
+    # Имя каталога проекта в пути — это путь проекта сессии, где каждый не-алфавитно-
+    # цифровой символ заменён на `-`. Сверяем его с так же закодированными строками
+    # реестра: точное совпадение или worktree проекта (`…--claude-worktrees-…`).
+    # Только когда каталог сессии — scratchpad, а не когда команда САМА делает туда
+    # `cd`: явный переход в чужой каталог перед деплоем остаётся под сверкой как есть.
+    $scratchOwner = $null
+    if ($cdHits.Count -eq 0 -and ($cwd -replace '/', '\') -match '(?i)\\Temp\\claude\\([^\\]+)\\[0-9a-f]{8}-[0-9a-f-]{27}\\scratchpad(\\|$)') {
+        $scratchOwner = $Matches[1].ToLowerInvariant()
     }
 
     if (-not (Test-Path $registry)) {
@@ -202,7 +289,12 @@ try {
         $repoPath = $cells[1]
         if (-not $repoPath -or $repoPath -eq 'repo_path' -or $repoPath -match '^-+$') { continue }
         $key = ($repoPath -replace '/', '\').TrimEnd('\').ToLowerInvariant() + '\'
-        if ($cwdKey -eq $key -or $cwdKey.StartsWith($key) -or $cwdKey.Contains('\' + $key)) {
+        $hit = $cwdKey -eq $key -or $cwdKey.StartsWith($key) -or $cwdKey.Contains('\' + $key)
+        if (-not $hit -and $scratchOwner) {
+            $enc = ([regex]::Replace($repoPath.TrimEnd('\', '/'), '[^a-zA-Z0-9]', '-')).ToLowerInvariant()
+            $hit = $scratchOwner -eq $enc -or $scratchOwner.StartsWith($enc + '--claude-worktrees-')
+        }
+        if ($hit) {
             if ($key.Length -gt $bestLen) { $bestLen = $key.Length; $row = $cells }
         }
     }
@@ -249,11 +341,33 @@ try {
                 # Локальные источники читаются мгновенно; `firebase use` (CLI, может лезть
                 # в сеть) — последний резерв. Порядок: .firebaserc, затем google-services.json
                 # модуля приложения (Android-проект может не иметь .firebaserc вовсе).
-                $actual = $null
+                # Проект, названный флагом в самом вызове (`--project X` / `-P X`),
+                # исполнится вместо .firebaserc. Сверяется КАЖДЫЙ вызов firebase цепочки
+                # отдельно: явный флаг — своим значением, вызов без флага — локальными
+                # источниками ниже; любое расхождение — deny. Флаг может быть алиасом из
+                # .firebaserc (`--project staging`) — резолвим через `projects.<alias>`,
+                # нет такого алиаса — значение и есть project id.
                 $rc = Join-Path $cwd '.firebaserc'
-                if (Test-Path -LiteralPath $rc) {
-                    $actual = (Get-Content -LiteralPath $rc -Raw -Encoding UTF8 | ConvertFrom-Json).projects.default
+                $rcProjects = $null
+                if (Test-Path -LiteralPath $rc) { $rcProjects = (Get-Content -LiteralPath $rc -Raw -Encoding UTF8 | ConvertFrom-Json).projects }
+                $fbExplicit = @()
+                $needLocal = $false
+                foreach ($s in @($segments['firebase'])) {
+                    $flags = @([regex]::Matches($s, '(?:--project[=\s]+|\s-P\s+)([^\s;&|]+)') | ForEach-Object { $_.Groups[1].Value.Trim('"''') })
+                    if ($flags.Count -eq 0) { $needLocal = $true; continue }
+                    foreach ($p in $flags) {
+                        $resolvedP = if ($rcProjects -and $rcProjects.PSObject.Properties[$p]) { [string]$rcProjects.$p } else { $p }
+                        $fbExplicit += $resolvedP
+                    }
                 }
+                foreach ($p in @($fbExplicit | Select-Object -Unique)) {
+                    $checks += @{ svc = $svc; label = 'Firebase project (флаг)'; expected = $row[5]; actual = $p
+                                  ok = (Test-CredMatch $p $row[5]) }
+                }
+                if (-not $needLocal) { break }
+
+                $actual = $null
+                if ($rcProjects) { $actual = $rcProjects.default }
                 if (-not $actual) {
                     foreach ($gs in @('google-services.json', 'app\google-services.json', 'androidApp\google-services.json', 'composeApp\google-services.json')) {
                         $f = Join-Path $cwd $gs
@@ -297,11 +411,18 @@ try {
             'adb' {
                 # Пакет берётся из аргумента самой adb-команды, а не первым dotted-токеном
                 # всей строки: иначе подхватывался путь к apk или --set-env-vars=a.b.c.
-                $pkg = $null
-                if ($cmd -match '(?i)\badb\b[^;&|]*\b(?:uninstall|install|shell\s+pm\s+\w+)\s+(?:-\S+\s+)*([a-zA-Z][\w]*(?:\.[\w]+)+)') { $pkg = $Matches[1] }
+                # Сверяется КАЖДАЯ цель удаления, и только в сегментах adb, где есть
+                # глагол. Раньше бралось первое dotted-слово после install/uninstall/
+                # `pm <что угодно>` во всей строке: `adb shell pm enable com.google.android.gms
+                # && adb uninstall <свой пакет>` сверял gms и давал deny, а `adb uninstall
+                # <свой> && adb uninstall <чужой>` сверял только первый и пропускал чужой.
+                $pkgs = @($segments['adb'] | ForEach-Object {
+                        [regex]::Matches($_, '(?i)\buninstall\s+(?:(?:--user\s+\S+|-\S+)\s+)*([a-zA-Z]\w*(?:\.\w+)+)') | ForEach-Object { $_.Groups[1].Value }
+                    } | Select-Object -Unique)
+                $pkgOk = $row[6] -and $pkgs.Count -gt 0 -and @($pkgs | Where-Object { -not (Test-CredMatch $_ $row[6]) }).Count -eq 0
                 $checks += @{ svc = $svc; label = 'Play package'
                               expected = $(if ($row[6]) { $row[6] } else { '(в реестре не задан)' })
-                              actual = $pkg; ok = ($row[6] -and (Test-CredMatch $pkg $row[6])) }
+                              actual = ($pkgs -join ', '); ok = [bool]$pkgOk }
             }
         }
     }

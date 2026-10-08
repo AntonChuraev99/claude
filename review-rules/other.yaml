@@ -48,6 +48,7 @@
   fix: 'After bumping any pre-release dep run a clean no-cache build (./gradlew --rerun-tasks --no-build-cache compileKotlinWasmJs assembleDebug) and smoke-test on a real ARM64 device (not an emulator) before merge; pin the exact alpha/beta version, prefer member APIs over moved top-level extensions, and read the changelog for suspend/artifact-split breaks. Red-flag (mode=runtime) not a hard block: pre-release versions are routine in KMP catalogs and a grep cannot confirm the clean-build/ARM64-smoke step, so a static HIGH here would block normal commits — annotate a verified line with a trailing ''# arm64 smoke clean-build verified'' comment to silence.'
   source: kmp/room3-alpha-sqlite-bundled-arm64-regression-2026-05-11.md; ci-deploy/sqlite-bundled-alpha04-suspend-member-api-2026-05-11.md
 - id: toast-crashes-on-background-thread
+  narrowed_since: '2026-10-08'
   mode: static
   severity: high
   stack:
@@ -60,6 +61,9 @@
     type: grep
     has: \bToast\.makeText\b|^\s*import\s+android\.widget\.Toast
     unless: review-rules:allow-toast(-no-compose-surface)?
+    # сужено 2026-10-08: 17 блокировок в Hilt-проектах без глобального Dispatchers.Default скоупа.
+    # Механизм — Toast из корутины/колбэка вне main looper, без этого контекста файла нет и бага.
+    requires: '\.launch\s*[({]|onSuccess|Dispatchers\.(Default|IO)|org\.koin'
   message: 'Toast.makeText requires the main looper. The global Koin CoroutineScope is CoroutineScope(SupervisorJob()+Dispatchers.Default), so any scope.launch{}/onSuccess callback that reaches a Toast runs on a background thread → NullPointerException "Can''t toast on a thread that has not called Looper.prepare()" crashes the whole app (e.g. Save/Download on a share result screen). Toast is also banned for in-app notifications — App Top Banner is the only channel.'
   fix: 'The show must run on the main looper — Handler(Looper.getMainLooper()).post or withContext(Dispatchers.Main); a bare Toast.makeText from a background scope.launch crashes. For in-app notifications prefer the project''s own channel (a snackbar host, a top banner) over Toast. Exception — surfaces that have no Compose composition by design: Glance widget entry points, ActionCallback, notification/ProcessText trampolines. There a Toast posted to the main looper is the only channel that survives a finished activity; annotate the line with // review-rules:allow-toast-no-compose-surface. A genuinely dev-only Toast in DebugMenu / debug-gated code: annotate with // review-rules:allow-toast.'
   source: 'media-share result screen: Toast.makeText inside scope.launch on the global Dispatchers.Default Koin scope crashed Save/Download, 2026-07-10'
@@ -119,6 +123,7 @@
   source: 'catalog search field 2026-07-16: clear-X wrapped in AnimatedVisibility reserved 48dp on the empty field and clipped the placeholder'
 
 - id: raw-material-textfield-outside-designsystem
+  narrowed_since: '2026-10-08'
   area: other
   mode: static
   severity: medium
@@ -131,7 +136,10 @@
   detect:
     type: grep
     has: import androidx\.compose\.material3\.(OutlinedTextField|TextField)$
-    lacks: fun AppOutlinedTextField
+    # сужено 2026-10-08: 3/3 dismissed — обёртки дизайн-системы с другим именем и поля без
+    # placeholder/icon-слотов (дефект живёт только в этих слотах).
+    lacks: 'fun App\w*(TextField|Field)\('
+    requires: 'placeholder\s*=|(leading|trailing)Icon\s*='
   message: 'Raw Material3 (Outlined)TextField outside the design-system wrapper: Material renders the placeholder with its own bodyLarge while the input uses textStyle — the empty vs filled field round to different integer heights (1-2px vertical jump the moment typing starts); a long placeholder also wraps and inflates the field; icon slots silently reserve 48dp.'
   fix: 'Use the project text-field wrapper (e.g. AppOutlinedTextField in core/designsystem: placeholder style=textStyle, maxLines follows singleLine). A raw OutlinedTextField is acceptable only with an explicit fixed-lineHeight textStyle AND the same style passed to the placeholder.'
   source: 'catalog search field 2026-07-16 (height jump on first char) + auth email/password jump 2026-07-07 — same class, recurs'

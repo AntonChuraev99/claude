@@ -225,7 +225,7 @@ node ~/.claude/hooks/docs-facts-guard.js <все файлы из DOCS_WRITTEN и
 Сверка diff с реестром повторяющихся багов `~/.claude/review-rules/` — система против «тех же багов каждую сессию» (system bar не покрашен, анимация, отступы, регион деплоя, субагент выпилил фичу). Источник — `~/.claude/review-rules/README.md`.
 
 - **L1 (всегда, дёшево, без LLM):** Stop-хук уже прогнал L1 по ходу сессии и залогировал. Полный прогон по задаче сделан в **2.0** (там же полная команда; нет BASE_SHA → без `--base` = рабочее дерево) — здесь разбирается его вывод, команда второй раз не запускается. `static` HIGH → **❌ blocker** (как pre-commit): выровнять до закрытия gate, auto-commit 5.1.1 **не запускать**. `runtime` WARN → в отчёт.
-- **L2 (триггер — находка L1 в режиме `static`):** `static`-находка есть → агент уже запущен в 2.0, здесь — **приём результата**. В брифе обязаны быть **и base ref, и путь к контекст-пакету**: без base ref агент по своему контракту легально уходит ревьюить рабочее дерево, то есть молча меняет скоуп. Возвращает BLOCKERS / RUNTIME RED-FLAGS (confidence) / PROCESS GATE ARMED / NEW_RULE_CANDIDATE / `LOG_ROW:`. `static` чист → L2 не спавнится (`✅ skipped (static clean)`), даже если `runtime`-правила сработали. Агент сам пишет своё L2-событие в лог.
+- **L2 (триггер — находка L1 в режиме `static`):** `static`-находка есть → агент уже запущен в 2.0, здесь — **приём результата**. В брифе обязаны быть **и base ref, и путь к контекст-пакету**: без base ref агент по своему контракту легально уходит ревьюить рабочее дерево, то есть молча меняет скоуп. Просьбы «оцени runtime-находки» в брифе быть не должно: runtime-хиты агент судит сам и только на добавленных строках (иначе вердикты по легаси раздувают dismissed — replay 2026-10-08: 90 из 100 dismissed за 09-08..10-08 были runtime-хитами, в основном на нетронутых строках). Возвращает BLOCKERS / RUNTIME RED-FLAGS (confidence) / PROCESS GATE ARMED / NEW_RULE_CANDIDATE / `LOG_ROW:`. `static` чист → L2 не спавнится (`✅ skipped (static clean)`), даже если `runtime`-правила сработали. Агент сам пишет своё L2-событие в лог.
 
   **Почему триггер сужен (2026-08-31).** Был «вывод L1 непуст», а он непуст практически всегда: замер `stats/review-rules.md` на 2026-08-30 — 5202 прогона L1, 10 блокировок, и **ни одно `runtime`-правило за всю историю не дало ни одной блокировки** (топ по срабатываниям: 5972 / 5535 / 4765 fires при `blocks=0` и est-FP 84–100%). L2 в такой схеме работал не углублённой проверкой, а дорогим фильтром собственного шума — 315 confirmed против 785 dismissed, точность 29%. Ценность даёт `static`-режим, по нему и триггерим. `runtime`-срабатывания не пропадают: они печатаются строкой в отчёте (пункт выше) как справка, но дорогого агента не поднимают. Диагноз и замер — `docs/backlog/review-rules-noise-reduction.md`.
 - **L3 process-gate (всегда, дёшево):** пройти armed process-вопросы (из L2 либо прочитать `process-gate.yaml` сам): молча ли удалена user-facing функция? тронут деплой → регион/аккаунт/smoke сверены? субагент в scope, не коммитил? баг невоспроизведён, а патчишь? Любой неотвеченный armed-вопрос severity high → `⚠️` в отчёт (боль #5 — не отгружать молчком; при потере функции — `AskUserQuestion` ДО завершения).
@@ -348,14 +348,16 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 ```bash
 # full
-printf '{"ts":"%s","repo":"%s","mode":"full","gate_sec":372,"review_sec":304,"l1_sec":3,"agents":2,"files":3,"verdict":"READY","artifact":"localhost"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$(git rev-parse --show-toplevel)")" \
+printf '{"ts":"%s","repo":"%s","branch":"%s","mode":"full","gate_sec":372,"review_sec":304,"l1_sec":3,"agents":2,"files":3,"verdict":"READY","artifact":"localhost"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$(git rev-parse --path-format=absolute --git-common-dir | sed 's#/\.git$##')")" "$(git rev-parse --abbrev-ref HEAD)" \
   >> ~/.claude/stats/task-gate-timings.jsonl
 # lite
-printf '{"ts":"%s","repo":"%s","mode":"lite","gate_sec":null,"review_sec":null,"l1_sec":null,"agents":1,"files":3,"verdict":"READY","artifact":"apk"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$(git rev-parse --show-toplevel)")" \
+printf '{"ts":"%s","repo":"%s","branch":"%s","mode":"lite","gate_sec":null,"review_sec":null,"l1_sec":null,"agents":1,"files":3,"verdict":"NOT READY","artifact":"apk"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$(git rev-parse --path-format=absolute --git-common-dir | sed 's#/\.git$##')")" "$(git rev-parse --abbrev-ref HEAD)" \
   >> ~/.claude/stats/task-gate-timings.jsonl
 ```
+
+Строка пишется **при любом вердикте, включая `NOT READY`**: по `branch` и `verdict` меряются повторные гейты одной ветки и доля гейтов, остановленных блокером (replay 2026-10-08 записи task-gate-review-fanout — без этих полей обе метрики не считались). `repo` — имя главного checkout, а не каталога worktree: `--show-toplevel` из worktree дал бы slug ветки.
 
 Поле `artifact` — класс из 5.1b: `localhost` / `apk` / `other` / `fallback` / `none`; по нему меряется доля отчётов с проверяемым артефактом (improvements 2026-09-14). Длительность гейта в `lite` меряется снаружи — `python ~/.claude/scripts/session-stages.py` по JSONL сессий.
 

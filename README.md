@@ -50,7 +50,7 @@ credential registry that guards against deploying with another project's account
 
 **Workflow skills:** `commit`, `task-gate` (per-task Definition of Done gate; formerly
 `end-session`), `doc-task` (task document and permanent solution/decision docs, written by
-the main agent and fact-checked by `docs-facts-guard`), `git-commit-conventions`, `git-worktree-env`, `gradle-deps-update`,
+the main agent and fact-checked by `docs-facts-guard`), `git-commit-conventions`, `gradle-deps-update`,
 `android-core-module-builder`, `android-feature-module-builder`, `ab-test-dashboard`,
 `amplitude-slack-payload`, `cloudflare-deploy-slack-notify`, `gitlab-release-slack-ci`,
 `jira-task-writer`, `test-firebase-function`, `turnstile-spin`.
@@ -135,9 +135,14 @@ enable it in your clone:
 
 ```bash
 cp hooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
+cp hooks/commit-msg .git/hooks/commit-msg
+chmod +x .git/hooks/pre-commit .git/hooks/commit-msg
 # then edit the denylist in .git/hooks/pre-commit with your own private names
 ```
+
+`commit-msg` checks the commit message against the same denylist (it asks
+`pre-commit --print-pattern` for it), so a private name or e-mail in the message
+is caught too — pre-commit only sees staged content.
 
 It scans staged content against a denylist (project names, personal paths,
 secret patterns) and aborts the commit on a match. The live hook lives in

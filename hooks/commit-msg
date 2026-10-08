@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# ============================================================================
+#  Anti-leak commit-msg hook — TEMPLATE, companion of hooks/pre-commit.
+#
+#  pre-commit scans staged FILES; the commit MESSAGE never passes through it.
+#  2026-09-18 an e-mail ended up in a harness commit message exactly that way.
+#  This hook checks the message text against the SAME pattern: it asks the
+#  installed pre-commit for it (`pre-commit --print-pattern`), so the denylist
+#  is edited in one place only.
+#
+#  INSTALL in your clone (after pre-commit):
+#      cp hooks/commit-msg .git/hooks/commit-msg
+#      chmod +x .git/hooks/commit-msg
+#
+#  Fails CLOSED when the pattern cannot be read (pre-commit missing or an old
+#  copy without --print-pattern): an anti-leak check that silently passes is
+#  worse than none, because it looks like protection.
+# ============================================================================
+
+msg_file="$1"
+hooks_dir=$(dirname "$0")
+pre="$hooks_dir/pre-commit"
+
+if [ -z "$msg_file" ] || [ ! -f "$msg_file" ]; then
+  echo "X commit-msg: message file not passed by git -- commit blocked." >&2
+  exit 1
+fi
+
+if [ ! -f "$pre" ] || ! grep -q -- '--print-pattern' "$pre"; then
+  echo "X commit-msg: $pre is missing or outdated (no --print-pattern)." >&2
+  echo "  Re-copy hooks/pre-commit to .git/hooks/pre-commit and re-apply your denylist." >&2
+  exit 1
+fi
+
+pattern=$(bash "$pre" --print-pattern)
+if [ -z "$pattern" ]; then
+  echo "X commit-msg: pre-commit returned an empty pattern -- commit blocked." >&2
+  exit 1
+fi
+
+# Every line is checked, '#' lines included: git strips them only in editor mode
+# (cleanup=strip). With `git commit -m` / `-F` (the /commit skill) cleanup is
+# `whitespace` and a line like "#12 <name>" is published as is. Only the verbose
+# diff below git's scissors line is skipped — staged content is pre-commit's job.
+match=$(sed '/^# -\{24\} >8 -\{24\}$/,$d' "$msg_file" | grep -nEi -- "$pattern")
+if [ -n "$match" ]; then
+  echo "============================================================"
+  echo " X  COMMIT BLOCKED -- private data / secret in the commit MESSAGE"
+  echo "============================================================"
+  echo "$match" | sed 's/^/    /'
+  echo ""
+  echo " Generalize the message (<your-project>, ~/..., placeholders) and commit again."
+  exit 1
+fi
+
+exit 0

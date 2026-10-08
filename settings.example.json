@@ -1,6 +1,7 @@
 {
   "env": {
-    "CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY_HERE"
+    "CONTEXT7_API_KEY": "YOUR_CONTEXT7_API_KEY_HERE",
+    "CLAUDE_CODE_ENABLE_TODO_TOOLS": "1"
   },
   "outputStyle": "ste-ru",
   "attribution": {
@@ -263,12 +264,28 @@
         ]
       }
     ],
+    "PostModelSwitch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "SubagentStart": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
             "timeout": 10
           }
         ]
@@ -384,7 +401,7 @@
     "cloudflare@claude-plugins-official": false,
     "amplitude@claude-plugins-official": true,
     "warp@claude-code-warp": true,
-    "revenuecat@RevenueCat": true,
+    "revenuecat@RevenueCat": false,
     "context7@claude-plugins-official": false,
     "ast-index@ast-index-marketplace": true,
     "playwright@claude-plugins-official": true

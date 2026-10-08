@@ -19,6 +19,17 @@ Anthropic по always-on токенам) плюс замер реальных в
 (не упоминания). Окна: 2026-08-01…08-19 (2097 файлов) и 2026-08-19…09-03 (951 файл, 59k
 tool-вызовов, 798 спавнов субагентов).
 
+## Выключено 2026-10-08 — дубли интеграций
+
+Один сервис подключён двумя путями: оба висят в `/mcp` и в листинге тулов, а один из них
+не авторизован и шумит «Needs authentication» на старте. Оставлен тот, что авторизован и
+реально вызывается. Замер вызовов — транскрипты 2026-09-08…10-08.
+
+| Возможность | Дубль чего | Вызовов за месяц | Вернуть |
+|---|---|--:|---|
+| Плагин `revenuecat@RevenueCat` (MCP `plugin:revenuecat:RevenueCat` + 26 скиллов `revenuecat:*`) | коннектор claude.ai `RevenueCat` (тот же `mcp.revenuecat.ai/mcp`, авторизован) | MCP 0 (не авторизован), скиллы 0 | `settings.json` → `enabledPlugins` → `"revenuecat@RevenueCat": true`, рестарт сессии, затем `/mcp` → `plugin:revenuecat:RevenueCat` → авторизация |
+| Коннектор claude.ai `Atlassian MCP` (`/v2/mcp`) в Claude Code | standalone `atlassian` (`/v1/mcp`, user-scope) | 16 против 148 у standalone; `@jira-expert`, `jira-task-writer` и память агента ссылаются на `mcp__atlassian__*` | снять запрет `mcp__claude_ai_Atlassian_MCP` из `permissions.deny` в `settings.json`, рестарт сессии |
+
 ## Удалено 2026-10-06
 
 | Возможность | Что давала | Почему снята | Вернуть |
@@ -79,6 +90,8 @@ Microsoft, официальный маркетплейс Anthropic) и скил�
 |---|--:|--:|---|
 | Amplitude (профиль `claude`) | `Amplitude` — 29, только главный | `plugin_amplitude_amplitude` — 96, 2/3 из `@product-expert` | не тронуто: наборы тулов различаются |
 | RevenueCat (профиль `claude`) | `revenuecat` — 0 | 82 | standalone оставлен по решению пользователя |
+| RevenueCat (профиль `claude-work`) | коннектор claude.ai `RevenueCat` — авторизован | 0, не авторизован | плагин выключен 2026-10-08 |
+| Atlassian | `atlassian` — 148 | коннектор claude.ai — 16 | коннектор запрещён в Claude Code 2026-10-08 |
 | context7 | `context7` — 93 (с API-key) | 0 | плагин выключен 2026-09-03 |
 
 Сторонние скиллы (65 из 92 в `~/.claude/skills`) этой ревизией не трогались — провенанс,

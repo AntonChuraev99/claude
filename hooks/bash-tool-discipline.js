@@ -657,15 +657,68 @@ function codeSearchVerdict(command) {
 // ast-index — подсказку читают и не исполняют, ровно как читали подсказку про
 // grep в Bash до запрета.
 //
-// Запрет здесь устроен иначе, чем в Bash, и причина — отсутствие дешёвой
-// проверки «есть ли индекс у этого проекта»: индекс лежит в
-// %LOCALAPPDATA%/ast-index/<hash>/index.db без обратного маппинга на путь, а
-// спавн `ast-index stats` на КАЖДЫЙ Grep стоил бы дороже самой экономии.
-// Поэтому запрет ОДНОРАЗОВЫЙ на паттерн: первый Grep по символу отклоняется с
-// готовой командой ast-index, повтор того же паттерна проходит. Индекса нет,
-// ast-index ответил пусто — агент повторяет Grep и работает дальше; тупика,
-// в котором нечем искать, не возникает.
+// Запрет ОДНОРАЗОВЫЙ на паттерн: первый Grep по символу отклоняется с готовой
+// командой ast-index, повтор того же паттерна проходит — тупика, в котором
+// нечем искать, не возникает.
+//
+// Отказ выдаётся ТОЛЬКО там, где индекс реально есть. Replay 2026-10-08 по
+// транскриптам: из 725 отказов в 472 агент повторил тот же Grep, и 203 из этих
+// повторов пришлись на проекты без индекса (каталога нет или `index.db` пустой,
+// 12 КБ схемы) — повтор там законен по самому тексту отказа, а отказ был
+// чистым лишним turn'ом. Ещё 86 повторов — Grep внутри ОДНОГО файла
+// (`path` указывает на файл): это поиск строки в уже известном файле, и
+// `ast-index usages` по всему проекту его не заменяет.
+//
+// Проверка индекса дешёвая, без спавна: ast-index кладёт индекс проекта в
+// `<cache>/<hash>/index.db`, где hash — djb2 (u64, `{:x}`) от канонического пути
+// корня, на Windows с префиксом `\\?\`. Схема сверена на живых каталогах
+// (4 из 4 совпали, ast-index 3.56.0). Корень ast-index ищет вверх от cwd, поэтому
+// хук идёт по предкам каталога поиска до границы репозитория (`.git`) — это
+// несколько stat'ов, а не процесс.
 const GREP_RETRY_WINDOW_MS = 30 * 60 * 1000;
+// Пустая база (только схема) весит 12 288 байт: индекс заводили, но в нём ничего
+// нет, и ast-index ответит пусто.
+const EMPTY_INDEX_BYTES = 12288;
+
+function astIndexCacheDir() {
+    if (process.env.AST_INDEX_CACHE_DIR) return process.env.AST_INDEX_CACHE_DIR;
+    if (process.platform === 'win32') {
+        const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+        return path.join(local, 'ast-index');
+    }
+    if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'ast-index');
+    return path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'ast-index');
+}
+
+function astIndexHash(root) {
+    const key = process.platform === 'win32' ? `\\\\?\\${root}` : root;
+    let h = 5381n;
+    for (const b of Buffer.from(key, 'utf8')) h = (h * 33n + BigInt(b)) & 0xffffffffffffffffn;
+    return h.toString(16);
+}
+
+function fileSize(p) {
+    try { return fs.statSync(p).size; } catch (e) { return 0; }
+}
+
+// Есть ли непустой индекс ast-index у каталога поиска или его предков в пределах
+// репозитория. Любая ошибка (нет каталога, нет прав) означает «индекса не видно».
+function hasAstIndex(dir) {
+    const cache = astIndexCacheDir();
+    if (!fs.existsSync(cache)) return false;
+    let cur;
+    try { cur = fs.realpathSync.native(dir); } catch (e) { return false; }
+    for (let depth = 0; depth < 40; depth++) {
+        const base = path.join(cache, astIndexHash(cur));
+        const bytes = fileSize(path.join(base, 'index.db')) + fileSize(path.join(base, 'index.db-wal'));
+        if (bytes > EMPTY_INDEX_BYTES) return true;
+        if (fs.existsSync(path.join(cur, '.git'))) return false;
+        const up = path.dirname(cur);
+        if (up === cur) return false;
+        cur = up;
+    }
+    return false;
+}
 // Паттерн-символ: голый идентификатор без regex-метасимволов. Одного этого мало —
 // под него попадает половина обычных текстовых поисков, а `ast-index` по
 // построению не отвечает на литералы и комментарии, и отказ на них стоил бы
@@ -693,7 +746,9 @@ function looksLikeSymbolName(pattern, scopedToCode) {
     return scopedToCode && /^[A-Z]/.test(pattern);      // Paywall + glob: *.kt
 }
 
-function grepVerdict(toolInput, key) {
+// `cwd` — рабочий каталог агента из полезной нагрузки хука; без него берётся
+// каталог процесса хука (харнесс запускает хук в каталоге сессии).
+function grepVerdict(toolInput, key, cwd) {
     if (process.env.CLAUDE_ALLOW_CODE_GREP === '1') return null;
     const input = toolInput || {};
     const pattern = typeof input.pattern === 'string' ? input.pattern : '';
@@ -709,6 +764,19 @@ function grepVerdict(toolInput, key) {
     const scopedToCode = (input.glob && CODE_GLOB.test(String(input.glob)))
         || (input.type && CODE_TYPE.test(String(input.type)));
     if (!looksLikeSymbolName(pattern, scopedToCode)) return null;
+
+    // Поиск внутри одного файла — найти строку в известном месте; индекс по
+    // проекту его не заменяет. Индекса у проекта нет — отказ вёл бы в пустой
+    // ответ ast-index и повтор того же Grep.
+    const base = typeof cwd === 'string' && cwd ? cwd : process.cwd();
+    const target = input.path ? path.resolve(base, String(input.path)) : base;
+    let searchDir = target;
+    try {
+        if (fs.statSync(target).isFile()) return null;
+    } catch (e) {
+        searchDir = base;
+    }
+    if (!hasAstIndex(searchDir)) return null;
 
     const state = readState(key);
     const seen = state.greps || {};
@@ -768,6 +836,7 @@ module.exports = {
     sleepVerdict,
     codeSearchVerdict,
     grepVerdict,
+    astIndexHash,
     longSleepSeconds,
     insideLoop,
     feedsAnotherCommand,
