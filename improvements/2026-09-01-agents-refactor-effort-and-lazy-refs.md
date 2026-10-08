@@ -91,6 +91,19 @@ Anti-targets — если сработает любое, гипотеза не �
 - `effort: low`/`medium` дал заметно худший результат у `knowledge-scout`, `jira-expert`, `doc-writer`, `react-ui-expert`, `marketing-expert`, `google-play-console-expert`;
 - у `google-play-console-expert` или `knowledge-scout` после понижения модели выросла доля возвратов с ошибкой или пропущенных pitfall'ов.
 
-## Replay (заполняется 2026-09-15)
+## Replay (target 2026-09-15; сделан 2026-10-08)
 
-<не заполнено>
+Методика: python-скан транскриптов субагентов (`subagents/*.jsonl` + `.meta.json`, дедуп по имени файла) за 2026-09-08..10-08 — 1 720 прогонов. Транскрипты 09-01..09-07 удалены автоочисткой, поэтому первая неделя после правки не видна. В ошибки «нет инструмента» считались только `No such tool available` / `Unknown skill`: пропавшие файлы и пути в эту метрику не входят. Объём индексов памяти снят `len()` по `agent-memory/*/MEMORY.md` на 10-08.
+
+| Target | было | факт | итог |
+|---|---|---|---|
+| агент не упирается в несуществующий скилл, команду или MCP | 6 мест | 1 случай за месяц: design-expert вызвал `use_figma` 09-23 (Figma MCP не подключён) | ✅ |
+| `@product-expert` вернул цифру из Amplitude/RevenueCat | невозможно | 35 из 45 прогонов вызывали их MCP: `query_amplitude_data` 514 раз, RevenueCat `get-chart-data` 79 раз | ✅ |
+| индексы памяти после переписи | 117 507 → ~82 140 | живые 18 индексов — 149 122 | ⚠️ рост ×1.8 |
+
+Anti-targets:
+- «агент перестал вызываться» — не сработал. Вызываются все: knowledge-scout 133 прогона, google-play-console 23, jira 22, marketing 11.
+- «`references/` не открываются» — не сработал. За месяц: `marketing-platform-numbers` открыт в 5 из 10 прогонов marketing, `store-economics…` — 3 раза у design и 3 у product, `product-prioritization-traps` — 1 раз из 42, `third-party-brand-assets` — 1 раз из 45.
+- «`effort: low/medium` ухудшил результат» и «рост ошибок после понижения модели» — нечем измерить: метрики качества возврата нет. Наблюдаемое: knowledge-scout — медиана 1.0 мин и 16 turns, google-play-console — 5.9 мин и 1 прогон с ошибкой пути.
+
+Вывод: сломанное починено, и починка держится. Экономию на индексах памяти съел рост: compose-expert, react-ui, test-expert и feature-expert — по 19–20k каждый. Решение: оставить. Индексы — повод для новой записи с бюджетом символов на `MEMORY.md` агента, отдельной чисткой.
