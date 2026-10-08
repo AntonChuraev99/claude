@@ -81,6 +81,45 @@ def registry_ids() -> dict[str, dict]:
     return out
 
 
+def l2_precision(l2: list[dict], registry: dict[str, dict], since_ts: str = "") -> dict:
+    """L2 verdicts split by what was judged: {static|runtime|own: {"conf": n, "dism": n}}.
+
+    `mode` comes from the judged object (written since 2026-10-08); older rows fall back to
+    the rule's mode in the registry. An id absent from the registry is L2's own class
+    finding (it had no L1 anchor), as is everything under the `own` field.
+    Static precision is the number that matters: only a `static` finding spawns L2.
+    """
+    out = {k: {"conf": 0, "dism": 0} for k in ("static", "runtime", "own")}
+
+    def add(bucket: str, verdict: str | None) -> None:
+        if verdict == "confirmed":
+            out[bucket]["conf"] += 1
+        elif verdict == "dismissed":
+            out[bucket]["dism"] += 1
+
+    for e in l2:
+        if since_ts and e.get("ts", "") < since_ts:
+            continue
+        for j in e.get("judged", []):
+            rid = j.get("id")
+            mode = j.get("mode") or (registry.get(rid) or {}).get("mode")
+            bucket = mode if mode in ("static", "runtime") else "own"
+            add(bucket, j.get("verdict"))
+        for j in e.get("own", []):
+            add("own", j.get("verdict"))
+    return out
+
+
+def fmt_precision(p: dict) -> str:
+    def one(name: str) -> str:
+        c, d = p[name]["conf"], p[name]["dism"]
+        if not c + d:
+            return f"{name} —"
+        return f"{name} {c}/{c + d} ({c / (c + d) * 100:.0f}%)"
+    return " · ".join(one(k) for k in ("static", "runtime")) + \
+        f" · own (находки L2 без хита L1): {p['own']['conf']} confirmed / {p['own']['dism']} dismissed"
+
+
 def analyze(events: list[dict], registry: dict[str, dict]) -> dict:
     l1 = [e for e in events if e.get("layer") == "L1"]
     l2 = [e for e in events if e.get("layer") == "L2"]
@@ -171,7 +210,19 @@ def analyze(events: list[dict], registry: dict[str, dict]) -> dict:
             elif j.get("verdict") == "dismissed":
                 dism_since[rid] += 1
 
+    last_ts = max((e.get("ts", "") for e in events), default="")
+    window_start = ""
+    if last_ts:
+        try:
+            window_start = (datetime.datetime.fromisoformat(last_ts[:19])
+                            - datetime.timedelta(days=30)).isoformat(timespec="seconds")
+        except ValueError:
+            window_start = ""
+
     return {
+        "precision": l2_precision(l2, registry),
+        "precision_30d": l2_precision(l2, registry, window_start) if window_start else None,
+        "window_start": window_start[:10],
         "since": since,
         "fires_since": dict(fires_since),
         "confirmed_since": dict(conf_since),
@@ -210,6 +261,9 @@ def render(a: dict, registry: dict[str, dict], now: str) -> str:
     l2conf = sum(a["confirmed"].values())
     l2dis = sum(a["dismissed"].values())
     L.append(f"- **L2**: {a['l2_runs']} вызовов · {l2conf} confirmed / {l2dis} dismissed.")
+    L.append(f"  - по режиму, вся история: {fmt_precision(a['precision'])}")
+    if a.get("precision_30d"):
+        L.append(f"  - по режиму, 30 дней (с {a['window_start']}): {fmt_precision(a['precision_30d'])}")
     L.append(f"- **L3**: {sum(a['armed'].values())} armed process-вопросов "
              f"({len([x for x in a['armed'] if a['armed'][x]])} разных).")
     L.append("")
@@ -324,7 +378,12 @@ def render(a: dict, registry: dict[str, dict], now: str) -> str:
                  f"({a['blocks'] / a['l1_runs'] * 100:.0f}% сессий с блокером).")
         if l2conf + l2dis:
             L.append(f"- **L2 точность:** {l2conf}/{l2conf + l2dis} находок подтверждены "
-                     f"(FP-rate {l2dis / (l2conf + l2dis) * 100:.0f}%).")
+                     f"(FP-rate {l2dis / (l2conf + l2dis) * 100:.0f}%) — общая цифра, смешивает режимы.")
+            p = a["precision_30d"] or a["precision"]
+            L.append(f"- **L2 точность по режиму{' (30 дней)' if a['precision_30d'] else ''}:** "
+                     f"{fmt_precision(p)}. L2 поднимается находкой `static`, поэтому решающая — "
+                     "точность `static`; `runtime` — справка по хитам на добавленных строках, "
+                     "`own` — ценность собственного суждения L2.")
         noisy = [rid for rid in a["dismissed"]
                  if a["dismissed"][rid] >= 2 and a["confirmed"].get(rid, 0) == 0]
         if noisy:

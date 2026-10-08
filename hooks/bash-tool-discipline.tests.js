@@ -561,6 +561,42 @@ check('настоящая обработка вывода по-прежнему 
 });
 
 // --- тул Grep: символ уходит в ast-index ---------------------------------
+// Отказ зависит от того, есть ли у проекта индекс ast-index. Чтобы прогон не
+// зависел от индексов на машине разработчика, кэш ast-index подменяется
+// фикстурой через его же переменную AST_INDEX_CACHE_DIR, а каталог прогона
+// получает непустой индекс — на нём и судятся кейсы ниже.
+const FX = fs.mkdtempSync(path.join(os.tmpdir(), 'btd-astidx-'));
+const FX_CACHE = path.join(FX, 'cache');
+fs.mkdirSync(FX_CACHE);
+// Раскладка кэша ast-index (3.56.0): `<cache>/<djb2 канонического пути>/index.db`,
+// на Windows путь с префиксом `\\?\`. Своя реализация в тесте — спецификация,
+// с которой сверяется модуль.
+function layoutHash(dir) {
+    const key = process.platform === 'win32' ? `\\\\?\\${dir}` : dir;
+    let h = 5381n;
+    for (const b of Buffer.from(key, 'utf8')) h = (h * 33n + BigInt(b)) & 0xffffffffffffffffn;
+    return h.toString(16);
+}
+function fakeIndex(dir, bytes) {
+    const at = path.join(FX_CACHE, layoutHash(fs.realpathSync.native(dir)));
+    fs.mkdirSync(at, { recursive: true });
+    fs.writeFileSync(path.join(at, 'index.db'), Buffer.alloc(bytes));
+}
+function fakeRepo(name) {
+    const dir = path.join(FX, name);
+    fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'src', 'feature'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'src', 'feature', 'Screen.kt'), 'class Screen\n');
+    return dir;
+}
+process.env.AST_INDEX_CACHE_DIR = FX_CACHE;
+fakeIndex(process.cwd(), 20000);
+const REPO_INDEXED = fakeRepo('indexed');
+fakeIndex(REPO_INDEXED, 20000);
+const REPO_EMPTY = fakeRepo('empty');
+fakeIndex(REPO_EMPTY, 12288);
+const REPO_NONE = fakeRepo('none');
+
 check('символьный паттерн Grep отклоняется с готовой командой ast-index', () => {
     const v = d.grepVerdict({ pattern: 'GenerationJobsRegistry' }, sid());
     assert.ok(v && v.decision === 'deny', 'символ не отклонён');
@@ -638,6 +674,49 @@ check('build-скрипты остаются работой Grep — индек�
     // ...а обычный `.kts`-скрипт под фильтр по-прежнему попадает.
     assert.ok(d.grepVerdict({ pattern: 'Paywall', glob: '*.kts' }, sid()).decision === 'deny');
 });
+
+// --- Grep: отказ только там, где индекс есть (replay 2026-10-08) ------------
+// 203 из 472 повторов шли в проектах без индекса, 86 — внутри одного файла:
+// в обоих случаях ast-index ответа не даёт, и отказ был лишним turn'ом.
+check('проект без индекса ast-index — Grep по символу проходит', () => {
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), REPO_NONE), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate', path: 'src' }, sid(), REPO_NONE), null);
+});
+
+check('пустой индекс (только схема) — то же, что индекса нет', () => {
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), REPO_EMPTY), null);
+});
+
+check('Grep внутри одного файла не отклоняется даже при индексе', () => {
+    const file = path.join(REPO_INDEXED, 'src', 'feature', 'Screen.kt');
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate', path: file }, sid(), REPO_INDEXED), null);
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate', path: 'src/feature/Screen.kt' }, sid(), REPO_INDEXED), null);
+});
+
+check('индекс корня репозитория виден из подкаталога — отказ сохраняется', () => {
+    const sub = path.join(REPO_INDEXED, 'src', 'feature');
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), sub).decision === 'deny', 'cwd в подкаталоге');
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate', path: 'src' }, sid(), REPO_INDEXED).decision === 'deny', 'path-каталог');
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate', path: sub }, sid(), REPO_NONE).decision === 'deny', 'абсолютный path бьёт cwd');
+});
+
+check('индекс выше границы репозитория (.git) не засчитывается', () => {
+    // ast-index берёт корень по маркерам проекта: индекс родительского каталога
+    // для вложенного репозитория не используется.
+    const outer = fakeRepo('outer');
+    fakeIndex(outer, 20000);
+    const inner = path.join(outer, 'nested');
+    fs.mkdirSync(path.join(inner, '.git'), { recursive: true });
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), inner), null);
+});
+
+check('модуль считает хэш каталога по той же раскладке, что ast-index', () => {
+    assert.ok(d.astIndexHash, 'нет astIndexHash');
+    const real = fs.realpathSync.native(REPO_INDEXED);
+    assert.strictEqual(d.astIndexHash(real), layoutHash(real));
+});
+
+try { fs.rmSync(FX, { recursive: true, force: true }); } catch (e) { /* tmp, не критично */ }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exitCode = fail ? 1 : 0;

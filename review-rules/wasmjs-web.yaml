@@ -314,7 +314,7 @@
   fix: Wrap emoji-bearing text in rememberEmojiAwareText() and pass the returned fontFamily (LocalEmojiFont/Twemoji) on every Text; LocalEmojiFont is a no-op on Android so it is safe to apply unconditionally. Don't assume AppText/AppButton or strings/Remote-Config emoji are auto emoji-aware.
   source: kmp/emoji-rendering-wasms-text-fontfamily-2026-05-07.md; wasm-bugs/premium-price-arrow-tofu-2026-05-22.md; docs/solutions/emoji-rendering-wasms-preloadfont.md
 - id: wasmjs-nonemoji-symbol-glyph-tofu
-  narrowed_since: '2026-08-31'
+  narrowed_since: '2026-10-08'
   mode: runtime
   severity: medium
   stack:
@@ -329,6 +329,9 @@
     # narrowed 2026-08-31: 2924 fires, 0 blocks, est-FP 93%. Symbols in logs/analytics are not
     # rendered by Skiko, so they cannot show up as tofu.
     unless: ^\s*(//|\*|/\*)|logger\.|println\(|Log\.[dewiv]\(
+    # narrowed again 2026-10-08: after 08-31 the top files were still non-UI (UseCase,
+    # ViewModel, Controller). '@Composable' (not 'Text\(') also covers AppButton(text = ...).
+    requires: '@Composable'
   message: Non-emoji Unicode symbol literal (arrows/stars/checks/dingbats e.g. ★ ➜ ✓ ⚠) in commonMain Compose code renders as tofu (empty square) on wasmJs — Skiko has no CSS-style font fallback and neither the emoji font nor any web system font covers these ranges (Android's Roboto fallback hides it).
   fix: Render ornamental symbols as a vector AppIcon (composeResources drawable XML) or a Compose Canvas drawPath shape, or gate them out on web via isWebPlatform(); never rely on a font glyph for non-emoji symbols in commonMain shared with wasmJs.
   source: wasm-bugs/premium-price-arrow-tofu-2026-05-22.md; kmp/canvas-glyph-wasmjs-unicode-symbols-2026-04-29.md; ui-bugs/rate-dialog-stars-glyph-web-fix-2026-05-18.md
@@ -528,6 +531,7 @@
 
 # === mined 2026-08-14 (static) ===
 - id: live-harness-outbound-bridge-guard-missing
+  narrowed_since: '2026-10-08'
   mode: static
   severity: medium
   probation: '2026-08-14'
@@ -540,12 +544,16 @@
     # wasmJs-хоста: там `__<app>JsScreenEmit` не существует вовсе, боевой вызов физически
     # невозможен, и гвард требовать не с чего. Читающие живой мост харнессы это поле не трогают.
     lacks: '__\w+JsScreenEmit|initialAuthState'
+    # сужено 2026-10-08: 4 из 4 вердиктов L2 за 09-08..10-08 — purchase/debug-харнессы (Pay,
+    # Purchase, consent), до portal/generate путь не доходит и кредиты не жгутся.
+    requires: 'portal/generate|startGeneration|[Gg]enerat(e|ion)\w*\s*(CTA|[Bb]utton|[Pp]anel)|getByTestId\(.*generate|Generate'
   message: "Live-харнесс кликает по поверхности генерации, но не перехватывает ИСХОДЯЩИЙ канал моста (globalThis.__<app>JsScreenEmit, сообщение type: portal/generate) -> тап уходит боевым вызовом и жжёт реальные кредиты. Обёртка вокруг __<app>WebReactBridge.emit НЕ спасает: это ВХОДЯЩИЙ канал Kotlin -> React. Симптом неотличим: локальный спиннер рисует startGeneration ДО emit, поэтому заглушенный и настоящий вызовы выглядят на экране одинаково; разница видна только по балансу кредитов."
   fix: "Перед первым кликом обернуть globalThis.__<app>JsScreenEmit и глушить {type: portal/generate}, вызвав гвард ПОВТОРНО после навигации (канал регистрируется позже boot). Отсутствие трат доказывать двумя фактами: счётчик проглоченных вызовов + баланс кредитов до == после. Эталон - test-web/video-aspect-ratio-mobile-verify.mjs."
   source: "live-прогон 2026-08-14 - 7 кредитов сожжено перехватом не того канала (входящий вместо исходящего) в харнессе проверки аспект-ratio видео"
 
 # === mined 2026-08-17 (static) ===
 - id: web-react-static-guard-asserts-source-not-bundle
+  narrowed_since: '2026-10-08'
   mode: static
   severity: medium
   probation: '2026-08-17'
@@ -554,7 +562,9 @@
   detect:
     type: grep
     has: '"web-react", "src"|studioPath|panelPath'
-    lacks: 'bundlePath'
+    # сужено 2026-10-08: FP 09-11 — гвард читал бандл через SHELL_BUNDLE = join(..., "web-react.js").
+    # Признак гварда — путь артефакта, а не имя переменной.
+    lacks: 'bundlePath|web-react\.js'
   message: "Static-гвард, заведённый под правку исходников React-шелла, ассертит ТОЛЬКО исходник. Собранный бандл лежит в репозитории отдельным файлом и едет на сайт именно он -> source-only коммит (забыт `npm run build`) оставляет гвард зелёным, а пользователю уезжает старая версия. Долгоживущий маркер бандла (имя класса, строка-хинт) от этого не спасает: он присутствует и в устаревшем бандле."
   fix: "Каждый гвард на правку исходников шелла обязан ассертить в СОБРАННОМ бандле строку, которую изменил ИМЕННО ЭТОТ дифф (подпись, id-атрибут, взаимный порядок двух id). Проверять красноту гварда фактом: временно вернуть бандл к версии базовой ветки -> гвард обязан упасть."
   source: "static-гварды порядка/подписей чипов формы кадра прошли бы на устаревшем бандле (2026-08-17, L2); rules/web-react-shell.md §5"

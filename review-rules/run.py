@@ -129,7 +129,7 @@ def file_content(path: str, staged: bool) -> str | None:
 def added_lines(staged: bool, base: str | None) -> dict[str, set[int]]:
     """Map path -> set of NEW-file line numbers added (+) in the diff (git diff -U0).
 
-    Used by --changed-only so STATIC rules consider only freshly added lines, not
+    Used by --changed-only so rules (static and runtime) consider only freshly added lines, not
     pre-existing legacy code in a file you merely touched (no commit lockout, and
     the Stop-hook's block stays loop-safe).
     """
@@ -196,7 +196,7 @@ def run_detector(
     """Return a list of findings (each {line, snippet}) for one rule on one file.
 
     `allowed` (when not None) restricts grep matches to those NEW-file line numbers —
-    used by --changed-only so static rules only flag freshly added lines.
+    used by --changed-only so rules only flag freshly added lines.
     """
     detect = rule.get("detect")
     if not detect:  # process-mode rule, no static detector
@@ -250,14 +250,15 @@ def review(
         globs = rule.get("globs") or []
         if not globs:
             continue
-        is_static = rule.get("mode", "static") == "static"
         for path in files:
             if not matches_any(path, globs):
                 continue
-            # --changed-only: STATIC rules see only newly added content (runtime stays
-            # full-content — it never blocks, and re-validating the whole file is fine).
+            # --changed-only: ALL rules (static and runtime) see only newly added lines.
+            # Runtime used to stay full-content; replay 2026-10-08: 90/100 L2 dismissals in
+            # 09-08..10-08 were runtime hits on untouched legacy lines of a touched file.
+            # File-level lacks/requires still read the whole file (run_detector gets content).
             allowed: set[int] | None = None
-            if changed_only and is_static:
+            if changed_only:
                 if path in untracked:
                     allowed = None  # a brand-new file is entirely "added"
                 else:
@@ -560,7 +561,7 @@ def main() -> int:
     ap.add_argument("--check-hook", metavar="DIR", nargs="?", const=".",
                     help="read-only: report whether the hook is installed")
     ap.add_argument("--changed-only", action="store_true",
-                    help="static rules flag only newly added lines (diff -U0), not legacy code")
+                    help="all detector rules flag only newly added lines (diff -U0), not legacy code")
     ap.add_argument("--log", metavar="PATH",
                     help="append an L1 event (JSONL) to PATH for effectiveness tracking")
     ap.add_argument("--entry", default="manual",

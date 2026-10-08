@@ -118,6 +118,167 @@ const CLAUDE_DIR = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude')
 const GUARD = path.join(CLAUDE_DIR, 'hooks', 'credentials-guard.ps1');
 const PATTERNS = path.join(CLAUDE_DIR, 'config', 'credentials-guard-patterns.json');
 
+// --- текст команды, который не исполняется ----------------------------------
+//
+// Replay 2026-10-08: из 23 deny за месяц 5 пришлись на команды, которые ничего не
+// деплоят, — деплой-слова стояли в ТЕКСТЕ: сообщение коммита через
+// `"$(cat <<'EOF' … EOF)"`, тело `gh issue create --body`, строка-значение в
+// PowerShell. Строка heredoc'а, начатая с `firebase deploy`, для регекса guard'а —
+// «начало строки», то есть позиция команды.
+//
+// guardCode() возвращает команду той же длины, где ИНЕРТНЫЙ текст заменён
+// пробелами (переводы строк сохранены, позиции совпадают с исходной). Инертно
+// только то, что шелл гарантированно не исполнит:
+//   * '…' (bash и PowerShell), $'…' — без подстановок по определению;
+//   * "…" и PowerShell @"…"@ без `$(` и (bash) без бэктика внутри;
+//   * тело heredoc с КАВЫЧЕННЫМ разделителем (`<<'EOF'`) и @'…'@;
+//   * идиома `"$(cat <<'EOF' … EOF)"` целиком — это сообщение, а не код;
+//   * комментарии.
+// Строка без пробелов (`"deploy"`, `"--project=x"`) не скрывается: одиночный
+// токен в кавычках — это аргумент команды, `firebase "deploy"` исполняет деплой.
+//
+// Скрытый текст становится кодом, если его кто-то исполняет: `bash -c '…'`,
+// `eval`, `| bash`, `iex`, `ssh`, `xargs`, `--exec`, запуск записанного скрипта.
+// Поэтому при ЛЮБОМ таком маркере в оставшемся коде маска не применяется вовсе —
+// guard судит исходную команду, как и раньше. Маска только убирает данные;
+// исполняемое она не прячет, иначе это была бы дыра, а не фикс шума.
+const EXEC_MARKER = new RegExp([
+    '(?:^|[\\s;&|(`])(?:bash|sh|zsh|dash|ksh|fish|pwsh|powershell|cmd|eval|exec|source|iex|invoke-expression'
+        + '|invoke-command|start-process|start-job|xargs|parallel|ssh|watch|nohup|timeout|env|sudo|node|deno|bun'
+        + '|bunx|npx|pnpm|yarn|npm|python[\\d.]*|py|ruby|perl|php|awk|gawk|sed|alias|trap|function|docker|kubectl'
+        + '|make|wsl|shell)(?:\\.exe)?(?=$|[\\s;&|)`])',   // shell: `adb shell "pm uninstall …"`
+    '(?:^|[\\s;&|(])\\.{1,2}[\\\\/]',            // ./script, ../x
+    '(?:^|[\\s;|(])&(?!&)\\s',                    // PowerShell call operator `& x`
+    '(?:^|[;&|]\\s*)\\.\\s+\\S',                  // dot-source
+    '\\.(?:sh|bash|ps1|psm1|cmd|bat)\\b',
+    '\\s-(?:exec|execdir|ok)\\b',
+    '--exec\\b',
+    '\\bgit\\s+(?:-c|rebase|bisect|submodule|filter-branch)\\b',
+].join('|'), 'im');
+
+const CAT_HEREDOC = /"\$\(\s*cat\s*<<-?[ \t]*(['"])([\w-]+)\1[ \t]*\r?\n[\s\S]*?\r?\n[ \t]*\2[ \t]*\r?\n\s*\)"/y;
+const HEREDOC_MARK = /<<(-?)[ \t]*(['"]?)([\w-]+)\2/y;
+
+function guardCode(command, shell) {
+    const cmd = String(command || '');
+    const ps = shell === 'powershell';
+    const n = cmd.length;
+    const out = cmd.split('');
+    const hide = (a, b) => {
+        for (let k = a; k < b && k < n; k++) if (out[k] !== '\n' && out[k] !== '\r') out[k] = ' ';
+    };
+    // Одиночный токен в кавычках остаётся кодом (см. шапку).
+    const hideString = (a, b, inner) => { if (/\s/.test(inner)) hide(a, b); };
+    const pending = [];
+    let i = 0;
+
+    while (i < n) {
+        const ch = cmd[i];
+        if (ch === '\n') {
+            i++;
+            while (pending.length) {
+                const h = pending.shift();
+                while (i < n) {
+                    let e = cmd.indexOf('\n', i);
+                    if (e < 0) e = n;
+                    let line = cmd.slice(i, e).replace(/\r$/, '');
+                    if (h.strip) line = line.replace(/^\t+/, '');
+                    const done = line === h.word;
+                    if (!done && h.quoted) hide(i, e);
+                    i = e + 1;
+                    if (done) break;
+                }
+            }
+            continue;
+        }
+        if (!ps && ch === '\\') { i += 2; continue; }
+        if (ps && ch === '`') { i += 2; continue; }
+        if (ch === '#' && (i === 0 || /[\s;&|(]/.test(cmd[i - 1]))) {
+            let e = cmd.indexOf('\n', i);
+            if (e < 0) e = n;
+            hide(i, e);
+            i = e;
+            continue;
+        }
+        if (ps && ch === '<' && cmd[i + 1] === '#') {
+            let e = cmd.indexOf('#>', i + 2);
+            e = e < 0 ? n : e + 2;
+            hide(i, e);
+            i = e;
+            continue;
+        }
+        if (ps && ch === '@' && (cmd[i + 1] === '"' || cmd[i + 1] === "'") && /^\r?\n/.test(cmd.slice(i + 2, i + 4))) {
+            const q = cmd[i + 1];
+            const term = '\n' + q + '@';
+            const end = cmd.indexOf(term, i + 2);
+            if (end < 0) return cmd; // незакрытая here-string — разбору не доверяем
+            const stop = end + term.length;
+            if (q === "'" || !/\$\(/.test(cmd.slice(i, stop))) hide(i, stop);
+            i = stop;
+            continue;
+        }
+        if (ch === "'" || (!ps && ch === '$' && cmd[i + 1] === "'")) {
+            const ansi = ch === '$';
+            const start = i;
+            let j = ansi ? i + 2 : i + 1;
+            let closed = false;
+            while (j < n) {
+                if (ansi && cmd[j] === '\\') { j += 2; continue; }
+                if (cmd[j] === "'") {
+                    if (ps && cmd[j + 1] === "'") { j += 2; continue; }
+                    closed = true;
+                    break;
+                }
+                j++;
+            }
+            if (!closed) return cmd;
+            hideString(start, j + 1, cmd.slice(start + 1, j));
+            i = j + 1;
+            continue;
+        }
+        if (ch === '"') {
+            if (!ps) {
+                CAT_HEREDOC.lastIndex = i;
+                const m = CAT_HEREDOC.exec(cmd);
+                if (m) { hide(i, i + m[0].length); i += m[0].length; continue; }
+            }
+            let j = i + 1;
+            let active = false;
+            let closed = false;
+            while (j < n) {
+                const c = cmd[j];
+                if (!ps && c === '\\') { j += 2; continue; }
+                if (ps && c === '`') { j += 2; continue; }
+                if (c === '"') {
+                    if (ps && cmd[j + 1] === '"') { j += 2; continue; }
+                    closed = true;
+                    break;
+                }
+                if (c === '$' && cmd[j + 1] === '(') active = true;
+                if (!ps && c === '`') active = true;
+                j++;
+            }
+            if (!closed) return cmd;
+            if (!active) hideString(i, j + 1, cmd.slice(i + 1, j));
+            i = j + 1;
+            continue;
+        }
+        if (!ps && ch === '<' && cmd[i + 1] === '<') {
+            if (cmd[i + 2] === '<') { i += 3; continue; }
+            HEREDOC_MARK.lastIndex = i;
+            const m = HEREDOC_MARK.exec(cmd);
+            if (m) {
+                pending.push({ word: m[3], strip: m[1] === '-', quoted: !!m[2] });
+                i += m[0].length;
+                continue;
+            }
+        }
+        i++;
+    }
+    const code = out.join('');
+    return EXEC_MARKER.test(code) ? cmd : code;
+}
+
 // Returns true when the real guard must run.
 function needsGuard(raw) {
     let payload;
@@ -155,7 +316,10 @@ function needsGuard(raw) {
         // and `GCLOUD deploy` skipped a guard that denies them — verified.
         const toolRe = new RegExp(`\\b(${tools.join('|')})\\b`, 'i');
         const verbRe = new RegExp(`\\b(${verbs.join('|')})`, 'i');
-        return toolRe.test(command) && verbRe.test(command);
+        // Судим код без инертного текста (guardCode): слова в сообщении коммита
+        // или теле issue — не вызов. Всё исполняемое guardCode оставляет как есть.
+        const code = guardCode(command, payload.tool_name === 'PowerShell' ? 'powershell' : 'bash');
+        return toolRe.test(code) && verbRe.test(code);
     } catch (e) {
         return true; // bad pattern -> let the guard decide
     }
@@ -268,7 +432,7 @@ function renderGrepDeny(payload) {
     if (!discipline || !discipline.grepVerdict) return false;
     let verdict = null;
     try {
-        verdict = discipline.grepVerdict(payload.tool_input, cooldownKey(payload));
+        verdict = discipline.grepVerdict(payload.tool_input, cooldownKey(payload), payload.cwd);
     } catch (e) {
         noteDisciplineFailure(e);
         return false;
@@ -402,6 +566,19 @@ function main() {
         return emitOutput(withAlign(disciplineFields(payload), aligned));
     }
 
+    // guard получает ту же маску инертного текста, по которой здесь решено его
+    // звать: иначе он нашёл бы «позицию команды» в строке heredoc'а сам и выдал
+    // бы deny на сообщении коммита. Поле служебное — его видит только guard;
+    // нет поля (прямой вызов, сбой маски) — guard судит исходную команду.
+    try {
+        const p = JSON.parse(guardRaw);
+        const command = p && p.tool_input && p.tool_input.command;
+        if (typeof command === 'string') {
+            p.guard_code = guardCode(command, p.tool_name === 'PowerShell' ? 'powershell' : 'bash');
+            guardRaw = JSON.stringify(p);
+        }
+    } catch (e) { /* guard судит исходную команду */ }
+
     try {
         const status = runGuard(guardRaw);
         // Вердикт guard'а уже в stdout — второй ответ невозможен.
@@ -427,4 +604,4 @@ if (require.main === module) {
     process.exitCode = 0;
 }
 
-module.exports = { needsGuard };
+module.exports = { needsGuard, guardCode };

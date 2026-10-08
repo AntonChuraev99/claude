@@ -73,6 +73,51 @@ check('PowerShell tool, harmless command', needsGuard(JSON.stringify({
 })), false);
 check('empty command', ask(''), false);
 
+// Replay 2026-10-08: деплой-слова в ТЕКСТЕ команды, которая сама ничего не
+// деплоит, — сообщение коммита, тело issue, строка-значение. Кейсы — обезличенные
+// формы реальных deny за месяц.
+console.log('');
+console.log('=== text is not a command: data-only mentions skip the guard ===');
+const NL = '\n';
+check('commit message via $(cat <<\'EOF\') with deploy lines', ask(
+    'git commit -m "$(cat <<\'EOF\'' + NL + 'fix(hooks): mask text' + NL + NL
+    + 'gcloud run deploy got --account in the scope; firebase deploy too' + NL
+    + 'EOF' + NL + ')"'), false);
+check('gh issue body via heredoc mentions gcloud deploy', ask(
+    'gh issue create -R org/repo --title "Check costs" --body "$(cat <<\'EOF\'' + NL
+    + '## Context' + NL + 'gcloud compute instances deploy-container moved; firebase deploy later' + NL
+    + 'EOF' + NL + ')"'), false);
+check('PowerShell: single-quoted row with | gsutil … publish', needsGuard(JSON.stringify({
+    tool_name: 'PowerShell', tool_input: { command:
+        '$f = "$env:USERPROFILE\\x.md"; $row = \'| 2026-09-18 | ~/.claude | gsutil -> gcloud storage, publish notes |\'; Add-Content -LiteralPath $f -Value $row' },
+})), false);
+check('PowerShell here-string commit message', needsGuard(JSON.stringify({
+    tool_name: 'PowerShell', tool_input: { command:
+        "git add -- docs/a.md && git commit -m @'" + NL + 'docs: gcp deployment record' + NL
+        + 'firebase deploy and gcloud run deploy are described here' + NL + "'@" },
+})), false);
+
+console.log('');
+console.log('=== ...but text that EXECUTES still reaches the guard ===');
+check('bash -c "…"', ask('bash -c "firebase deploy"'), true);
+check('sh -c \'…\' after a commit', ask('git commit -m "x" && sh -c \'firebase deploy\''), true);
+check('"$(firebase deploy)" inside double quotes', ask('echo "result: $(firebase deploy)"'), true);
+check('backticks inside double quotes', ask('echo "result: `firebase deploy`"'), true);
+check('quoted verb argument: firebase "deploy"', ask('firebase "deploy"'), true);
+check('heredoc piped into bash', ask('cat <<\'EOF\' | bash' + NL + 'firebase deploy' + NL + 'EOF'), true);
+check('heredoc into a script that runs', ask('cat <<\'EOF\' > d.sh' + NL + 'firebase deploy' + NL + 'EOF' + NL + './d.sh'), true);
+check('unquoted heredoc delimiter keeps body as code', ask('cat <<EOF' + NL + '$(firebase deploy)' + NL + 'EOF'), true);
+check('eval "…"', ask('eval "firebase deploy"'), true);
+check('git rebase --exec', ask('git rebase --exec "firebase deploy" HEAD~2'), true);
+check('PowerShell iex', needsGuard(JSON.stringify({
+    tool_name: 'PowerShell', tool_input: { command: "iex 'firebase deploy'" },
+})), true);
+check('PowerShell "$(…)" subexpression', needsGuard(JSON.stringify({
+    tool_name: 'PowerShell', tool_input: { command: 'Write-Output "x $(firebase deploy)"' },
+})), true);
+check('commit then real deploy', ask('git commit -m "release notes" && firebase deploy'), true);
+check('unterminated quote -> no masking', ask('echo "oops && firebase deploy'), true);
+
 console.log('');
 console.log('=== fail-safe: anything unclear reaches the guard ===');
 check('unparseable stdin', needsGuard('{not json'), true);

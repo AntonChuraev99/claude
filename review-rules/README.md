@@ -38,8 +38,14 @@ python ~/.claude/review-rules/run.py --base origin/main   # всё с ветки
 python ~/.claude/review-rules/run.py --json          # для агента L2
 python ~/.claude/review-rules/run.py --warn-only     # никогда не exit≠0 (advisory)
 python ~/.claude/review-rules/run.py --area backend-deploy  # одна область
+python ~/.claude/review-rules/run.py --changed-only  # только добавленные строки (Stop-хук, pre-commit, task-gate)
+python ~/.claude/review-rules/run.tests.py           # тесты: скоуп --changed-only + контроли сужённых правил
 ```
 Exit ≠ 0 — есть `static` HIGH (коммит/гейт блокируется). `runtime` — WARN, не блокирует. `process` — L1 пропускает (их читают L2/L3).
+
+`--changed-only` с 2026-10-08 режет **и `runtime`**, а не только `static`: построчный `has` смотрит только на добавленные строки диффа (`git diff -U0`), файловые `lacks`/`requires` по-прежнему читают файл целиком, untracked-файл считается добавленным полностью. До этого runtime-хиты на легаси-строках тронутого файла повторялись на каждом Stop-хуке и давали 90 из 100 dismissed L2 за 09-08..10-08. Цена: класс «старая строка стала опасной из-за правки рядом» L1 больше не покажет — его закрывает классовое суждение L2 (`own` в телеметрии).
+
+Сузил правило — добавь в `run.tests.py` пару: положительный контроль (случай из `source`/confirmed обязан сработать) и отрицательный (типичный dismissed обязан замолчать).
 
 ## Схема правила
 
