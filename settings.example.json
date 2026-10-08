@@ -254,6 +254,22 @@
             "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
             "timeout": 20,
             "statusMessage": "креды проекта…"
+          },
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
+            "timeout": 10
           }
         ]
       }
@@ -285,6 +301,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "matcher": "Agent",
         "hooks": [
