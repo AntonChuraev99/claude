@@ -24,7 +24,10 @@ const path = require('path');
 const os = require('os');
 
 // Versions whose script layout this patch was verified against.
-const KNOWN_VERSIONS = ['2.1.0', '2.2.0'];
+// 2.3.0 (2026-10-08): against 2.1.0 it only adds the agent_needs_input matcher,
+// on-stop-failure.sh (the patch ships its own) and a 120-char clip of the
+// notification message (notify.jq clips it too).
+const KNOWN_VERSIONS = ['2.1.0', '2.2.0', '2.3.0'];
 
 // Notification-only hooks: cap them under each event's own ceiling.
 const TIMEOUTS = {
