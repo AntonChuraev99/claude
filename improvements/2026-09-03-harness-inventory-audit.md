@@ -124,3 +124,17 @@ target_date: 2026-09-17
 `docs/backlog/harness-third-party-skills-cleanup.md`. Главная находка replay:
 `skillOverrides` любым значением, кроме `"on"`, снимает и вызов моделью (дока + живая проверка),
 поэтому «спрятать» скилл, на который ссылается агент, — регрессия, а не экономия.
+
+### Replay — финальный (target 2026-09-17; сделан 2026-10-08)
+
+Методика: `claude plugin details` по каждому включённому плагину; `claude mcp list` для профиля claude-work. Браузерные вызовы и `Skill` — скан main-сессий `~/.claude/projects` за 09-23…10-08, один каталог. Дайджесты `@best-practices-scout` — финальные сообщения 126 субагентов с 09-03, тема харнесса определялась по ключевым словам брифа.
+
+| Target | было | факт 10-08 | итог |
+|---|---|---|---|
+| always-on плагинов ≈ 6.0k | 8.4k | **≈12.1k**: amplitude 4 751 · RevenueCat 2 940 · figma 2 135 · cloudflare 1 569 · ast-index 626 · frontend-design 80 · playwright/firebase/warp 0 | ❌ |
+| MCP-серверов на старте 11 | 18 | 22 + chrome: 7 standalone (было 6), 10 плагинных (было 9), 5 коннекторов claude.ai (было 2). Вернулись удалённые или выключенные `figma`, `cloudflare` (5), `sentry` | ❌ |
+| ни одного сервера только с `authenticate` | `lazyweb`, `sentry`, `cloudflare` | 6 «Needs authentication»: claude.ai GitLab, `cloudflare-observability`, `figma`, плагин `revenuecat` (дубль коннектора claude.ai RevenueCat), `sentry`, `stripe` | ❌ |
+| доля `claude-in-chrome` среди браузерных падает | 100% → 49% (interim) | 66% (705 из 1 073); `Skill(playwright-cli)` — 0, через Bash `playwright-cli` — 0 | ⚠️ |
+| scout по харнессу цитирует Anthropic | — | 11 из 24 дайджестов на тему харнесса (46%) | ⚠️ |
+
+Вывод: ревизия дала разовый эффект, но за 5 недель конфиг вернулся выше baseline. Плагины и серверы добавлялись по нужде, а повторной ревизии не было. `playwright-cli` не используется. Решение: оставить. Нужна новая ревизия по `docs/backlog/harness-third-party-skills-cleanup.md` с теми же метриками, в первую очередь — дубль RevenueCat и 6 серверов без авторизации.

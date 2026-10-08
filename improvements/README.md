@@ -85,30 +85,30 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-09-28 | [delegation-rule-relax](2026-09-28-delegation-rule-relax.md) | applied | 2026-10-12 | pending |
 | 2026-09-28 | [worktree-shell-sweep-hook](2026-09-28-worktree-shell-sweep-hook.md) | applied | 2026-10-12 | pending |
 | 2026-09-25 | [mcp-memory-on-demand](2026-09-25-mcp-memory-on-demand.md) | applied | 2026-10-09 | pending |
-| 2026-09-23 | [opus-5-5-calibration](2026-09-23-opus-5-5-calibration.md) | applied | 2026-10-07 | pending |
-| 2026-09-23 | [claude-md-char-trim](2026-09-23-claude-md-char-trim.md) | applied | 2026-10-07 | pending |
-| 2026-09-23 | [backlog-triage-skills-and-guard-log](2026-09-23-backlog-triage-skills-and-guard-log.md) | applied | 2026-10-07 | pending |
-| 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | pending |
-| 2026-09-18 | [branch-guard-deny-once](2026-09-18-branch-guard-deny-once.md) | applied | 2026-10-02 | pending |
-| 2026-09-15 | [gate-review-tests-relax](2026-09-15-gate-review-tests-relax.md) | applied | 2026-09-29 | pending |
-| 2026-09-15 | [hook-timeouts-are-paging](2026-09-15-hook-timeouts-are-paging.md) | applied | 2026-09-29 | pending |
-| 2026-09-15 | [doc-writer-dissolve](2026-09-15-doc-writer-dissolve.md) | applied | 2026-09-29 | pending |
-| 2026-09-14 | [agent-watchdog-zero-transcript](2026-09-14-agent-watchdog-zero-transcript.md) | applied | 2026-09-28 | pending |
-| 2026-09-14 | [task-gate-artifact-handoff](2026-09-14-task-gate-artifact-handoff.md) | applied | 2026-09-28 | pending |
-| 2026-09-09 | [workspace-session-control-preflight](2026-09-09-workspace-session-control-preflight.md) | applied | 2026-09-23 | pending |
-| 2026-09-09 | [split-compose-feature-expert](2026-09-09-split-compose-feature-expert.md) | applied | 2026-09-23 | pending |
-| 2026-09-07 | [account-align](2026-09-07-account-align.md) | applied | 2026-09-21 | interim 2026-09-09 |
-| 2026-09-03 | [harness-inventory-audit](2026-09-03-harness-inventory-audit.md) | applied | 2026-09-17 | interim 2026-09-23 |
-| 2026-09-03 | [fable-5-1-overlay](2026-09-03-fable-5-1-overlay.md) | applied | 2026-09-17 | pending |
-| 2026-09-01 | [agents-refactor-effort-and-lazy-refs](2026-09-01-agents-refactor-effort-and-lazy-refs.md) | applied | 2026-09-15 | pending |
-| 2026-08-31 | [anthropic-harness-alignment](2026-08-31-anthropic-harness-alignment.md) | applied | 2026-09-14 | interim 2026-09-03 |
-| 2026-08-31 | [worktree-shell-cleanup](2026-08-31-worktree-shell-cleanup.md) | applied | 2026-09-14 | pending |
-| 2026-08-31 | [test-expert-scope-and-cost](2026-08-31-test-expert-scope-and-cost.md) | applied | 2026-09-14 | pending |
-| 2026-08-31 | [review-threshold](2026-08-31-review-threshold.md) | applied | 2026-09-14 | pending |
-| 2026-08-29 | [device-mirror-skill](2026-08-29-device-mirror-skill.md) | applied | 2026-09-12 | pending |
+| 2026-09-23 | [opus-5-5-calibration](2026-09-23-opus-5-5-calibration.md) | applied | 2026-10-07 | replayed 2026-10-08 |
+| 2026-09-23 | [claude-md-char-trim](2026-09-23-claude-md-char-trim.md) | applied | 2026-10-07 | replayed 2026-10-08 |
+| 2026-09-23 | [backlog-triage-skills-and-guard-log](2026-09-23-backlog-triage-skills-and-guard-log.md) | applied | 2026-10-07 | replayed 2026-10-08 |
+| 2026-09-18 | [gsutil-to-gcloud-storage](2026-09-18-gsutil-to-gcloud-storage.md) | applied | 2026-10-02 | replayed 2026-10-08 |
+| 2026-09-18 | [branch-guard-deny-once](2026-09-18-branch-guard-deny-once.md) | applied | 2026-10-02 | replayed 2026-10-08 |
+| 2026-09-15 | [gate-review-tests-relax](2026-09-15-gate-review-tests-relax.md) | applied | 2026-09-29 | replayed 2026-10-08 |
+| 2026-09-15 | [hook-timeouts-are-paging](2026-09-15-hook-timeouts-are-paging.md) | applied | 2026-09-29 | replayed 2026-10-08 |
+| 2026-09-15 | [doc-writer-dissolve](2026-09-15-doc-writer-dissolve.md) | applied | 2026-09-29 | replayed 2026-10-08 |
+| 2026-09-14 | [agent-watchdog-zero-transcript](2026-09-14-agent-watchdog-zero-transcript.md) | applied | 2026-09-28 | replayed 2026-10-08 |
+| 2026-09-14 | [task-gate-artifact-handoff](2026-09-14-task-gate-artifact-handoff.md) | applied | 2026-09-28 | replayed 2026-10-08 |
+| 2026-09-09 | [workspace-session-control-preflight](2026-09-09-workspace-session-control-preflight.md) | applied | 2026-09-23 | replayed 2026-10-08 |
+| 2026-09-09 | [split-compose-feature-expert](2026-09-09-split-compose-feature-expert.md) | applied | 2026-09-23 | replayed 2026-10-08 |
+| 2026-09-07 | [account-align](2026-09-07-account-align.md) | applied | 2026-09-21 | replayed 2026-10-08 |
+| 2026-09-03 | [harness-inventory-audit](2026-09-03-harness-inventory-audit.md) | applied | 2026-09-17 | replayed 2026-10-08 |
+| 2026-09-03 | [fable-5-1-overlay](2026-09-03-fable-5-1-overlay.md) | applied | 2026-09-17 | replayed 2026-10-08 |
+| 2026-09-01 | [agents-refactor-effort-and-lazy-refs](2026-09-01-agents-refactor-effort-and-lazy-refs.md) | applied | 2026-09-15 | replayed 2026-10-08 |
+| 2026-08-31 | [anthropic-harness-alignment](2026-08-31-anthropic-harness-alignment.md) | applied | 2026-09-14 | replayed 2026-10-08 |
+| 2026-08-31 | [worktree-shell-cleanup](2026-08-31-worktree-shell-cleanup.md) | applied | 2026-09-14 | superseded |
+| 2026-08-31 | [test-expert-scope-and-cost](2026-08-31-test-expert-scope-and-cost.md) | applied | 2026-09-14 | replayed 2026-10-08 |
+| 2026-08-31 | [review-threshold](2026-08-31-review-threshold.md) | applied | 2026-09-14 | replayed 2026-10-08 |
+| 2026-08-29 | [device-mirror-skill](2026-08-29-device-mirror-skill.md) | applied | 2026-09-12 | deferred |
 | 2026-08-27 | [caveman-lite-default](2026-08-27-caveman-lite-default.md) | reverted | 2026-09-10 | superseded |
-| 2026-08-27 | [scroll-clip-rule-covers-rounded-clip](2026-08-27-scroll-clip-rule-covers-rounded-clip.md) | applied | 2026-09-10 | pending |
+| 2026-08-27 | [scroll-clip-rule-covers-rounded-clip](2026-08-27-scroll-clip-rule-covers-rounded-clip.md) | applied | 2026-09-10 | replayed 2026-10-08 |
 | 2026-08-27 | [delegation-rule-erosion](2026-08-27-delegation-rule-erosion.md) | applied | 2026-09-10 | replayed |
-| 2026-08-26 | [improvements-published](2026-08-26-improvements-published.md) | applied | 2026-09-09 | pending |
-| 2026-08-26 | [task-gate-review-fanout](2026-08-26-task-gate-review-fanout.md) | applied | 2026-09-09 | pending |
-| 2026-08-26 | [resident-context-trim](2026-08-26-resident-context-trim.md) | applied | 2026-09-09 | pending |
+| 2026-08-26 | [improvements-published](2026-08-26-improvements-published.md) | applied | 2026-09-09 | replayed 2026-10-08 |
+| 2026-08-26 | [task-gate-review-fanout](2026-08-26-task-gate-review-fanout.md) | applied | 2026-09-09 | replayed 2026-10-08 |
+| 2026-08-26 | [resident-context-trim](2026-08-26-resident-context-trim.md) | applied | 2026-09-09 | replayed 2026-10-08 |
