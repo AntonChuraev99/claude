@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-09 | [paid-api-consent](2026-10-09-paid-api-consent.md) | applied | 2026-10-23 | pending |
 | 2026-10-08 | [l2-precision-scope](2026-10-08-l2-precision-scope.md) | applied | 2026-10-22 | pending |
 | 2026-10-08 | [replay-defects-fixes](2026-10-08-replay-defects-fixes.md) | applied | 2026-10-22 | pending |
 | 2026-10-08 | [harness-latency-fixes](2026-10-08-harness-latency-fixes.md) | applied | 2026-10-22 | pending |
