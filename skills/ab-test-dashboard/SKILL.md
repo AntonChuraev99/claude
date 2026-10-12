@@ -27,7 +27,7 @@ Goal: build an Amplitude dashboard that answers a single question — **is this 
 
 Most tests live in **Firebase A/B Testing** (Remote Config) or **RevenueCat Experiments**. Pulling the definition gives you launch moment, split, variants, and the primary objective without guessing:
 
-- **Firebase A/B Testing** — ⚠️ these are **NOT** in the Firebase MCP and **NOT** in `remoteconfig_get_template` (that template only has base conditions: platform/version/country/staging). The experiment list is a separate REST endpoint:
+- **Firebase A/B Testing** — ⚠️ the Firebase MCP has no A/B tools, and the experiment *list* is not in `remoteconfig_get_template`. The experiment list is a separate REST endpoint (variant values — see the `experimentValue` bullet below):
   - List: `GET https://firebaseremoteconfig.googleapis.com/v1/projects/{projectNumber}/namespaces/firebase/experiments?pageSize=300` → `definition.displayName`, `state` (RUNNING/DONE), `startTime`. Endpoint verified working 2026-08-13, post-migration.
   - **Experiment ids changed with the migration**: new experiments come back as `abt_<N>`
     (`…/experiments/abt_63`), older ones keep a bare number (`…/experiments/61`). Take the id from
@@ -38,7 +38,13 @@ Most tests live in **Firebase A/B Testing** (Remote Config) or **RevenueCat Expe
     the default cp1251 decode blows up on experiment names.
   - Detail: `GET …/experiments/{N}` → `definition.variants[]` (name + weight = split, e.g. `1:1` = 50/50) and `definition.objectives.eventObjectives[]` (`systemObjectiveDetails.objective`: `total_revenue` / `retention_7`; or `customObjectiveDetails`). **Match your primary chart to the experiment's own primary objective.**
   - **Auth** (when gcloud token is stale / wrong project): exchange the Firebase CLI refresh token — `~/.config/configstore/firebase-tools.json` → `tokens.refresh_token` → POST `https://oauth2.googleapis.com/token` with the public Firebase-CLI `client_id <FIREBASE_CLI_CLIENT_ID>` / `client_secret <FIREBASE_CLI_CLIENT_SECRET>` (the well-known public Firebase CLI OAuth client — look it up in the firebase-tools source). Never print tokens.
-  - The variant **RC-parameter overrides are NOT returned** — only variant names. Which parameter/offering/product/price differs you discover **empirically in Step 2**. Firebase A/B variant assignment is **not pushed to Amplitude** as a user-property → split by an **event-property** (pitfall 13/17), not a `gp:` segment.
+  - The experiments endpoint returns only variant **names**, not RC-parameter overrides. Since the
+    2026-09-01 migration the overrides live in the Remote Config template itself:
+    `remoteconfig_get_template` / `GET …/remoteConfig` → `parameters.*.{defaultValue,conditionalValues.*}.experimentValue`
+    = `{experimentId, variantValue[], exposurePercent}`, each `variantValue` an explicit value or
+    `noChange`; join by `experimentId` to `…/experiments/abt_<N>` (schema: firebase.google.com/docs/reference/remote-config/rest/v1/RemoteConfig,
+    checked 2026-10-12; not yet verified on a live project — first use, confirm and drop this note).
+    No `experimentValue` (pre-migration experiment) → discover the differing parameter/offering/product/price **empirically in Step 2**. Firebase A/B variant assignment is **not pushed to Amplitude** as a user-property → split by an **event-property** (pitfall 13/17), not a `gp:` segment.
   - Your Firebase project number: `<YOUR_PROJECT_ID>`.
   - **Workflow Migration (2026):** A/B Testing now lives *inside* the Remote Config template
     (experiments alongside Rollouts/Personalization); the standalone Drafts tab is deprecated and
@@ -189,14 +195,14 @@ this trio (Templates 7–8), and say plainly in the glossary that these are prox
    - Confirm test actually launched (variant B has any users at all — see Step 2 diagnostic)
    - **If user-property is `(none)` on the target platform** → switch to event-property pattern (Template 6, pitfall 13). RC's `presented_offering_id` works without app instrumentation.
    - **If `_new` cohort is all `(none)`** → drop `newOrActive: "new"`, use `"active"` with behavioral entry event (e.g. `Special Gift Opened`). See pitfall 15.
-6. `save_chart_edits` → permanent `chartId`. Required to put on dashboard.
+6. Keep the `chartEditId`: `use_amp_dashboards` `create`/`edit` accepts edit IDs in `chartId` and saves them as permanent charts itself (name them via `chartEdits`). A separate save is needed only for a chart that goes on no dashboard.
 7. `render_chart` with the `chartEditId` (or saved `chartId`) to actually SHOW the result to the
    user — skipping it means they read numbers in prose instead of seeing the chart. Do NOT render
    an empty/all-zero result: say so in words instead.
 
 ### Step 5 — Build the dashboard
 
-Use `create_dashboard` with two rows:
+Use `use_amp_dashboards` `action: create` with two rows:
 
 1. Glossary header (rich_text, width 12, height 500) — see `references/glossary-template.md`
 2. Chart row (chart, width 12, height 500)
@@ -204,9 +210,14 @@ Use `create_dashboard` with two rows:
 For multi-metric tests (rare): add additional rows with smaller heights (375).
 
 **Charts you build land UNPUBLISHED in your personal space** — the dashboard link works for you and
-looks broken/empty to a teammate. Finish the job: `share_object` (objectType `DASHBOARD`, and the
-charts too) with the intended viewers' login emails, or tell the user in the report that publishing
-to a shared space is a manual step. Don't hand over a link that only the author can read.
+looks broken/empty to a teammate. Finish the job (tool names checked 2026-10-12):
+- Create straight into a shared space: `use_amp_dashboards` `action: create` with
+  `destination: {kind: "space", spaceId, publish: true}` — the edit-charts are saved there too.
+  There is no list-spaces tool: take `spaceId` from the user or from a URL `/space/<id>`.
+- Already saved in the personal space → `manage_amp_entities` `route: move_to_space` (the user
+  confirms the card in the app).
+- Individual viewers → `share_amp_entities` `action: share` (the old `share_object` is gone).
+Don't hand over a link that only the author can read.
 
 ### Step 6 — Report
 
@@ -252,7 +263,7 @@ See `references/pitfalls.md` for full list with examples. Key ones:
 - **User-property may not be written on every platform** — diagnostic MUST groupBy `gp:<variant>` AND `platform` together. If target platform shows only `(none)`, fall back to event-property split (pitfall 13, Template 6). Real precedent: an Android client writes only `isSpecialGiftOfferEnabled` boolean, not `specialGiftOfferID` — iOS instrumentation works, Android doesn't. RC's `presented_offering_id` saves you.
 - **Pre-test subscribers inflate Baseline renewal revenue on Day 1–7** — old users on the Baseline offering id keep renewing during the test window. Baseline gets unfair renewal-revenue lift. Add a separate "initial-revenue-only" chart for the first renewal cycle and a glossary warning. See pitfall 14.
 - **`newOrActive: "new"` + delayed user-property = empty cohort** — if the app writes the variant property after first session, all new users in the test window have `(none)`. Switch to `"active"` + behavioral entry event, OR use event-property. See pitfall 15.
-- **A two-segment chart's tile legend cannot be set through this MCP — plan for a UI rename or avoid it.** The tile reads the **top-level** `customSerieLabels` map, written only by the UI "Rename a segment" (hover→click→type→Save). Verified: segment `name` labels only the query/CSV; `query_dataset` accepts top-level `customSerieLabels` (labels the response) but `save_chart_edits` **strips** it; params-level `customSerieLabels` survives save but the renderer **ignores** it; there is no MCP tool to patch a saved chart's top-level definition. → **Programmatic readable legend = split by a property** (`byProp` funnels / `groupBy` segmentation → legend = the property's values). For arbitrary two-segment splits, build the chart, then tell the user to UI-rename each segment. Don't burn iterations re-testing the API paths — they're all dead ends. (prec: release-impact dashboard — segment `name`, top-level `customSerieLabels`+save, and params-level `customSerieLabels` all failed to relabel the tile; UI rename was the only fix.)
+- **A two-segment chart's tile legend cannot be set through this MCP — plan for a UI rename or avoid it.** The tile reads the **top-level** `customSerieLabels` map, written only by the UI "Rename a segment" (hover→click→type→Save). Verified: segment `name` labels only the query/CSV; `query_dataset` accepts top-level `customSerieLabels` (labels the response) but `save_chart_edits` **strips** it; params-level `customSerieLabels` survives save but the renderer **ignores** it; there is no MCP tool to patch a saved chart's top-level definition (re-checked 2026-10-12: `use_amp_dashboards` `chartEdits` sets only name/description, `chartMetas` only annotation/view/series index). → **Programmatic readable legend = split by a property** (`byProp` funnels / `groupBy` segmentation → legend = the property's values). For arbitrary two-segment splits, build the chart, then tell the user to UI-rename each segment. Don't burn iterations re-testing the API paths — they're all dead ends. (prec: release-impact dashboard — segment `name`, top-level `customSerieLabels`+save, and params-level `customSerieLabels` all failed to relabel the tile; UI rename was the only fix.)
 - **Formula syntax**: only `PROPSUM(A)`, `UNIQUES(B)`, `TOTALS(B)` work. `SUMS()`, `SUM()`, `DISTINCT()`, plain `A/B` all fail with "Formula parse failed".
 - **Revenue source**: in RevenueCat-style RC integrations, `$revenue` is on `rc_initial_purchase_event`, `rc_trial_converted_event`, `rc_renewal_event` (filter `environment = PRODUCTION`), NOT on custom `Premium Purchase` events.
 - **User-property segments**: use `gp:<name>` prefix (e.g. `gp:onboardingOffer`), even though `get_properties` returns the name without it.
@@ -274,9 +285,8 @@ schemas 2026-08-13 — the names below are current; several older ones were cons
 | run an ad-hoc query | `query_dataset` | returns `chartEditId`; also aliased `query_amplitude_data` (accepts `chart` + `chartId` for fork/modify) |
 | read saved charts | `get_amplitude_charts` | one tool, five modes via `include`: `link` / `typed` / `definition` / `data` / `guide`. **replaces** `get_charts`, `query_charts`, `get_chart_definition_params` (= `include:"guide"`) |
 | SHOW a chart to the user | `render_chart` | pass the `chartEditId` from `query_dataset` (or a saved `chartId`) — renders an interactive widget |
-| persist | `save_chart_edits` | `chartEditId` → permanent `chartId` (required for dashboards) |
-| assemble | `create_dashboard`, `edit_dashboard`, `get_dashboard` | `edit_dashboard` needs `expectedLastModified` from `get_dashboard` |
-| make it visible to the team | `share_object` | AI-built charts land **unpublished in your personal space** — see pitfall 23 |
+| assemble + persist | `use_amp_dashboards` (`get` / `create` / `edit`) | rows take edit IDs directly — saved as permanent charts automatically; `edit` needs `expectedLastModified` from `get`; `destination: {kind:"space", spaceId, publish:true}` saves straight into a shared space (checked 2026-10-12) |
+| move / share | `manage_amp_entities` (`move_to_space`), `share_amp_entities` (`share`) | AI-built charts land **unpublished in your personal space** unless `destination` is a space — see pitfall 23; `share_object` is gone |
 
 Amplitude also exposes `get_experiments` / `query_experiment` — those are for experiments run in
 **Amplitude Experiment**. A Firebase/RevenueCat test is invisible to them; don't reach for them

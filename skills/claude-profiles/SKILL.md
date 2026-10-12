@@ -44,7 +44,7 @@ when_to_use: правка симлинков и junction между профил
 
 Флаги, а не переменные окружения: префикс `VAR=… команда` пишется по-разному в bash и PowerShell, а в PowerShell присваивание отделяется `;` и разрывает `&&`-цепочку — команда исполнилась бы даже после провала предыдущего звена, из чужого каталога и без аккаунта.
 
-Не покрыты: MCP-тулы Firebase (своя авторизация) и любые тулы, кроме `Bash`/`PowerShell`. Их не видит и `credentials-guard` (`hooks/credentials-guard.ps1` выходит на любом другом `tool_name`) — перед записью через MCP аккаунт сверяет главный сам по реестру (`firebase_get_environment` против колонки `firebase_project`).
+Не покрыты: MCP-тулы Firebase (своя авторизация) и любые тулы, кроме `Bash`/`PowerShell`. Это выбор матчера, а не предел платформы: PreToolUse видит и MCP-тулы (матчер `mcp__<server>__.*`, у плагинного сервера `mcp__plugin_<plugin>_<server>__.*`; голый ключ сервера не срабатывает) — расширение guard'а на MCP идёт отдельной задачей. Их не видит и `credentials-guard` (`hooks/credentials-guard.ps1` выходит на любом другом `tool_name`) — перед записью через MCP аккаунт сверяет главный сам по реестру (`firebase_get_environment` против колонки `firebase_project`).
 
 `gsutil` — legacy, не использовать: своего флага аккаунта у него нет, и Google убирает его из состава Cloud CLI после марта 2027 (дальше только standalone через PyPI). Для Cloud Storage — `gcloud storage …`: это обычный `gcloud`, хук выравнивает его штатно. Старый бинарь, если стоит отдельно, guard по-прежнему сверяет и при расхождении блокирует.
 
@@ -93,6 +93,6 @@ Guard намеренно не дёргает сеть сам: проверку �
 1. `claude mcp list` — `✓ Connected` ≠ `! Needs authentication` ≠ отсутствие в списке. В списке и Connected → проблема **не в сервере**.
 2. `cmd //c "dir %USERPROFILE%\.claude-work /AL"` — увидеть junction'ы и понять, где реальный источник.
 3. `find %USERPROFILE%\.claude\plugins\cache\<plugin>` — наличие `.mcp.json` или `.claude-plugin/plugin.json` значит, что плагин на диске стоит.
-4. `claude mcp list` показывает `✓ Connected`, а `ToolSearch` пуст — это расхождение каталога клиента с живым состоянием сервера, не «не установлено». Лечится рестартом самой сессии Claude Code; команды `claude mcp restart` не существует. Опционально прозвонить сервер напрямую: `npx -y mcp-remote <url> --header "Authorization: Bearer $TOKEN"` + `tools/list` JSON-RPC — непустой `result.tools[]` значит, что сервер живой и проблема на клиенте.
+4. `claude mcp list` показывает `✓ Connected`, а `ToolSearch` пуст — это расхождение каталога клиента с живым состоянием сервера, не «не установлено». Сначала в самой сессии `/mcp` → Reconnect (или `/mcp reconnect all`, интерактивный терминал, ≥2.1.284); не помогло — рестарт сессии. Команды `claude mcp restart` не существует. Опционально прозвонить сервер напрямую: `npx -y mcp-remote <url> --header "Authorization: Bearer $TOKEN"` + `tools/list` JSON-RPC — непустой `result.tools[]` значит, что сервер живой и проблема на клиенте.
 
 **Запрещено без шагов 1-3:** говорить «MCP не установлен», предлагать `claude mcp add`, советовать переустановку плагина, объявлять fallback (WebSearch/WebFetch) единственным путём. «Не вижу в ToolSearch» ≠ «не установлено».

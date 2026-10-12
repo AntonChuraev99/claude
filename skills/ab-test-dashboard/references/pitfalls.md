@@ -346,7 +346,7 @@ Real example (2026-05-27): 342 new users on Android in the test window — 100% 
 
 ❌ Looking at `remoteconfig_get_template` (or the Firebase MCP tool list), not seeing experiments, and telling the user "Firebase A/B tests can't be pulled programmatically / aren't exposed":
 
-The active Remote Config template only carries **base conditions** (platform/version/country/staging). Running A/B experiments are a **separate subsystem**, intentionally absent from `getRemoteConfig` AND from the Firebase MCP.
+The experiment **list and metadata** (name, state, split, objectives) are a **separate subsystem**, absent from `getRemoteConfig` AND from the Firebase MCP. Since the 2026-09-01 migration the template does carry the variant **values** — `parameters.*.{defaultValue,conditionalValues.*}.experimentValue.variantValue[]` keyed by `experimentId` (see SKILL.md Step 1a); experiments started before the migration don't have it.
 
 ✅ They ARE retrievable via the Remote Config **experiments** REST endpoint:
 
@@ -491,14 +491,16 @@ measurable next time.
 
 ## 23. AI-built charts and dashboards are private until you share them
 
-`save_chart_edits` states it plainly: charts are saved **unpublished, in your personal space**,
-pending human review. `create_dashboard` inherits that — the link you hand over renders for the
+Charts saved by the MCP land **unpublished, in your personal space**, pending human review, and a
+`use_amp_dashboards` `create` without `destination` inherits that — the link you hand over renders for the
 author and looks empty/inaccessible to everyone else. The failure is silent and lands on whoever
 opens it, usually hours later.
 
-✅ Either `share_object` (`objectType: "CHART" | "DASHBOARD"`, `userIds` = login emails) as the last
-build step, or state in the report that publishing to a shared space is a manual UI action. When
-the user did not name recipients, ask rather than guessing emails.
+✅ Publishing is no longer a manual UI action (tools checked 2026-10-12): create with
+`use_amp_dashboards` `destination: {kind: "space", spaceId, publish: true}`, move already-saved
+content with `manage_amp_entities` `route: move_to_space`, or grant individuals access with
+`share_amp_entities` `action: share` (`share_object` is gone). There is no list-spaces tool — ask the
+user for the space (or its URL `/space/<id>`), and ask for recipients rather than guessing emails.
 
 ---
 
@@ -518,13 +520,14 @@ fallback for an org project, and never conclude an endpoint is dead from an auth
 
 ## 25. Saved-chart quota can block the whole build at the last step
 
-`save_chart_edits` can return `"Chart limit reached"` — a plan-level cap on saved charts. **On the
+Saving a chart (explicitly, or implicitly when `use_amp_dashboards` promotes edit IDs) can return `"Chart limit reached"` — a plan-level cap on saved charts. **On the
 Free plan that cap is 10 charts for the WHOLE ORGANIZATION**, not per project
 ([docs](https://amplitude.com/docs/get-started/create-a-chart)) — so an org with years of saved
 charts is permanently at the ceiling, and deleting a handful frees nothing. Verified 2026-08-13 on
 `starter_v4`: five charts deleted, save still refused. It fails at the *end*, after every query is built and validated, and
-`create_dashboard` then has nothing to place: dashboards accept only permanent `chartId`s, never
-`chartEditId`s. There is no delete-chart tool in this MCP, so the agent cannot free space itself.
+the dashboard build fails with it: `use_amp_dashboards` accepts edit IDs, but only by saving them
+as permanent charts first, which hits the same cap. There is no delete-chart tool in this MCP, so the agent cannot free space itself (re-checked
+2026-10-12: `manage_amp_entities` has only space routes and says «no archive route exists yet»).
 
 ✅ Check the plan early — `get_amplitude_context` returns `org.plan` — and on a capped plan say
 up-front that saving may need quota freed. When it does hit:
@@ -543,7 +546,7 @@ up-front that saving may need quota freed. When it does hit:
    `search`-derived list is a poor substitute: search ranks by relevance and won't enumerate
    everything. Say how many slots are needed and that **archiving is not deleting** — archived
    charts still occupy the quota.
-3. Re-run `save_chart_edits` + `create_dashboard` with the same `chartEditId`s once freed
+3. Re-run `use_amp_dashboards` `create` with the same `chartEditId`s once freed
    (same session — the edits expire).
 
 **Never delete charts to make room on your own**: they belong to other people, deletion is

@@ -66,18 +66,31 @@ python scripts/play_publish.py \
 
 Сначала прогон с `--dry-run` (всё кроме commit — ничего не публикуется).
 
+Promote / ramp без загрузки AAB, несколько языков и треков в одном edit:
+
+```bash
+python scripts/play_publish.py \
+  --package com.example.app \
+  --version-codes 124 \
+  --track production \
+  --status inProgress --user-fraction 0.2 \
+  --release-notes "en-US=@notes/en.txt" \
+  --release-notes "ru-RU=@notes/ru.txt"
+```
+
 | Флаг | Назначение |
 |---|---|
 | `--package` | applicationId (обязателен) |
-| `--aab` | путь к `.aab` (обязателен) |
-| `--track` | `internal` (default) / `alpha` / `beta` / `production` |
+| `--aab` | путь к `.aab` — загрузить новый bundle. Ровно одно из `--aab` / `--version-codes` |
+| `--version-codes` | `123,124` — без загрузки, release из уже загруженных versionCode: promote между треками, смена `--user-fraction` (ramp), `--status halted` |
+| `--track` | `internal` (default) / `alpha` / `beta` / `production` / имя custom closed-трека (должен уже существовать в консоли). Повторяемый: один release уходит в каждый трек одним edit и одним commit |
 | `--service-account` | путь к SA JSON; иначе env `PLAY_SERVICE_ACCOUNT_JSON` (содержимое) / `GOOGLE_APPLICATION_CREDENTIALS` (путь) |
 | `--status` | `completed` (default) / `draft` / `inProgress` / `halted` |
 | `--user-fraction` | доля раскатки 0..1 — обязателен при `--status inProgress` (staged rollout) |
-| `--release-notes` | текст what's-new или `@путь_к_файлу` |
-| `--release-notes-lang` | язык, default `en-US` |
-| `--mapping` | путь к `mapping.txt` для деобфускации (опц) |
-| `--dry-run` | пройти всё кроме commit — ничего не публикуется |
+| `--release-notes` | `lang=текст` или `lang=@файл`, повторяемый (по одному на язык, дубль языка — ошибка). Старая форма — текст или `@путь_к_файлу` на языке `--release-notes-lang` |
+| `--release-notes-lang` | язык для `--release-notes` без `lang=`, default `en-US` |
+| `--mapping` | путь к `mapping.txt` для деобфускации (опц, только с `--aab`) |
+| `--dry-run` | пройти всё кроме commit в любом режиме — ничего не публикуется; печатает итоговый release |
 
 ## Статистика / vitals (play_vitals.py)
 

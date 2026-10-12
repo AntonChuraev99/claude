@@ -165,7 +165,14 @@ git diff --stat .gitlab-ci.yml
 
 ### Step 4 — Setup instructions
 
-Печатать пользователю **полные инструкции** (не сокращать — это разово, через сутки забудется). Без AskUserQuestion — это плоский чеклист, который пользователь выполняет руками в браузере.
+Руками остаётся только шаг 1: Slack выдаёт webhook URL лишь при установке приложения, канал выбирает человек. Шаги 2–3 агент делает сам через `glab` (проверено на glab 1.81.0, 2026-10-12), когда `glab auth status` зелёный и пользователь передал URL:
+
+```bash
+glab variable set SLACK_WEBHOOK_URL --masked --protected < <файл-с-url>   # секрет через stdin, не аргументом: аргумент попадает в транскрипт и history
+glab api -X POST "projects/:id/protected_tags" -f name='v*' -f create_access_level=40   # 40 = Maintainers, 30 = Developers
+```
+
+`glab` нет или не авторизован — печатать пользователю **полные инструкции** ниже (не сокращать — это разово, через сутки забудется). Без AskUserQuestion — это плоский чеклист.
 
 ```
 🔧 One-time setup (≈3 минуты):
@@ -209,7 +216,7 @@ git tag -l --format='%(contents:body)' <tag> > /tmp/notes_<tag>.md
 glab release create <tag> --name "<tag>" -F /tmp/notes_<tag>.md --ref <tag>
 ```
 
-**Важно:** флаг для notes file — `-F`, не `--notes-file` (последнего в `glab` не существует, упадёт с `Unknown flag`). `glab release create` на существующем тэге работает как **upsert** — создаст Release или обновит существующий, отдельной команды `update` нет.
+**Важно:** флаг для notes file — `-F` (длинная форма `--notes-file` в glab 1.81.0 тоже есть; на старых версиях её не было — короткая работает везде). `glab release create` на существующем тэге работает как **upsert** — создаст Release или обновит существующий (`--no-update` это запрещает), отдельной команды `update` нет.
 
 **Если в annotation тэга `#`-заголовки уже потерялись** (типичный случай при `git tag -a -m "..."` без `--cleanup=verbatim`) — `git tag -l --format='%(contents:body)'` отдаст уже урезанный текст. В этом случае пиши release notes в `/tmp/notes_<tag>.md` руками или сгенерируй из `git log` между тэгами:
 
