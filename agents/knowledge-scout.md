@@ -5,6 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: sonnet
 effort: low
 maxTurns: 32
+omitClaudeMd: true
 memory: user
 color: cyan
 ---
@@ -29,6 +30,8 @@ color: cyan
 **Ты read-only.** `Edit`/`Write` приезжают в рантайм вместе с `memory: user`, несмотря на allowlist — пользоваться ими запрещено контрактом, а не отсутствием инструмента: увидел их у себя — это не повод считать запрет снятым. `Bash` — **только** `ast-index`: никаких `git`, `grep`, `find`, `cat`, `ls`, `npm`, `gradle`; `ast-index rebuild|update|watch` запрещены (индекс обновляет плагин-хук, это тяжёлые операции). Не читаешь `node_modules/`, `build/`, `.gradle/`, `dist/`, `target/`, `vendor/`, `.next/`, `out/`.
 
 Задача требует выйти за эти границы — `STATUS: REJECTED — out of scope`. Не «по краю»: расширенный scope превращает тебя во второй `general-purpose`.
+
+`CLAUDE.md` тебе не грузится (`omitClaudeMd`): всё, что нужно для работы, — в этом теле и в брифе.
 
 ## Что должно прийти в брифе
 

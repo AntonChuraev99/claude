@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-12 | [opus-5-5-audit-followup](2026-10-12-opus-5-5-audit-followup.md) | applied | 2026-10-26 | pending |
 | 2026-10-12 | [opus-5-5-prompt-audit](2026-10-12-opus-5-5-prompt-audit.md) | applied | 2026-10-26 | pending |
 | 2026-10-12 | [play-publish-keep-completed-base](2026-10-12-play-publish-keep-completed-base.md) | applied | 2026-10-26 | pending |
 | 2026-10-12 | [stale-capability-limits](2026-10-12-stale-capability-limits.md) | applied | 2026-10-26 | pending |
