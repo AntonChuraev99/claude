@@ -14,7 +14,8 @@
 - **Fastlane** — куплен Google в 2017, **заброшен в 2021**, с 2023 под Mobile Native Foundation.
   Зрелый, но тянет Ruby и история надёжности неровная.
 - Статистика: **Play Developer Reporting API v1beta1** — единственный официальный программный
-  доступ к Android vitals (crash/ANR rate, error issues).
+  доступ к Android vitals (crash/ANR rate, error issues). Установки, рейтинг, acquisition,
+  подписки и отзывы Reporting API не отдаёт — они идут из GCS-экспорта и reviews API (`play_stats.py`).
 
 ## Состав папки
 
@@ -23,6 +24,8 @@ google-play-console-expert/
   scripts/
     play_publish.py     # публикация: Play Developer API v3 (standalone)
     play_vitals.py      # статистика: Reporting API v1beta1 — crash/ANR rate, error issues (standalone)
+    play_stats.py       # данные стора: GCS-экспорт (установки, рейтинг, acquisition, подписки, отзывы) + reviews API
+    test_play_stats.py  # тесты логики play_stats.py без сети: python scripts/test_play_stats.py
     requirements.txt    # пинованные версии библиотек Google
   templates/
     gitlab-ci.play.snippet.yml   # пример build+publish jobs для .gitlab-ci.yml
@@ -120,9 +123,39 @@ python scripts/play_vitals.py \
 - `distinctUsers` округлён (приватность) — маленькие числа грубые.
 - Для vitals достаточно права **View app information** (Release manager не нужен).
 
+## Данные стора (play_stats.py)
+
+```bash
+python scripts/play_stats.py --package com.example.app --bucket pubsite_prod_<id> --list
+python scripts/play_stats.py --package com.example.app --bucket pubsite_prod_<id> \
+  --report acquisition --dimension traffic_source --months 3
+python scripts/play_stats.py --package com.example.app --report reviews-api --top 30
+```
+
+| Флаг | Назначение |
+|---|---|
+| `--package` | applicationId (обязателен) |
+| `--bucket` | имя бакета из Copy Cloud Storage URI; бывает `pubsite_prod_<devId>` и `pubsite_prod_rev_<id>` — не собирать руками |
+| `--local-dir` | папка с CSV после `gcloud storage cp` — вместо `--bucket`, когда SA получает 403 на бакете |
+| `--report` | `installs` / `ratings` / `crashes` / `acquisition` / `subscriptions` / `reviews` (GCS) / `reviews-api` |
+| `--dimension` | суффикс файла: `overview`, `country`, `app_version`, `device`, `language`, `os_version`, `carrier`; у `acquisition` — `country` / `traffic_source` |
+| `--months` | сколько последних месяцев, default 2 |
+| `--daily` | timeline по дням вместо разбивки |
+| `--top` | сколько строк вывести, default 20 |
+| `--json` | сырые строки |
+
+Агрегация за окно: колонки `Daily*`, `*events`, acquisitions, visitors, new/canceled — сумма;
+`Daily Average Rating` — среднее по дням с оценками; остальное (`Active Device Installs`,
+`Total Average Rating`) — последнее значение. CVR пересчитывается из acquisitions / visitors,
+а не усредняется по дням.
+
+Чего в API нет: Policy center, App content, детали listing experiments, Store analysis
+(сравнение с пирами), последние 3-7 дней до выгрузки. У мелких приложений Play сворачивает
+страны и поисковые запросы в `Other`.
+
 ## GCS-экспорт (месячные CSV, второй путь к статистике)
 
-Play Console сам складывает отчёты в бакет `pubsite_prod_rev_<developer_id>`
+Play Console сам складывает отчёты в бакет `pubsite_prod_<devId>` или `pubsite_prod_rev_<id>`
 (URI: Play Console → **Download reports** → Copy Cloud Storage URI).
 
 ```bash
