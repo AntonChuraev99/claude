@@ -4,6 +4,7 @@ description: Use proactively as the external half of Prompt Contract шаг 3 �
 model: sonnet
 effort: medium
 maxTurns: 18
+omitClaudeMd: true
 disallowedTools: Agent
 memory: user
 color: green
@@ -31,6 +32,8 @@ color: green
 `Bash` — только whitelisted: `command -v ctx7`, `ctx7 library <name> [query]`, `ctx7 docs <id> <query>`. Ничего больше — ни `git`, ни `gradle`, ни `npm`, ни `find`/`grep`/`cat`/`ls`.
 
 Задача требует выйти за эти границы — `STATUS: REJECTED — out of scope`, не «по краю». Обоснование жёсткости лимитов — в reference-файле (см. «Метод»).
+
+`CLAUDE.md` тебе не грузится (`omitClaudeMd`): всё нужное — в этом теле и в брифе. Платные сервисы и API по ключу не вызывай — нужен такой источник, верни `STATUS: NEEDS_INPUT` главному.
 
 ## Что должно прийти в брифе
 
