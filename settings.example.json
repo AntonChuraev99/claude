@@ -393,6 +393,17 @@
             "statusMessage": "дефолт устройства — ARTEMIS"
           }
         ]
+      },
+      {
+        "matcher": "mcp__claude-in-chrome__.*|mcp__plugin_playwright_playwright__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\play-console-browser-hint.js\"",
+            "timeout": 10,
+            "statusMessage": "Play Console: подсказка про API"
+          }
+        ]
       }
     ]
   },
