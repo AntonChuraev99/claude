@@ -7,7 +7,10 @@ play_publish.py — публикация Android App Bundle (AAB) в Google Play
 Один и тот же скрипт работает локально (из Claude Code) и в CI (GitLab/др.).
 Полная инструкция по переиспользованию — ../README.md.
 
-Поток (edits API): insert edit → [upload bundle] → assign track(s) → [mapping.txt] → commit.
+Поток (edits API): insert edit → [upload bundle] → tracks.list → assign track(s) объединённым
+списком releases → read-back gate → [mapping.txt] → commit.
+tracks.update заменяет список releases трека целиком, поэтому staged rollout сохраняет
+completed-релиз трека, а promote/ramp уже живого versionCode копирует его notes и name.
 
 Режимы:
   --aab <файл>            загрузить новый AAB и назначить его в трек(и);
@@ -30,6 +33,7 @@ play_publish.py — публикация Android App Bundle (AAB) в Google Play
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -192,6 +196,118 @@ def build_release(version_codes: List[int], status: str, fraction: Optional[floa
     return release
 
 
+def _codes_key(codes) -> tuple:
+    """Множество versionCodes как сравнимый ключ (API отдаёт строки, флаги — int)."""
+    return tuple(sorted(str(c) for c in codes or []))
+
+
+def find_release(releases: Optional[List[dict]], version_codes) -> Optional[dict]:
+    """Release трека с ровно этим набором versionCodes, иначе None."""
+    key = _codes_key(version_codes)
+    for r in releases or []:
+        if _codes_key(r.get("versionCodes")) == key:
+            return r
+    return None
+
+
+def find_notes_elsewhere(tracks: List[dict], version_codes, exclude_track: str) -> Optional[List[dict]]:
+    """releaseNotes release'а с этими versionCodes из другого трека (ответ tracks.list), иначе None."""
+    for t in tracks or []:
+        if t.get("track") == exclude_track:
+            continue
+        r = find_release(t.get("releases"), version_codes)
+        if r is not None and r.get("releaseNotes"):
+            return copy.deepcopy(r["releaseNotes"])
+    return None
+
+
+def merge_track_releases(current_releases: Optional[List[dict]], new_release: dict) -> List[dict]:
+    """
+    Полный список releases для edits.tracks.update (update ЗАМЕНЯЕТ список целиком, issue #50).
+
+    - Release с теми же versionCodes уже есть в треке (promote / ramp / halt) — берётся он
+      дословно; status из new_release; releaseNotes и name из new_release переопределяют
+      скопированные только если заданы флагами (ключ есть в new_release). userFraction:
+      completed/draft — удаляется (Play отвергает его с completed), inProgress — из флага,
+      halted — из флага, иначе прежний.
+    - inProgress/halted: к нему добавляются completed-релизы трека ДОСЛОВНО (база для
+      невыкаченной аудитории — при halt staged rollout она продолжает получать прежний релиз);
+      прежние inProgress/halted выбрасываются (supersede).
+    - completed/draft: единственный release (completed вытесняет всё, один на трек).
+    """
+    current = current_releases or []
+    target = _codes_key(new_release["versionCodes"])
+    existing = find_release(current, new_release["versionCodes"])
+    if existing is not None:
+        release = copy.deepcopy(existing)
+        release["status"] = new_release["status"]
+        for key in ("releaseNotes", "name"):
+            if key in new_release:
+                release[key] = copy.deepcopy(new_release[key])
+        if new_release["status"] in ("completed", "draft"):
+            release.pop("userFraction", None)
+        elif "userFraction" in new_release:
+            release["userFraction"] = new_release["userFraction"]
+        elif new_release["status"] == "inProgress":
+            release.pop("userFraction", None)
+    else:
+        release = copy.deepcopy(new_release)
+
+    if release["status"] not in ("inProgress", "halted"):
+        return [release]
+    kept = [copy.deepcopy(r) for r in current
+            if r.get("status") == "completed" and _codes_key(r.get("versionCodes")) != target]
+    return [release] + kept
+
+
+def check_gate(before: Optional[List[dict]], after: Optional[List[dict]], sent: dict) -> List[str]:
+    """
+    Within-edit read-back gate: сверить releases трека после update с отправленным release.
+    Возвращает список ошибок (пусто — гейт пройден). name сверяется, только если он был в
+    отправленном release (Play заполняет name на commit, в read-back внутри edit его может не быть).
+    """
+    errors: List[str] = []
+    after = after or []
+    target = _codes_key(sent["versionCodes"])
+    status = sent["status"]
+    matches = [r for r in after if _codes_key(r.get("versionCodes")) == target]
+
+    if status == "inProgress":
+        ip = [r for r in after if r.get("status") == "inProgress"]
+        if len(ip) != 1:
+            errors.append(f"ожидался ровно один inProgress, в треке {len(ip)}.")
+        else:
+            if _codes_key(ip[0].get("versionCodes")) != target:
+                errors.append(f"inProgress с versionCodes {ip[0].get('versionCodes')}, "
+                              f"ожидались {list(target)}.")
+            frac = ip[0].get("userFraction")
+            if frac is None or abs(float(frac) - float(sent["userFraction"])) > 1e-9:
+                errors.append(f"userFraction={frac}, ожидалось {sent['userFraction']}.")
+    elif status == "completed":
+        if len(after) != 1:
+            errors.append(f"ожидался ровно один release, в треке {len(after)}.")
+        if len(matches) != 1 or matches[0].get("status") != "completed":
+            errors.append(f"нет completed-релиза с versionCodes {list(target)}.")
+        elif "userFraction" in matches[0]:
+            errors.append("у completed-релиза осталась userFraction.")
+    else:
+        if not any(m.get("status") == status for m in matches):
+            errors.append(f"нет релиза {list(target)} со status={status}.")
+
+    if status in ("inProgress", "halted"):
+        for r in before or []:
+            if r.get("status") != "completed" or _codes_key(r.get("versionCodes")) == target:
+                continue
+            key = _codes_key(r.get("versionCodes"))
+            if not any(a.get("status") == "completed" and _codes_key(a.get("versionCodes")) == key
+                       for a in after):
+                errors.append(f"пропал completed-релиз {list(key)} — база для невыкаченной аудитории.")
+
+    if "name" in sent and not any(m.get("name") == sent["name"] for m in matches):
+        errors.append(f"name релиза не совпал с отправленным '{sent['name']}'.")
+    return errors
+
+
 def upload_bundle(service, package, edit_id, aab_path) -> int:
     log(f"Загрузка AAB: {aab_path}")
     media = MediaFileUpload(
@@ -285,6 +401,9 @@ def main() -> None:
         sys.exit("status=inProgress требует --user-fraction (0..1).")
     if args.user_fraction is not None and not (0.0 < args.user_fraction < 1.0):
         sys.exit("--user-fraction должен быть в диапазоне (0,1).")
+    if args.user_fraction is not None and args.status in ("completed", "draft"):
+        sys.exit(f"--user-fraction несовместим со status={args.status} (Play принимает его только "
+                 "для inProgress/halted).")
     if args.mapping:
         if not args.aab:
             sys.exit("--mapping загружается только вместе с --aab "
@@ -316,12 +435,51 @@ def main() -> None:
         release = build_release(version_codes, args.status, args.user_fraction,
                                 notes, args.release_name)
 
+        # tracks.update ЗАМЕНЯЕТ список releases трека (issue #50): сначала читаем текущее
+        # состояние всех треков этого edit, затем отправляем объединённый список.
+        all_tracks = service.edits().tracks().list(
+            packageName=args.package, editId=edit_id,
+        ).execute().get("tracks", [])
+        before_by_track = {t.get("track"): t.get("releases", []) for t in all_tracks}
+
+        sent_by_track = {}
         for track in tracks:
-            log(f"Назначение в трек '{track}' (status={args.status})")
+            before = before_by_track.get(track, [])
+            track_release = release
+            if find_release(before, version_codes) is None and not args.aab:
+                if "releaseNotes" not in release:
+                    found = find_notes_elsewhere(all_tracks, version_codes, track)
+                    if found is not None:
+                        track_release = dict(release, releaseNotes=found)
+                        log(f"  release notes для v{version_codes} взяты из другого трека этого edit "
+                            f"({', '.join(n['language'] for n in found)}).")
+                    else:
+                        log(f"  ⚠️  v{version_codes} нет ни в одном треке с notes — release notes "
+                            f"только из флагов (не переданы).")
+                else:
+                    log(f"  v{version_codes} нет в треке '{track}' — release notes только из флагов.")
+            releases = merge_track_releases(before, track_release)
+            sent_by_track[track] = releases[0]
+            log(f"Назначение в трек '{track}' (status={args.status}, releases в треке: "
+                f"{', '.join(r.get('status', '?') + ' ' + ','.join(r.get('versionCodes', [])) for r in releases)})")
             service.edits().tracks().update(
                 packageName=args.package, editId=edit_id, track=track,
-                body={"releases": [release]},
+                body={"releases": releases},
             ).execute()
+
+        # Within-edit read-back gate: без него ошибка слияния уходит в прод молча.
+        gate_errors = []
+        for track in tracks:
+            after = service.edits().tracks().get(
+                packageName=args.package, editId=edit_id, track=track,
+            ).execute().get("releases", [])
+            gate_errors += [f"трек '{track}': {e}"
+                            for e in check_gate(before_by_track.get(track, []), after, sent_by_track[track])]
+        if gate_errors:
+            service.edits().delete(packageName=args.package, editId=edit_id).execute()
+            sys.exit("Read-back gate не пройден, edit удалён, ничего не опубликовано:\n  "
+                     + "\n  ".join(gate_errors))
+        log("Read-back gate пройден.")
 
         if args.mapping:
             log(f"Загрузка mapping.txt (deobfuscation) для versionCode={version_codes[0]}")
@@ -332,7 +490,8 @@ def main() -> None:
             ).execute()
 
         if args.dry_run:
-            log(f"DRY-RUN: release = {json.dumps(release, ensure_ascii=False)}")
+            for track, sent in sent_by_track.items():
+                log(f"DRY-RUN: '{track}' release = {json.dumps(sent, ensure_ascii=False)}")
             log("DRY-RUN: commit пропущен. Edit истечёт сам, ничего не опубликовано.")
             return
 
