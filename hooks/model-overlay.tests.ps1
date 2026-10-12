@@ -119,6 +119,19 @@ Invoke-Hook '{"model":"claude-opus-5-5"}' $fx | Out-Null
 $noTo = Invoke-Hook '{"hook_event_name":"PostModelSwitch","from_model":"claude-opus-5-5"}' $fx -KeepState
 Assert-Eq $true ([string]::IsNullOrWhiteSpace($noTo)) 'switch payload without to_model -> silent'
 
+# SubagentStart: every subagent gets subagent.md (model-neutral subagent calibration), never the
+# main-session overlay, and the event must not touch the main session's model cache.
+Set-Content -LiteralPath (Join-Path $fx 'subagent.md') -Value 'SUBAGENT_SENTINEL' -NoNewline -Encoding UTF8
+Invoke-Hook '{"model":"claude-fable-5"}' $fx | Out-Null
+$sa = Invoke-Hook '{"hook_event_name":"SubagentStart","agent_type":"core-expert","agent_id":"a1"}' $fx -KeepState
+Assert-Eq 'SUBAGENT_SENTINEL' (Ctx $sa) 'SubagentStart -> subagent.md'
+$evt = try { (ConvertFrom-Json $sa).hookSpecificOutput.hookEventName } catch { $null }
+Assert-Eq 'SubagentStart' $evt 'subagent output hookEventName = SubagentStart'
+Assert-Eq 'FABLE_SENTINEL' (Ctx (Invoke-Hook '{"source":"clear"}' $fx -KeepState)) 'SubagentStart leaves the model cache untouched'
+Remove-Item -LiteralPath (Join-Path $fx 'subagent.md') -Force
+$saMissing = Invoke-Hook '{"hook_event_name":"SubagentStart","agent_type":"core-expert"}' $fx
+Assert-Eq $true ([string]::IsNullOrWhiteSpace($saMissing)) 'subagent.md missing -> silent (no main overlay fallback)'
+
 # fallback: fable.md / opus-5.md missing -> opus.md
 Remove-Item -LiteralPath (Join-Path $fx 'fable.md') -Force
 Assert-Eq 'OPUS_SENTINEL' (Ctx (Invoke-Hook '{"model":"claude-fable-5"}' $fx))       'fable.md missing -> opus.md (fallback)'

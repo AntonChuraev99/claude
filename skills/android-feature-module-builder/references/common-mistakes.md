@@ -40,7 +40,7 @@ private fun FeatureScreen(state: FeatureUiState, onAction: (Action) -> Unit) { .
 
 **Wrong:** Single composable that does everything - ViewModel, state handling, UI.
 
-**Correct:** Three composables in one file: Route (internal), Screen (private), Content (private).
+**Correct:** Route (internal) + Screen (private) в `<ScreenName>Route.kt`, Content (internal) — отдельным файлом `<ScreenName>Content.kt`.
 
 ### 4. Wrong visibility modifiers
 
@@ -77,7 +77,7 @@ when (uiState) {
 
 // CORRECT — Content владеет AppScaffold
 @Composable
-private fun FeatureContent(
+internal fun FeatureContent(
     state: FeatureUiState.Success,
     onBackPressed: () -> Unit,
 ) {

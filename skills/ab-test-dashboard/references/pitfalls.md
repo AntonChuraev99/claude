@@ -47,7 +47,7 @@ Why: not documented in `get_chart_definition_params` API spec. Only `amplitude:c
 
 Plus optionally `rc_trial_converted_event` (for offers with trial), `rc_non_subscription_purchase_event` (for one-time IAPs).
 
-Why: when a project integrates RevenueCat → Amplitude, RC pushes purchases as `rc_*_event` types with proper `$revenue` field. The custom `Premium Purchase` event your app fires for analytics may not include the price/currency that Amplitude uses for `$revenue` aggregation. Verify per-project via `get_event_properties` — if `$revenue` isn't in the property list, that event won't aggregate.
+Why: when a project integrates RevenueCat → Amplitude, RC pushes purchases as `rc_*_event` types with proper `$revenue` field. The custom `Premium Purchase` event your app fires for analytics may not include the price/currency that Amplitude uses for `$revenue` aggregation. Verify per-project via `get_properties` (`propertyType: "event"`, `eventType: "<event>"`) — if `$revenue` isn't in the property list, that event won't aggregate.
 
 **Action**: for revenue tests, default to RC raw events. Test with a small diagnostic query before building the main chart.
 
@@ -417,7 +417,7 @@ The version IS in the raw event JSON (`"version_name":"4.06.07"` at the top leve
 
 To **filter** by it, use a user-property segment condition: `{"type":"property","group_type":"User","prop_type":"user","prop":"version","op":"is","values":["4.06.07"]}`.
 
-Same rule for the other envelope fields (`country`, `os`, `platform`, `start_version`, `device_type`) — they are NOT event-properties; reach them through top-level `groupBy type:"user"` (see `get_chart_definition_params` example: `groupBy:[{type:"user",value:"country",group_type:"User"}]`). Note: `[Amplitude] Version` IS populated on autocapture lifecycle events (`Application Opened/Installed`) but is empty on custom events — don't rely on it; use `version`.
+Same rule for the other envelope fields (`country`, `os`, `platform`, `start_version`, `device_type`) — they are NOT event-properties; reach them through top-level `groupBy type:"user"` (see `get_amplitude_charts include:"guide"` example: `groupBy:[{type:"user",value:"country",group_type:"User"}]`). Note: `[Amplitude] Version` IS populated on autocapture lifecycle events (`Application Opened/Installed`) but is empty on custom events — don't rely on it; use `version`.
 
 Why: 2026-06-15 (an Android daily-report routine, "Premium Purchase Error" by release version). Burned several rounds grouping inside the event with `type:"event"` (all `(none)`/"not tracked") and almost concluded "the event has no version" — until the user pasted the raw event JSON showing `version_name` in the envelope. `query_dataset`'s `event` group_by validates against event-property taxonomy, where envelope fields don't exist. Full writeup: `routines/<your-report>/docs/solutions/amplitude-builtin-version-groupby-2026-06-15.md`.
 

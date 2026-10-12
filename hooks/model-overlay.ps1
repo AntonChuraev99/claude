@@ -1,4 +1,5 @@
-# model-overlay.ps1 — SessionStart + PostModelSwitch hook: injects a model-specific behavioral overlay.
+# model-overlay.ps1 — SessionStart + PostModelSwitch + SubagentStart hook: injects a behavioral overlay.
+# SubagentStart -> subagent.md for every subagent (model-neutral; payload carries no model).
 # Reads the active model from the hook's stdin JSON — ground truth from the runtime, NOT the
 # model's self-report — and returns the matching overlay file as additionalContext.
 #   fable*     -> fable.md
@@ -9,6 +10,7 @@
 #   SessionStart    -> `.model`. On /clear (and possibly /compact) the payload carries NO model:
 #                      the last known model id is cached in a per-profile state file and reused;
 #                      no cache -> newest overlay (opus-5-5.md).
+#   SubagentStart   -> subagent.md, no model routing, no cache write (see the branch below).
 #   PostModelSwitch -> `.to_model` / `.from_model` (CLI >= 2.1.251; fires after `/model`, /config,
 #                      auto fallback, resume). Before this event existed, `/model X` mid-session kept
 #                      the overlay of the STARTED model (4 Fable sessions on the Opus overlay in a
@@ -47,6 +49,22 @@ try {
         if ($stdin) { $p = ConvertFrom-Json $stdin }
     } catch {}
 
+    $dir = $env:CLAUDE_MODEL_OVERLAY_DIR
+    if (-not $dir) { $dir = Join-Path $env:USERPROFILE '.claude\model-overlays' }
+
+    # SubagentStart: the main overlay never reaches subagents, so they get subagent.md instead.
+    # The payload names no model and the main session's cache must stay intact -> no routing,
+    # no cache write, no opus.md fallback (it is written for the main session).
+    if (([string]$p.hook_event_name) -eq 'SubagentStart') {
+        $sub = Join-Path $dir 'subagent.md'
+        if (-not (Test-Path -LiteralPath $sub)) { exit 0 }
+        $subCtx = Get-Content -LiteralPath $sub -Raw -Encoding UTF8
+        if ([string]::IsNullOrWhiteSpace($subCtx)) { exit 0 }
+        @{ hookSpecificOutput = @{ hookEventName = 'SubagentStart'; additionalContext = $subCtx } } |
+            ConvertTo-Json -Depth 4
+        exit 0
+    }
+
     $isSwitch = ([string]$p.hook_event_name) -eq 'PostModelSwitch'
     $evtName = if ($isSwitch) { 'PostModelSwitch' } else { 'SessionStart' }
     $model = if ($isSwitch) { [string]$p.to_model } else { [string]$p.model }
@@ -80,9 +98,6 @@ try {
         if (-not $prevModel) { $prevModel = $cached }
         if ($prevModel -and (Get-OverlayFile $prevModel) -eq $file) { exit 0 }
     }
-
-    $dir = $env:CLAUDE_MODEL_OVERLAY_DIR
-    if (-not $dir) { $dir = Join-Path $env:USERPROFILE '.claude\model-overlays' }
 
     $path = Join-Path $dir $file
     if (-not (Test-Path -LiteralPath $path)) { $path = Join-Path $dir 'opus.md' }  # fallback to Opus overlay

@@ -4,17 +4,10 @@ Critical compatibility relationships that MUST be checked when updating dependen
 
 ## Kotlin + KSP
 
-KSP version must share the same major.minor prefix as the Kotlin version.
+- **KSP ≥ 2.3.0** — own version numbers, decoupled from Kotlin, K2 only. The supported Kotlin version is stated in each release's notes.
+- **KSP < 2.3.0** — `<kotlin-version>-<ksp-version>` (e.g. `2.2.21-2.0.4`); the prefix must equal the project's Kotlin version.
 
-| Kotlin | Compatible KSP |
-|---|---|
-| 2.3.x | 2.3.x (e.g., 2.3.4) |
-| 2.2.x | 2.2.x |
-| 2.1.x | 2.1.x |
-| 2.0.x | 2.0.x |
-
-Find matching KSP: https://github.com/google/ksp/releases
-Filter releases by `<kotlin-version>-x.x.x` pattern.
+Releases: https://github.com/google/ksp/releases
 
 ## Kotlin + Compose Compiler
 

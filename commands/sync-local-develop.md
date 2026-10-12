@@ -8,7 +8,7 @@ allowed-tools: Bash(git rev-parse:*), Bash(git status:*), Bash(git rev-list:*), 
 
 Ветка-источник: если в `$ARGUMENTS` передано имя ветки — используй его, иначе `develop`.
 
-Действуй решительно и кратко, останавливайся только при реальной проблеме:
+Останавливайся только при реальной проблеме:
 
 1. **Git-репо?** `git rev-parse --is-inside-work-tree`. Не репозиторий → сообщи и стоп.
 2. **Текущая ветка** = `git rev-parse --abbrev-ref HEAD`. Если она совпадает с веткой-источником → «уже на `<src>`, синхронизировать нечего» и стоп.
@@ -18,6 +18,6 @@ allowed-tools: Bash(git rev-parse:*), Bash(git status:*), Bash(git rev-list:*), 
 5. **Merge** = `git merge <src>`.
    - Успех → краткий итог: сколько коммитов влилось, fast-forward или merge-commit, новый `HEAD` (короткий sha + subject).
    - Git отказался из-за незакоммиченных изменений («would be overwritten») → **НЕ форсируй**: сообщи, предложи закоммитить или `git stash`, затем повторить `/sync-local-develop`.
-   - Конфликт merge → **НЕ паникуй**: покажи `git diff --name-only --diff-filter=U` (конфликтующие файлы), скажи что merge на паузе, предложи разрешить вручную или `git merge --abort`.
+   - Конфликт merge → покажи `git diff --name-only --diff-filter=U` (конфликтующие файлы), скажи что merge на паузе, предложи разрешить вручную или `git merge --abort`.
 
 Не выводи лишнего — цель максимально быстрая синхронизация.

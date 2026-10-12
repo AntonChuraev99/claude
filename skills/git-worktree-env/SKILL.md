@@ -1,7 +1,7 @@
 ---
 name: git-worktree-env
 description: |
-  DEPRECATED — superseded by Claude Code's built-in Worktrees feature with `.worktreeinclude` (verified working 2026-05-08 on <your-project>). For new worktrees use `EnterWorktree`, `claude --worktree`, or Agent `isolation: "worktree"`; gitignored files (secrets, keystores, .env, .properties) are copied automatically when `.worktreeinclude` lives in the main worktree root. Triggers on "create worktree", "new worktree", "git worktree", "isolated copy", "parallel branch". The bundled `sync-env.sh` script is kept only as a fallback for manual `git worktree add` outside Claude Code, or projects without `.worktreeinclude`.
+  DEPRECATED fallback. New worktrees go through the `EnterWorktree` tool (CLAUDE.md → «Защищённая ветка и worktree») with `.worktreeinclude` in the main worktree root. Use this skill only for a worktree created by manual `git worktree add` outside Claude Code, or a project without `.worktreeinclude`: the bundled `sync-env.sh` copies gitignored config (secrets, keystores, .env, .properties). Triggers: "worktree without .worktreeinclude", "copy secrets into worktree", "sync-env".
 ---
 
 # git-worktree-env (DEPRECATED)

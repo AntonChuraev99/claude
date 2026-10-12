@@ -122,7 +122,7 @@ If the user passed arguments (e.g., `/commit fix login bug`), treat them as a hi
 
 ## Deferred-work scan
 
-Перед stage'ом проверить, что в коммитимом диффе нет «потерянных» TODO. Правило из глобального `~/.claude/CLAUDE.md` → раздел «Отложенный функционал (`docs/todos/`)»: если функционал отложен, должен существовать `docs/todos/<YYYY-MM-DD>-<slug>.md`. `// TODO:` / `// FIXME:` / `// STOPSHIP:` в коде сам по себе уже нарушение (detekt `ForbiddenComment` для Kotlin), плюс теряется между сессиями.
+Перед stage'ом проверить, что в коммитимом диффе нет «потерянных» TODO. Правило — `~/.claude/CLAUDE.md` → «Документирование»: `// TODO:` без записи в `docs/todos/` — нарушение; если функционал отложен, должен существовать `docs/todos/<YYYY-MM-DD>-<slug>.md`. `// TODO:` / `// FIXME:` / `// STOPSHIP:` в коде сам по себе уже нарушение (detekt `ForbiddenComment` для Kotlin), плюс теряется между сессиями.
 
 ### Алгоритм
 
@@ -143,7 +143,7 @@ D3. Если совпадения есть — для каждого новог�
      - **Override (закоммитить как есть)** — намеренный override (legacy code, технический долг по решению команды). Скилл коммитит, но **в commit body** добавляет строку `Refs: deferred-work-override <count> TODO(s) — see TODO listing below` со списком файл:строка. Это оставляет след в истории.
 D4. Если в качестве варианта выбран override — **не повторять** этот вопрос для других TODO в том же коммите (батч-override), но всё равно перечислить их в commit body.
 D5. Если выбрано «создать docs/todos» хотя бы для одного TODO — **до** stage:
-   - `Write` файл `docs/todos/<YYYY-MM-DD>-<slug>.md` по шаблону (см. глобальный CLAUDE.md или `docs/todos/TEMPLATE.md`).
+   - `Write` файл `docs/todos/<YYYY-MM-DD>-<slug>.md` по шаблону `docs/todos/TEMPLATE.md`, иначе — `~/.claude/skills/task-gate/references/deferred-work-scan.md` → «Создание `docs/todos/<...>.md`».
    - Обновить `docs/todos/INDEX.md` (создать с шапкой, если нет).
    - `Edit` исходный файл: `// TODO: <comment>` → `// Pending: docs/todos/<YYYY-MM-DD>-<slug>.md` (один anchor на todo, в самой важной точке).
    - Добавить новые `docs/todos/...` к stage этого же коммита.
