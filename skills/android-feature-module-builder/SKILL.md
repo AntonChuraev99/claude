@@ -27,7 +27,7 @@ Before scaffolding, determine:
 
 ### Step 2: Read Architecture Rules
 
-Read `references/architecture-rules.md` for the full set of architectural constraints, visibility matrix, and naming conventions. This file contains critical rules that MUST be followed.
+Read `references/architecture-rules.md` for the full set of architectural constraints, visibility matrix, and naming conventions. Generated code is checked against it in Step 6.
 
 ### Step 3: Read Common Mistakes
 
@@ -124,7 +124,7 @@ Verify:
 - [ ] Module compiles without errors
 - [ ] `{{SCREEN_CLASS}}Previews.kt` создан, провайдер заполнен реальными состояниями (типовое + граничные), заглушки «Заполнить:» убраны
 - [ ] All composables follow Route/Screen/Content pattern
-- [ ] Visibility matrix is correct (Route=internal, Screen=private, Content=private)
+- [ ] Visibility matrix is correct (Route=internal, Screen=private, Content=internal)
 - [ ] ViewModel is `@HiltViewModel internal class`
 - [ ] UiState is `internal sealed interface`
 - [ ] Navigation extensions are public

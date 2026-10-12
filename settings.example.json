@@ -287,6 +287,11 @@
             "type": "command",
             "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
+            "timeout": 10
           }
         ]
       }

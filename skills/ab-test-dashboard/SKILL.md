@@ -1,6 +1,6 @@
 ---
 name: ab-test-dashboard
-description: Build an Amplitude dashboard that shows whether an A/B test is winning. Triggers on phrases like "построй ab дашборд", "сделай дашборд для ab теста", "запустили аб тест построй дашборд", "amplitude ab test", "/ab-test-dashboard". The skill identifies what the test is about (pricing/UI/copy/feature/onboarding/retention), figures out which metric truly answers "успех или нет" (revenue/ARPU/conversion/retention/engagement), gathers all variant identifiers via AskUserQuestion, builds the chart through Amplitude MCP using the correct formula syntax, assembles the dashboard with a glossary header, and reports the URL. Avoids known traps: PROPSUM not SUMS in formula, RC raw events instead of custom Premium Purchase, gp: prefix on user properties in segments, ARPU normalization for non-50/50 splits, Day-7+ checkpoints for weekly subscriptions, MANDATORY `gp:userRole != User_Team_Member` filter in every segment for your internal-team projects (`<YOUR_PROJECT_IDS>`) — иначе team-тестеры доминируют на маленьких выборках.
+description: Build an Amplitude dashboard that shows whether an A/B test is winning. Triggers on phrases like "построй ab дашборд", "сделай дашборд для ab теста", "запустили аб тест построй дашборд", "amplitude ab test", "/ab-test-dashboard". The skill identifies what the test is about (pricing/UI/copy/feature/onboarding/retention), figures out which metric truly answers "успех или нет" (revenue/ARPU/conversion/retention/engagement), gathers all variant identifiers via AskUserQuestion, builds the chart and a dashboard with a glossary header via Amplitude MCP, and reports the URL. Known Amplitude/RevenueCat traps are in the skill body.
 ---
 
 ## Customization (project-specific values)
@@ -179,7 +179,7 @@ this trio (Templates 7–8), and say plainly in the glossary that these are prox
 0. (optional but cheap) `verify_chart_definition` — catches wrong enums, bad field names, and
    event/property names that don't exist in the taxonomy, and returns the corrected definition.
 1. `query_dataset` with the chosen definition. Use `start` (Unix seconds) + `end: "now"` from launch date — **not** `range: "Last N Days"` (range includes pre-test data which corrupts the cohort).
-2. **Verify Unix timestamp**: response shows interpreted range as `YYYY-MM-DD to YYYY-MM-DD`. If start year is wrong (e.g. 2025 instead of 2026), recalculate. 2026-01-01 00:00 UTC = 1767225600. Add 86400 per day.
+2. **Verify Unix timestamp**: response shows interpreted range as `YYYY-MM-DD to YYYY-MM-DD`. Compare it with the launch moment. Pass `start` as ISO 8601 (the raw definition accepts it) or compute epoch seconds with a command (`date -u -d '<ISO>' +%s`), not by hand.
 2b. **`interval` silently widens the window backwards to the bucket boundary.** `interval: 30` on a
    test launched Aug 10 buckets from **Aug 1** and the totals then include 9 pre-test days;
    `interval: 7` snaps to Monday. Verified 2026-08-13 — a diagnostic read 64 vs the true 11 this
@@ -213,7 +213,7 @@ For multi-metric tests (rare): add additional rows with smaller heights (375).
 looks broken/empty to a teammate. Finish the job (tool names checked 2026-10-12):
 - Create straight into a shared space: `use_amp_dashboards` `action: create` with
   `destination: {kind: "space", spaceId, publish: true}` — the edit-charts are saved there too.
-  There is no list-spaces tool: take `spaceId` from the user or from a URL `/space/<id>`.
+  `spaceId` — from `search` with `entityTypes: ["SPACE"]`, from the user, or from a URL `/space/<id>`.
 - Already saved in the personal space → `manage_amp_entities` `route: move_to_space` (the user
   confirms the card in the app).
 - Individual viewers → `share_amp_entities` `action: share` (the old `share_object` is gone).
@@ -275,6 +275,7 @@ See `references/pitfalls.md` for full list with examples. Key ones:
 
 Load in ONE `ToolSearch` call (comma-separated `select:`), not one per tool. Verified against live
 schemas 2026-08-13 — the names below are current; several older ones were consolidated:
+The Amplitude plugin surface (`mcp__plugin_amplitude_amplitude__*`) names them differently: `query_amplitude_data` (typed `chart` preferred, raw `definition` fallback), `render_amplitude_chart`, `get_amp_taxonomy` (`action: "properties"`), `search_amp_entities`. Match by function, not by name; `ToolSearch` shows which surface the session has.
 
 | Use | Tool | Note |
 |---|---|---|

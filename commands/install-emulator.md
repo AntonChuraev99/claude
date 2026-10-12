@@ -167,7 +167,7 @@ adb -s "$SERIAL" install -r "$APK_PATH"
 
 Все auto-retry — максимум 1 раз. Если retry тоже упал — завершить с понятным сообщением.
 
-## Шаг 7. (Опционально) Запуск приложения
+## Шаг 7. Запуск приложения
 
 Через `Read`/`Grep` вытащить `applicationId` из `<MODULE>/build.gradle.kts` или `<MODULE>/build.gradle`:
 - Kotlin DSL: `applicationId\s*=\s*"([^"]+)"`
@@ -179,7 +179,7 @@ adb -s "$SERIAL" install -r "$APK_PATH"
 adb -s "$SERIAL" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
 ```
 
-Если не найден или команда упала — **пропустить молча**.
+Если `applicationId` не найден или запуск упал — в финальном отчёте строка `Запуск: ❌ не удалось — <причина>, запусти из меню эмулятора`. Молча не пропускать: пользователь ждёт запущенное приложение.
 
 ## Шаг 8. Финальный отчёт
 
@@ -188,7 +188,7 @@ adb -s "$SERIAL" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 
    Эмулятор:  <MODEL> (<SERIAL>)   ← пометить "(новый)" если был запущен на Шаге 3a
    Модуль:    <MODULE>
    APK:       <APK_PATH>
-   Запуск:    <PACKAGE>   ← или: «запусти из меню эмулятора»
+   Запуск:    <PACKAGE>   ← или: «❌ <причина> — запусти из меню эмулятора»
 ```
 
 ## Запреты

@@ -8,7 +8,7 @@
 
 ## Условия активации (ВСЕ одновременно)
 
-Auto-commit запускается, только если **все 5 условий** выполнены:
+Auto-commit запускается, только если **все 6 условий** выполнены:
 
 ### 1. Gate без блокеров
 
@@ -47,13 +47,17 @@ git diff --name-only HEAD     | grep -iE '\.env|\.key|\.pem|id_rsa|credentials|s
 git status --porcelain | awk '/^[AM?]/ {print $2}' | xargs -I{} ls -la {} 2>/dev/null | awk '$5 > 1048576'
 ```
 
-### 5. 2.9 без unbacked TODO
+### 5. 2.8 без unbacked TODO
 
 Если есть `// TODO:` / `// FIXME:` / `// STOPSHIP:` без `// Pending: docs/todos/...` anchor'а — auto-commit НЕ запускается до явного решения пользователя (см. `references/deferred-work-scan.md`, Шаг 3).
 
+### 6. Ветка не защищённая
+
+`git rev-parse --abbrev-ref HEAD` не входит в `main`/`master`/`develop`/`release/*` и в реестр `~/.claude/config/protected-branches.local.json`. Не выполнено → `⚠️ protected branch`, развилку (перенести в ветку / признать hotfix) решает пользователь через `AskUserQuestion` — SKILL.md 5.1.1.
+
 ## Алгоритм запуска
 
-Когда все 5 условий выполнены:
+Когда все 6 условий выполнены:
 
 1. **Вызвать** `Skill(skill="commit")`. `/commit` сам соберёт сообщение по Conventional Commits, поставит файлы и сделает коммит.
 2. **Дождаться** завершения `/commit`.

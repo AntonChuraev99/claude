@@ -46,7 +46,7 @@ To find the latest stable versions, consult `references/version-sources.md` in t
 
 Before applying updates, verify compatibility constraints from `references/compatibility-matrix.md`:
 
-- **Kotlin + KSP**: KSP version must match the Kotlin version prefix (e.g., Kotlin `2.3.0` requires KSP `2.3.x`)
+- **Kotlin + KSP**: from KSP 2.3.0 the KSP version is independent of Kotlin (K2 only) — check the supported Kotlin range in the KSP release notes; older `<kotlin>-<ksp>` versions (e.g. `2.2.21-2.0.4`) must match the Kotlin version exactly
 - **Kotlin + Compose Compiler**: since Kotlin 2.0, the Compose compiler plugin version equals the Kotlin version
 - **AGP + Gradle**: each AGP version requires a minimum Gradle version (see compatibility table)
 - **Compose BOM**: when using a BOM, do NOT set individual Compose library versions -- the BOM manages them
@@ -108,7 +108,7 @@ If the build fails after updates:
    - **Version conflict**: check for BOM vs explicit version clash; remove explicit version if BOM manages it
    - **KSP version mismatch**: align KSP with Kotlin version
    - **Gradle version too low for AGP**: update Gradle wrapper first
-   - **Deprecated API warnings becoming errors**: fix deprecated usage or add `@Suppress` temporarily
+   - **Deprecated API warnings becoming errors**: fix deprecated usage; if a fix is out of scope, leave the library at the old version and report it (Step 9) instead of adding `@Suppress`
 3. **Fix the code**, then re-run build verification (Step 7)
 4. **Repeat** until build passes cleanly
 

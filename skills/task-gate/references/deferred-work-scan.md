@@ -1,6 +1,6 @@
 # Deferred-Work Scan — Step 2.8 алгоритм и Bash-команды
 
-Этот файл — extract из Step 2.8 `task-gate/SKILL.md`. Алгоритм проверки `TODO`/`FIXME`/`STOPSHIP` в коде против `docs/todos/`. Правило-источник — глобальный `~/.claude/CLAUDE.md` → раздел «Отложенный функционал».
+Этот файл — extract из Step 2.8 `task-gate/SKILL.md`. Алгоритм проверки `TODO`/`FIXME`/`STOPSHIP` в коде против `docs/todos/`. Правило-источник — `~/.claude/CLAUDE.md` → «Документирование» (deferred work) и `~/.claude/rules/docs-structure.md` (`todos` vs `backlog`).
 
 ## Цель
 
@@ -106,7 +106,7 @@ title: <короткое описание>
 date: <YYYY-MM-DD>
 status: deferred
 parent_task: <slug активного doc-а>
-blocking_reason: <user-deferred|waiting-for-backend|waiting-for-decision|waiting-for-data|partial-platform-coverage>
+blocking_reason: <waiting-for-backend|waiting-for-decision|waiting-for-data|partial-platform-coverage>   # только внешнее событие; «отложили без триггера» → docs/backlog/
 resume_trigger: <что должно случиться, чтобы возобновить>
 scope: <что именно отложено, одной строкой>
 keywords: [<ключевые слова для поиска>]
@@ -140,4 +140,4 @@ keywords: [<ключевые слова для поиска>]
 
 Прецедент 2026-05-12 (NavRail OfferTimerCard) — `// TODO: render com.example.ui.banner.SomeComponent...` остался в `app/src/commonMain/.../AppContent.kt`, в memory задача попала в Completed Features, через 1 день пользователь нашёл симптом «компонент не появляется на web после закрытия оффера», потребовался отдельный turn на разбор.
 
-End-session — последний gate перед сменой контекста; ловит то, что прошло мимо `/commit` (например, если правки делались в нескольких подсессиях). Без этого scan'а долги тихо растворяются.
+Task-gate — последний gate перед мержем; ловит то, что прошло мимо `/commit` (например, если правки делались в нескольких подсессиях). Без этого scan'а долги тихо растворяются.

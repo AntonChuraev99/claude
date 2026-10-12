@@ -318,9 +318,7 @@ git push origin vX.Y.Z
 
 **Записать решение** в project memory `release_notes_language.md` сразу после первого релиза — чтобы следующий запуск скилла не передопределял заново.
 
-**Важно: commit messages и release notes — разные артефакты, могут быть разных языков.** Например, commit messages — EN imperative (Conventional Commits convention в коде), release notes — RU (читают product / стейкхолдеры). Так в [[release-notes-language]] memory clauderules-worktree.
-
-**Прецедент:** clauderules-worktree v1.1.0–v1.1.3 написаны на русском, v1.1.5–v1.1.7 в одной сессии 2026-05-14 уехали на английский по дефолту LLM (правила не было) → пользователь вручную попросил исправить на следующий раз. После добавления auto-detect — следующие тэги в этом репо без явного запроса должны быть на русском.
+**Важно: commit messages и release notes — разные артефакты, могут быть разных языков.** Например, commit messages — EN imperative (Conventional Commits convention в коде), release notes — RU (читают product / стейкхолдеры). Без сигнала язык notes не берётся «по умолчанию модели» — только по шагам 1–4 выше.
 
 ### Структура
 
@@ -370,8 +368,7 @@ git push origin vX.Y.Z
 ## Что скилл НЕ делает
 
 - Не создаёт Slack-app или webhook сам — это требует логина в Slack UI
-- Не добавляет CI/CD variable в GitLab — это требует Settings → CI/CD доступа
-- Не configures Protected tags — это требует Settings → Repository доступа
+- CI/CD variable и Protected tags ставит сам через `glab` только при зелёном `glab auth status` и переданном webhook URL (Step 4); иначе — инструкция пользователю
 - Не делает `git tag` или `git push` — это решение пользователя
 - Не настраивает другие GitLab integrations (issues, MR, comments) — только релизы → Slack
 
@@ -380,4 +377,4 @@ git push origin vX.Y.Z
 ## Related files
 
 - `templates/gitlab-ci.yml` — production-ready CI config
-- Реальный прецедент использования: clauderules-worktree, май 2026 — см. git history `.gitlab-ci.yml`
+- Реальный прецедент использования: <your-project>, май 2026 — см. git history `.gitlab-ci.yml`

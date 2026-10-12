@@ -59,7 +59,7 @@ Route, Screen, Content, ViewModel, UiState — **всегда именуются
 
 ### Screen (private) — в `<ScreenName>Route.kt`
 - Receives state and callback lambdas (NO ViewModel)
-- Wraps content in `AppScaffold` with `AppTopBar`
+- Не оборачивает ветки `when` в `AppScaffold`: у Loading/Error-компонентов свой scaffold, `AppScaffold` + `AppTopBar` живут в Content
 - Handles `when (uiState)` branching: Loading/Error/Success
 - Loading и Error состояния отображать через компоненты дизайн-системы (`AppScreenLoadProgressBar`, `AppErrorContainer`). Если в дизайн-системе нет подходящего компонента — сначала создать его там, а не хардкодить UI в Screen.
 - Manages bottom sheet state (`rememberModalBottomSheetState`) as siblings to Content
@@ -190,7 +190,7 @@ style = AppTheme.typography.HeadersH3       // NOT fontSize = 18.sp
 
 ## Core Module Structure (api/impl)
 
-> Full rules, templates, examples, and checklists for creating core modules are in the `android-core-module-builder` skill (`~/.claude/skills/android-core-module-builder/`).
+> Full rules, templates, examples, and check lists for creating core modules are in the `android-core-module-builder` skill (`~/.claude/skills/android-core-module-builder/`).
 > Use `/android-core-module-builder` when creating a new core module.
 
 ## Error Handling
