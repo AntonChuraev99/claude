@@ -16,7 +16,7 @@
 
 6. **`#`-заголовки в `git tag -a -m` режутся.** Default `core.commentChar = #` → все строки, начинающиеся с `#`, удаляются из tag message. Markdown release notes с `## What's new` теряют структуру → GitLab Release description и Slack-сообщение приходят без заголовков. Решение — `git tag -a -F notes.md` (или `--cleanup=verbatim`). Полный разбор — раздел «Writing release notes» выше. Прецедент: clauderules-worktree v1.1.0-v1.1.3 (май 2026) — пришлось переписывать описания всех 3 Release через `glab release create -F`.
 
-7. **`glab release update` не существует.** На update'е существующего Release использовать `glab release create <tag> -F notes.md` — она работает как upsert. Флаг для notes file — `-F`, не `--notes-file`.
+7. **`glab release update` не существует.** На update'е существующего Release использовать `glab release create <tag> -F notes.md` — она работает как upsert. Флаг для notes file — `-F` (длинный `--notes-file` есть в glab 1.81.0, но не в старых версиях).
 
 8. **`CI_COMMIT_TAG_MESSAGE` — только с GitLab 15.5+.** Self-hosted на 15.4 и старее — фоллбэк на `git tag -l --format='%(contents:body)' "$CI_COMMIT_TAG"` + `apk add git`. Скилл по умолчанию использует CI_COMMIT_TAG_MESSAGE — если у пользователя self-hosted, спросить версию через AskUserQuestion и выбрать вариант.
 

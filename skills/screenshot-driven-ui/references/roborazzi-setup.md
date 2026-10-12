@@ -7,8 +7,8 @@
 | Инструмент | Вердикт |
 |---|---|
 | **Roborazzi** 1.71.0 (2026-08-07) | Дефолт. Единственный, кто закрывает и Jetpack Compose, и Compose Multiplatform (Android/Desktop; iOS — experimental). |
-| AGP Compose Preview Screenshot Testing (`com.android.compose.screenshot`) | Не брать основным: плагин 0.0.1-alpha15, API «subject to substantial change», полная IDE-интеграция требует AGP 9+. Только androidMain, не commonMain. |
-| Paparazzi | Не брать на этом стеке: 2.0.0-alpha05 (2026-05-20), открытый блокер на Android SDK 36 с рандомными падениями CI, KMP/CMP официально не поддерживается. |
+| AGP Compose Preview Screenshot Testing (`com.android.compose.screenshot`) | Не брать основным: 0.0.1-alpha16 (сверено 2026-10-12), experimental; non-Android таргеты KMP не поддерживаются — только androidMain, не commonMain. Standalone-плагин объявлен deprecated в пользу AGP test suites (AGP 9.5+). |
+| Paparazzi | Не брать на этом стеке: 2.0.0-alpha05.1 (2026-09-28) уже поддерживает AGP 9 / Gradle 9.4+ и `com.android.kotlin.multiplatform.library`, но стабильной 2.0 нет и commonMain/CMP-превью он не снимает. |
 
 ## Gradle
 

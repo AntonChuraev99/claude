@@ -12,8 +12,10 @@ MCP-тулов в каждый turn НЕ едут — в системном пр
 Anthropic по always-on токенам) плюс замер реальных вызовов по транскриптам.
 
 **Правило для агента:** задача упёрлась в возможность из таблицы — не отказывать и не искать
-обход. Назвать пользователю точную строку возврата из колонки «Вернуть» и сказать, что нужен
-рестарт сессии. Включает пользователь, не агент.
+обход. Назвать пользователю точную строку возврата из колонки «Вернуть». Включает пользователь,
+не агент. Рестарт в интерактивной сессии обычно не нужен: `/plugin` или `/mcp` → toggle
+действует сразу; в headless (`-p`) изменение подхватит только следующая сессия (сверено с
+code.claude.com/docs/en/mcp 2026-10-12).
 
 Замеры: вызовы `mcp__<server>__*` и `Skill(...)` по транскриптам `~/.claude/projects/**/*.jsonl`
 (не упоминания). Окна: 2026-08-01…08-19 (2097 файлов) и 2026-08-19…09-03 (951 файл, 59k
@@ -28,7 +30,7 @@ tool-вызовов, 798 спавнов субагентов).
 | Возможность | Дубль чего | Вызовов за месяц | Вернуть |
 |---|---|--:|---|
 | Плагин `revenuecat@RevenueCat` (MCP `plugin:revenuecat:RevenueCat` + 26 скиллов `revenuecat:*`) | коннектор claude.ai `RevenueCat` (тот же `mcp.revenuecat.ai/mcp`, авторизован) | MCP 0 (не авторизован), скиллы 0 | `settings.json` → `enabledPlugins` → `"revenuecat@RevenueCat": true`, рестарт сессии, затем `/mcp` → `plugin:revenuecat:RevenueCat` → авторизация |
-| Коннектор claude.ai `Atlassian MCP` (`/v2/mcp`) в Claude Code | standalone `atlassian` (`/v1/mcp`, user-scope) | 16 против 148 у standalone; `@jira-expert`, `jira-task-writer` и память агента ссылаются на `mcp__atlassian__*` | снять запрет `mcp__claude_ai_Atlassian_MCP` из `permissions.deny` в `settings.json`, рестарт сессии |
+| Коннектор claude.ai `Atlassian MCP` (`/v2/mcp`) в Claude Code | standalone `atlassian` (user-scope; **с 2026-10-12 на `/v2/mcp`** — v2 GA 2026-09-08 даёт `discover`/`execute*` и `uploadAttachmentToJiraIssue`, префикс `mcp__atlassian__*` прежний) | 16 против 148 у standalone; `@jira-expert`, `jira-task-writer` и память агента ссылаются на `mcp__atlassian__*` | снять запрет `mcp__claude_ai_Atlassian_MCP` из `permissions.deny` в `settings.json`, рестарт сессии |
 
 ## Удалено 2026-10-06
 
@@ -83,6 +85,8 @@ Microsoft, официальный маркетплейс Anthropic) и скил�
 видимого эффекта не даёт** — `amplitude:*`, `RevenueCat:*` с `"off"` оставались в листинге name-only,
 как и не выключенные соседи за бюджетом. Вывод: неиспользуемый user-скилл можно спрятать обратимо
 коротким ключом, не удаляя каталог; плагинный скилл прячется только через `enabledPlugins`.
+Документация это подтверждает (code.claude.com/docs/en/skills, сверено 2026-10-12): «Plugin skills
+are not affected by skillOverrides».
 
 ## Дубли MCP
 

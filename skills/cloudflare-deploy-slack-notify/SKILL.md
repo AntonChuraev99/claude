@@ -259,7 +259,12 @@ bash .cloudflare/notify-slack.sh
 ## Что скилл НЕ делает
 
 - Не создаёт Slack webhook (нужен логин в Slack UI) — даёт инструкцию.
-- Не меняет Deploy command и не добавляет секреты в CF (нужен доступ к дашборду) — даёт инструкцию.
+- Deploy command и build-переменные/секреты меняет сам, только если есть **user-scoped** CF API token
+  (account-scoped Builds API отклоняет с «Invalid token»): `GET /accounts/{id}/builds/workers/{worker_tag}/triggers`
+  → `PATCH /accounts/{id}/builds/triggers/{trigger_uuid}` с `deploy_command` и
+  `PATCH …/triggers/{trigger_uuid}/environment_variables` с `{KEY: {value, is_secret: true}}` — curl или
+  Cloudflare MCP `execute` (developers.cloudflare.com/workers/ci-cd/builds/api-reference/, сверено 2026-10-12).
+  Токена нет — даёт инструкцию для дашборда. Runtime-секреты Worker — `wrangler secret put`.
 - Не создаёт CF API token — даёт точные permissions и URL.
 - Не делает `git commit`/`push` сам — это решение пользователя (но напоминает, что скрипт нужен в репо
   до смены Deploy command).
