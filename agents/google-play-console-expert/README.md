@@ -82,15 +82,15 @@ python scripts/play_publish.py \
 |---|---|
 | `--package` | applicationId (обязателен) |
 | `--aab` | путь к `.aab` — загрузить новый bundle. Ровно одно из `--aab` / `--version-codes` |
-| `--version-codes` | `123,124` — без загрузки, release из уже загруженных versionCode: promote между треками, смена `--user-fraction` (ramp), `--status halted` |
+| `--version-codes` | `123,124` — без загрузки, release из уже загруженных versionCode: promote между треками, смена `--user-fraction` (ramp), `--status halted`. Если release с этими versionCode уже есть в треке — он копируется дословно, а `--release-notes` / `--release-name` переопределяют notes и name только когда переданы. Нет в треке, notes не переданы — notes берутся из того же versionCode в другом треке этого edit |
 | `--track` | `internal` (default) / `alpha` / `beta` / `production` / имя custom closed-трека (должен уже существовать в консоли). Повторяемый: один release уходит в каждый трек одним edit и одним commit |
 | `--service-account` | путь к SA JSON; иначе env `PLAY_SERVICE_ACCOUNT_JSON` (содержимое) / `GOOGLE_APPLICATION_CREDENTIALS` (путь) |
-| `--status` | `completed` (default) / `draft` / `inProgress` / `halted` |
-| `--user-fraction` | доля раскатки 0..1 — обязателен при `--status inProgress` (staged rollout) |
+| `--status` | `completed` (default) / `draft` / `inProgress` / `halted`. `inProgress` сохраняет completed-релиз трека (база для невыкаченной аудитории) и вытесняет прежний inProgress/halted; `completed` оставляет в треке один release. Перед commit скрипт перечитывает трек внутри edit (read-back gate) и при расхождении удаляет edit без публикации |
+| `--user-fraction` | доля раскатки 0..1 — обязателен при `--status inProgress` (staged rollout); с `completed` / `draft` — ошибка |
 | `--release-notes` | `lang=текст` или `lang=@файл`, повторяемый (по одному на язык, дубль языка — ошибка). Старая форма — текст или `@путь_к_файлу` на языке `--release-notes-lang` |
 | `--release-notes-lang` | язык для `--release-notes` без `lang=`, default `en-US` |
 | `--mapping` | путь к `mapping.txt` для деобфускации (опц, только с `--aab`) |
-| `--dry-run` | пройти всё кроме commit в любом режиме — ничего не публикуется; печатает итоговый release |
+| `--dry-run` | пройти всё кроме commit в любом режиме — ничего не публикуется; печатает итоговый release по каждому треку (read-back gate тоже проходит) |
 
 ## Статистика / vitals (play_vitals.py)
 
