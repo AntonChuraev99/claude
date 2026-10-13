@@ -365,10 +365,17 @@ def refresh_devices_async():
         return
     try:
         import subprocess
+        # A new console with a hidden window, which bash and adb.exe inherit.
+        # DETACHED_PROCESS or CREATE_NO_WINDOW leave adb.exe without a usable
+        # console, and Windows flashes a visible window for it every ADB_TTL.
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0  # SW_HIDE
         subprocess.Popen(
             [bash, probe],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            creationflags=0x00000008 | 0x08000000,  # DETACHED_PROCESS | CREATE_NO_WINDOW
+            creationflags=0x00000010,  # CREATE_NEW_CONSOLE
+            startupinfo=si,
             close_fds=True,
         )
     except Exception:
