@@ -1,11 +1,11 @@
 ---
-allowed-tools: Bash(adb:*), Bash(./gradlew:*), Bash(./gradlew.bat:*), Bash(ls:*), Bash(file:*), Glob, Grep, Read, AskUserQuestion
-description: Build debug APK and install on connected physical Android device (auto-detects app module via com.android.application plugin — AGP 9 KMP split aware, handles multi-device, never uninstalls)
+allowed-tools: Bash(adb:*), Bash(./gradlew:*), Bash(./gradlew.bat:*), Bash(python:*), Bash(ls:*), Bash(file:*), Glob, Grep, Read, AskUserQuestion
+description: Install debug APK on connected physical Android device — reinstalls an already built APK if it is newer than the last source edit, otherwise builds (auto-detects app module via com.android.application plugin — AGP 9 KMP split aware, handles multi-device, never uninstalls)
 ---
 
 # Install APK on Physical Device
 
-Собрать debug APK текущего Android/KMP-проекта и установить на подключённое **физическое** устройство (USB или Wi-Fi debugging).
+Установить debug APK текущего Android/KMP-проекта на подключённое **физическое** устройство (USB или Wi-Fi debugging). APK, собранный после последней правки, переустанавливается без сборки (Шаг 4); собирать — только когда его нет или он старше правок.
 
 Команда выполняется только при явном запуске пользователя: он сам вызвал `/install-device` либо ответил «Установить на <MODEL> сейчас» на `AskUserQuestion` из `task-gate` 5.1b — этот ответ и есть явный запуск. Согласие относится к сборке после последней правки кода: просьба поставить, высказанная до правки, на следующую сборку не переносится. Все шаги — последовательно. На любом fail — понятное сообщение и stop, не пытаться обходить.
 
@@ -76,7 +76,19 @@ adb devices -l
 
 - **2+ физических** — `AskUserQuestion` с options = `<MODEL> (<SERIAL>)` для каждого.
 
-## Шаг 4. Сборка debug APK
+## Шаг 4. Свежий APK — переустановить, иначе собрать
+
+**Сначала — уже собранный APK.** `Glob` `<MODULE>/build/outputs/apk/debug/*.apk`. Нашёлся (несколько — выбрать как в Шаге 5) — проверить, собран ли он после последней правки:
+
+```bash
+python ~/.claude/scripts/apk-freshness.py "<APK>" --root .
+```
+
+- `FRESH` (exit 0) — сборку пропустить: `APK_PATH = <APK>`, сразу Шаг 6. В отчёт — строка `Сборка: пропущена, APK свежее правок (built <время>)`.
+- `STALE` (exit 1), `ERROR` (exit 2) или APK нет — собрать ниже.
+- Пользователь сказал «пересобери», «clean build», «с нуля» — собирать без проверки.
+
+Скрипт сравнивает mtime APK со всеми не-ignored файлами репозитория и их каталогами: новее хоть один (правка, `git rm`/`git mv`, `git checkout` другой ветки, pull) — `STALE`. Проверка не видит gitignored-конфиги (`local.properties`, `secrets.properties`, `keystore.properties`, ignored `google-services.json`) и build-параметры вне репозитория (env, `~/.gradle/gradle.properties`): они правились после сборки — собирать.
 
 ```bash
 ./gradlew :$MODULE:assembleDebug
@@ -152,6 +164,7 @@ adb -s "$SERIAL" shell am start -n "$PACKAGE/.MainActivity"
    Устройство: <MODEL> (<SERIAL>)
    Модуль:     <MODULE>
    APK:        <APK_PATH>
+   Сборка:     собран сейчас | пропущена, APK свежее правок (built <время>)
    Запущен:    <PACKAGE>
 ```
 

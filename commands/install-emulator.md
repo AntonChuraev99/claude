@@ -1,11 +1,11 @@
 ---
-allowed-tools: Bash(adb:*), Bash(./gradlew:*), Bash(./gradlew.bat:*), Bash(emulator:*), Bash(*emulator.exe*), Bash(*emulator -*), Bash(ls:*), Bash(file:*), Bash(until:*), Glob, Grep, Read, AskUserQuestion
-description: Build debug APK and install on running Android emulator (auto-detects app module, handles multi-emulator, KMP-aware, auto-launches AVD if none running)
+allowed-tools: Bash(adb:*), Bash(./gradlew:*), Bash(./gradlew.bat:*), Bash(python:*), Bash(emulator:*), Bash(*emulator.exe*), Bash(*emulator -*), Bash(ls:*), Bash(file:*), Bash(until:*), Glob, Grep, Read, AskUserQuestion
+description: Install debug APK on running Android emulator — reinstalls an already built APK if it is newer than the last source edit, otherwise builds (auto-detects app module, handles multi-emulator, KMP-aware, auto-launches AVD if none running)
 ---
 
 # Install APK on Emulator
 
-Собрать debug APK текущего Android/KMP-проекта и установить на запущенный **эмулятор** Android. Если эмулятор не запущен — предложить запустить и дождаться загрузки.
+Установить debug APK текущего Android/KMP-проекта на запущенный **эмулятор** Android. APK, собранный после последней правки, переустанавливается без сборки (Шаг 4). Если эмулятор не запущен — предложить запустить и дождаться загрузки.
 
 Команда выполняется только при явном запуске пользователя. Все шаги — последовательно. На любом fail — понятное сообщение и stop.
 
@@ -128,7 +128,9 @@ echo "BOOTED $SERIAL"
 
 После загрузки — **продолжить как при «1 эмулятор» в Шаге 3** (получить MODEL).
 
-## Шаг 4. Сборка debug APK
+## Шаг 4. Свежий APK — переустановить, иначе собрать
+
+Тот же алгоритм, что в `commands/install-device.md` Шаг 4: `Glob` `<MODULE>/build/outputs/apk/debug/*.apk` → `python ~/.claude/scripts/apk-freshness.py "<APK>" --root .` → `FRESH` — сборку пропустить и идти в Шаг 6; `STALE`, `ERROR`, APK нет или пользователь просит «пересобери» — собрать:
 
 ```bash
 ./gradlew :$MODULE:assembleDebug
@@ -188,6 +190,7 @@ adb -s "$SERIAL" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 
    Эмулятор:  <MODEL> (<SERIAL>)   ← пометить "(новый)" если был запущен на Шаге 3a
    Модуль:    <MODULE>
    APK:       <APK_PATH>
+   Сборка:    собран сейчас | пропущена, APK свежее правок (built <время>)
    Запуск:    <PACKAGE>   ← или: «❌ <причина> — запусти из меню эмулятора»
 ```
 
