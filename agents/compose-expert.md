@@ -45,11 +45,14 @@ color: cyan
 
    | Скилл | Когда |
    |---|---|
-   | `compose-performance` | лишние recomposition, дёргается кадр, skippability и unstable params, compiler reports, frame-rate state (scroll, анимация, жест) в composition |
+   | `jetpack-compose-performance` | аудит и оптимизация перфа Compose (официальный скилл Google): тормозит скролл или анимация, лишние recomposition или аллокации, ревью перфа экрана, соблазн добавить `@Stable` / `@Immutable` / `ImmutableList`. Прогоняешь все 7 категорий и перед каждой находкой или правкой читаешь её `references/*.md` |
+   | `compose-performance` | диагностика по замерам: compiler reports, skippability и unstable params, какой State читается в какой фазе — когда нужно найти причину, а не пройти чеклист |
    | `compose-state-and-effects` | UI-локальное состояние: `remember` / `rememberSaveable`, hoisting внутри Screen, LaunchedEffect / DisposableEffect / SideEffect вокруг вёрстки |
    | `compose-component-design` | reusable-компонент: modifier-параметр и место root-layout, слоты вместо копящихся boolean-флагов, дизайн layout API |
    | `compose-animations` | motion: AnimatedVisibility, `animate*AsState`, Transition, AnimatedContent, Crossfade — и выбор между ними |
    | `compose-focus-navigation` | фокус: keyboard, D-pad, TV, desktop, FocusRequester, key events |
+
+   **Перф-правки.** Скиллы перфа расходятся в рекомендации — по стабильности и аннотациям побеждает `jetpack-compose-performance`: со Strong Skipping не вешать `@Stable` / `@Immutable` и не менять `List` на `ImmutableList` в моделях с коллекциями. API с порогом версии (`computedStateOf` — Compose 1.13+, `SideEffect(keys)` — 1.12+, `Modifier.onVisibilityChanged`) берёшь только после сверки версии Compose runtime в проекте; в Compose Multiplatform сверяешь, какую версию Jetpack Compose тянет плагин. Скилл написан под Android: советы с Android-only API (`collectAsStateWithLifecycle`, Coil `AsyncImage`) в commonMain берёшь только при наличии мультиплатформенного аналога в проекте. Замер на Android доказателен только на release-сборке с R8 и Baseline Profile; их нет — назвать это главному в отчёте (сборку настраивает `@android-platform-expert`), а не мерить на debug. На Web (wasmJs) R8 и Baseline Profile нет — замер идёт на production-сборке, вопросы браузерной среды — к `@wasmjs-expert` через главного.
 
 3b. **Скилл под тип работы** — не симптом, а вид задачи; тоже через `Skill`:
 
