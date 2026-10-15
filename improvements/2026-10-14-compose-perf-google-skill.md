@@ -27,7 +27,8 @@ target_date: 2026-10-28
 ## Изменения
 
 - `agents/compose-expert.md` — строка `jetpack-compose-performance` в таблице «Скилл под симптом»; у `compose-performance` уточнён триггер (диагностика по замерам); абзац «Перф-правки»: приоритет Google по стабильности, сверка версии Compose перед API с порогом, замер только на release + R8 + Baseline Profile.
-- Сам скилл ставится локально в `~/.claude/skills/jetpack-compose-performance/` (сторонний, в репо не коммитится, как остальные скиллы Google). Пока Android CLI его не отдаёт — копия с developer.android.com; после появления — `android skills add jetpack-compose-performance`.
+- Сам скилл ставится локально в `~/.claude/skills/jetpack-compose-performance/` (сторонний, в репо не коммитится, как остальные скиллы Google). Пока Android CLI его не отдаёт — копия с developer.android.com; после появления — `android skills add jetpack-compose-performance` (так было до 2026-10-15, см. ниже).
+- 2026-10-15: скилл появился в `android skills list` (Android CLI 1.0.16500706). Ручная копия заменена установкой `android skills add jetpack-compose-performance`; обновление — `android skills update jetpack-compose-performance` (или `--all`). Версия из CLI новее копии: другое `description`, добавлены `references/android/develop/ui/compose/` (custom-modifiers, backwards-write, strongskipping). Правила, на которые ссылается `compose-expert` (7 категорий, `computedStateOf` 1.13+, `SideEffect(keys)` 1.12+, запрет аннотаций на моделях с коллекциями, release + R8 + Baseline Profile), в новой версии на месте.
 
 ## Target
 
