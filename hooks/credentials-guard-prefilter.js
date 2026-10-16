@@ -81,6 +81,20 @@ function loadAlign() {
     return alignCache;
 }
 
+// Сверка секретов перед релизной сборкой — тем же процессом и по той же причине.
+// Сломанный модуль только выключает сверку, вердикт guard'а важнее.
+let releaseCache;
+function loadRelease() {
+    if (releaseCache !== undefined) return releaseCache;
+    try {
+        releaseCache = require('./release-secrets-guard.js');
+    } catch (e) {
+        noteDisciplineFailure(e);
+        releaseCache = null;
+    }
+    return releaseCache;
+}
+
 // Тулы, чей ввод — команда шелла. PowerShell на Windows исполняет те же деплои,
 // что и Bash, поэтому и выравнивание, и guard обязаны видеть оба. Синтаксис
 // подстановки от шелла не зависит: аккаунт подставляется флагом самого CLI, а
@@ -462,6 +476,27 @@ function renderHardDeny(payload) {
     return emitDeny(verdict.reason);
 }
 
+// Релизная сборка из worktree без секретов главного checkout. Gradle-команда
+// ничего не деплоит, поэтому порядок относительно guard'а не важен; стоит рядом
+// с жёсткими запретами, чтобы deny не смешался с подстановкой аккаунта.
+function renderReleaseDeny(payload) {
+    if (!SHELL_TOOLS[payload.tool_name]) return false;
+    const release = loadRelease();
+    if (!release || !release.releaseVerdict) return false;
+    let reason = null;
+    try {
+        reason = release.releaseVerdict(
+            payload.tool_input && payload.tool_input.command,
+            payload.cwd,
+            cooldownKey(payload),
+        );
+    } catch (e) {
+        noteDisciplineFailure(e);
+        return false;
+    }
+    return reason ? emitDeny(reason) : false;
+}
+
 // Поля подсказки про выбор инструмента — БЕЗ записи в stdout: вывод собирается
 // один раз в main, потому что подстановка аккаунта едет тем же ответом.
 function disciplineFields(payload) {
@@ -540,6 +575,7 @@ function main() {
     }
 
     if (payload && renderHardDeny(payload)) return 0;
+    if (payload && renderReleaseDeny(payload)) return 0;
 
     // Аккаунт подставляется ДО решения о guard, и дальше guard судит уже
     // выровненную команду: он сверяет то, что реально исполнится, а не активную
