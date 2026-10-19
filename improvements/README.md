@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-19 | [ste-ru-paths-links](2026-10-19-ste-ru-paths-links.md) | applied | 2026-11-02 | pending |
 | 2026-10-16 | [release-secrets-screen-timeout](2026-10-16-release-secrets-screen-timeout.md) | applied | 2026-10-30 | pending |
 | 2026-10-14 | [compose-perf-google-skill](2026-10-14-compose-perf-google-skill.md) | applied | 2026-10-28 | pending |
 | 2026-10-13 | [reuse-built-apk](2026-10-13-reuse-built-apk.md) | applied | 2026-10-27 | pending |
