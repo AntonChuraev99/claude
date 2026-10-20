@@ -137,15 +137,17 @@ adb -s "$SERIAL" install -r "$APK_PATH"
 - Kotlin DSL: `applicationId\s*=\s*"([^"]+)"`
 - Groovy: `applicationId\s+"([^"]+)"`
 
-Запустить:
+Запустить LAUNCHER-activity через `am start`:
 
 ```bash
-adb -s "$SERIAL" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+adb -s "$SERIAL" shell "am start -W -n \$(cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $PACKAGE | tail -n 1)"
 ```
 
-Успех = `Events injected: 1` в выводе.
+Успех = `Status: ok` в выводе.
 
-Fallback, если `monkey` не сработал (нет LAUNCHER-категории, `No activities found`):
+❌ Не запускать через `monkey -p ... 1`: после него у пользователя включается автоповорот (`accelerometer_rotation` 0 → 1). Проверено на Pixel 9, Android 17.
+
+Fallback, если в выводе нет `Status: ok` (нет LAUNCHER-activity — тогда `am` пишет `Error` или `Bad component name`):
 
 ```bash
 adb -s "$SERIAL" shell am start -n "$PACKAGE/.MainActivity"
