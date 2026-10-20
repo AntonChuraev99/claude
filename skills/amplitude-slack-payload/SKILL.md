@@ -87,7 +87,7 @@ URL на пользователя в Amplitude имеет вид:
   <#if (input.platform!'') == 'iOS'>🍎<#elseif (input.platform!'') == 'Android'>🤖<#else>🌐</#if> Платформа: ${input.platform!} ${(input.version_name!input.app_version!'')} (${input.os_name!} ${input.os_version!})
   ```
 
-  **Версия приложения — `version_name` с fallback на `app_version`.** Android SDK (`amplitude-analytics-android` 1.20+) пишет версию приложения в top-level поле `version_name` (это то, что Amplitude UI показывает как «App Version»). iOS / Web SDK пишет в `app_version`. Голый `${input.app_version!}` на Android-only event'ах рендерит пустую строку → двойной пробел в Slack-сообщении (`Android  (android 16)`). Fallback-форма `${(input.version_name!input.app_version!'')}` покрывает обе платформы. Прецедент 2026-05-14 (`Submit Purchase Error Support`, Pixel 9 / Android 16 / SDK 1.26.5).
+  **Версия приложения — `version_name` с fallback на `app_version`.** Android SDK (`amplitude-analytics-android` 1.20+) пишет версию приложения в top-level поле `version_name` (это то, что Amplitude UI показывает как «App Version»). iOS / Web SDK пишет в `app_version`. Голый `${input.app_version!}` на Android-only event'ах рендерит пустую строку → двойной пробел в Slack-сообщении (`Android  (android 16)`). Fallback-форма `${(input.version_name!input.app_version!'')}` покрывает обе платформы.
 
 **3.4. Каждое поле — отдельной строкой через `\n`.** Склеивать второстепенные через `·` в одну строку **запрещено** (это противоречит правилу «эмодзи на каждой строке»). Длинный список из 8-10 параметров — это 8-10 строк, не «3 главные + 1 склейка».
 
@@ -96,7 +96,7 @@ URL на пользователя в Amplitude имеет вид:
   :link: <https://app.amplitude.com/analytics/<org>/project/<id>/search/${input.user_id!}/activity|Открыть профиль в Amplitude>
   ```
 
-  **Использовать Slack named-link `<url|label>`, а не голую URL.** Slack рендерит длинную URL как auto-unfurl preview — текст URL в сообщении выглядит громоздко, и при copy-paste из Slack desktop hyperlink обрезается до видимого якорного текста, оставляя только `:link: Ссылка на Amplitude:` без URL. Named-link даёт короткий кликабельный текст («Открыть профиль в Amplitude»), визуально чище, и URL гарантированно копируется (Slack экспортирует якорь как plain `<url|label>`-форму или как «Открыть профиль в Amplitude (https://...)»). Прецедент 2026-05-14 (`Submit Purchase Error Support` — пользователь скопировал сообщение, URL пропала, debug-итерация).
+  **Использовать Slack named-link `<url|label>`, а не голую URL.** Slack рендерит длинную URL как auto-unfurl preview — текст URL в сообщении выглядит громоздко, и при copy-paste из Slack desktop hyperlink обрезается до видимого якорного текста, оставляя только `:link: Ссылка на Amplitude:` без URL. Named-link даёт короткий кликабельный текст («Открыть профиль в Amplitude»), визуально чище, и URL гарантированно копируется (Slack экспортирует якорь как plain `<url|label>`-форму или как «Открыть профиль в Amplitude (https://...)»).
 
 ### Шаг 4 — вывести payload + sample event JSON в чат
 
@@ -203,7 +203,7 @@ Sample — это JSON, имитирующий реальный Amplitude event.
 
   Почему: FreeMarker парсит `(input.X)!'' == 'Y'` как `(input.X)!('' == 'Y')` — сначала evaluates `'' == 'Y'` (boolean false), потом подставляет как fallback к строковой `input.X`. Падает с `Expected a boolean, but this has evaluated to a string`. Закрывающая скобка **после** правой части default-expression фиксит парсинг.
 
-  Прецедент 2026-05-14 (Submit Purchase Error Support): первая отправленная версия `(input.platform)!'' == 'iOS'` валилась с `Error executing transformation: For "#if" condition: Expected a boolean`. Фикс — `(input.platform!'') == 'iOS'`.
+  Симптом в Amplitude: `Error executing transformation: For "#if" condition: Expected a boolean`.
 
 - **🚨 Boolean-поля — сравнивать через `?string`, НЕ через `!false`.** Amplitude отдаёт boolean-свойства в webhook как **строки** (`"true"` / `"false"` — видно и на top-level, напр. `"paying": "true"`, и в `event_properties`).
 
@@ -211,7 +211,7 @@ Sample — это JSON, имитирующий реальный Amplitude event.
   |---|---|
   | `<#if (input.event_properties.X!false)>` | `<#if (input.event_properties.X!'')?string == 'true'>` |
 
-  Почему: default-операнд `false` объявляет тип boolean, а фактическое значение приходит строкой → `Expected a boolean, but this has evaluated to a string (wrapper: f.t.SimpleScalar)`. Форма `(...!'')?string == 'true'` покрывает оба типа: настоящий boolean `true` → `"true"`, строка `"true"` → `"true"`, отсутствие → `""` (ветка else). Прецедент 2026-07-22 (`[Amplitude] Application Opened`, свойство `[Amplitude] From Background`).
+  Почему: default-операнд `false` объявляет тип boolean, а фактическое значение приходит строкой → `Expected a boolean, but this has evaluated to a string (wrapper: f.t.SimpleScalar)`. Форма `(...!'')?string == 'true'` покрывает оба типа: настоящий boolean `true` → `"true"`, строка `"true"` → `"true"`, отсутствие → `""` (ветка else).
 
 - **Ключи с пробелами / скобками** (`[Amplitude] Build`, `[Amplitude] From Background`) — только hash-lookup в **одинарных** кавычках: `input.event_properties['[Amplitude] Build']`. Точечная нотация на таких ключах не парсится; двойные кавычки внутри JSON-payload пришлось бы экранировать.
 
