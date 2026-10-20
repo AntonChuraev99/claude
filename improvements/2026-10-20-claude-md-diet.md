@@ -44,7 +44,7 @@ target_date: 2026-11-03
 
 Второй раунд — группа 2 по решению пользователя (2026-10-20):
 
-- Голый `git stash`/`pop` и `grep`/`head`/`cat` через Bash убраны из `skills/commit`, `skills/task-gate` (+ `references/deferred-work-scan.md`), `skills/instruction-routing`, `skills/subagent-authoring`, `commands/sync-local-develop.md`, `rules/docs-structure.md` — как в CLAUDE.md.
+- Голый `git stash`/`pop` и `grep`/`head`/`cat` через Bash убраны из `skills/commit`, `skills/task-gate` (+ `references/deferred-work-scan.md`), `skills/instruction-routing`, `skills/subagent-authoring`, `commands/sync-local-develop.md`, `review-rules/process-gate.yaml` (fix правила L3) — как в CLAUDE.md. В `rules/docs-structure.md` счёт `find … | wc -l` оставлен: это пайп в обработку, а `Glob` обрезает выдачу и занизил бы число.
 - `commands/install-device.md`: description больше не обещает «never uninstalls» — uninstall при конфликте версии/подписи разрешён.
 - Область режима `full`: одна формулировка в `skills/task-gate/SKILL.md` и CLAUDE.md — правки инструкций или исполняемых файлов `~/.claude`.
 - `references/mr-merge.md`: конфликт с транком — merge транка в ветку, как Step 6.0; rebase только на незапушенной ветке (squash-merge всё равно схлопывает историю ветки).
