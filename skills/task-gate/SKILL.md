@@ -50,7 +50,7 @@ description: Definition of Done gate завершённой ЗАДАЧИ (фич
 
 ### 1.1 Режим гейта — `lite` (дефолт) или `full`
 
-**`full`** — если верно **хотя бы одно**: дифф ≥ 5 файлов · появился новый модуль, миграция или новый публичный контракт (API, схема, событие аналитики) · тронут деплой, инфраструктура или конфигурация окружения · дифф трогает `~/.claude/{CLAUDE.md,agents,skills,settings.json,rules,review-rules}` · пользователь попросил полный прогон. **«Последний прогон перед мержем» режим НЕ поднимает** — с этим триггером `full` был в 39 гейтах из 40, а `lite` не существовал на практике (прецедент task-gate-lite-default в `references/claude-md-precedents.md`).
+**`full`** — если верно **хотя бы одно**: дифф ≥ 5 файлов · появился новый модуль, миграция или новый публичный контракт (API, схема, событие аналитики) · тронут деплой, инфраструктура или конфигурация окружения · дифф трогает инструкции или исполняемые файлы `~/.claude` (`CLAUDE.md`, `agents`, `skills`, `rules`, `model-overlays`, `output-styles`, `commands`, `hooks`, `scripts`, `review-rules`, `settings.json`) · пользователь попросил полный прогон. **«Последний прогон перед мержем» режим НЕ поднимает** — с этим триггером `full` был в 39 гейтах из 40, а `lite` не существовал на практике (прецедент task-gate-lite-default в `references/claude-md-precedents.md`).
 
 **`lite`** — всё остальное, и это дефолт.
 
@@ -317,7 +317,7 @@ LOW ≥ 50% от total → добавить warning про ритуальные 
 
 Скилл вызывает `/commit` автоматически, **если все 6 условий:** (1) gate без ❌; (2) `git status --porcelain` непустой; (3) пользователь не запрещал коммит; (4) нет подозрительных файлов в diff (`.env*`/`*.key`/`*.pem`/`id_rsa*`/`*credentials*`/`*secret*`, бинарники > 1 МБ, файлы вне scope); (5) 2.8 без unbacked TODO; (6) `git rev-parse --abbrev-ref HEAD` — **не защищённая ветка** (`main`/`master`/`develop`/`release/*`, реестр `~/.claude/config/protected-branches.local.json`). Репозиторий харнесса `~/.claude` исключением не является: он публичный, правки идут через PR (скилл `harness-contributing`).
 
-Условие (6) не выполнено → auto-commit НЕ запускать, статус `⚠️ protected branch`: правки лежат в транке, решение (перенести в ветку через `git stash` + worktree / признать согласованным hotfix) принимает пользователь через `AskUserQuestion`.
+Условие (6) не выполнено → auto-commit НЕ запускать, статус `⚠️ protected branch`: правки лежат в транке, решение (перенести в ветку WIP-коммитом или `git stash push -m <тег>` + `apply <sha>` в worktree, не голым `stash`/`pop` / признать согласованным hotfix) принимает пользователь через `AskUserQuestion`.
 
 Выполнены → `Skill(skill="commit")`, перепроверить `git status`. Чисто → `✅ commit auto-created`, SHA в отчёт. Не чисто → `❌ auto-commit failed`, stderr в отчёт, передать пользователю.
 

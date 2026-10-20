@@ -1,7 +1,7 @@
 <!-- Injected by hooks/model-overlay.ps1 as SessionStart additionalContext when the active
      model is Opus 5. Model-neutral policy stays in the global CLAUDE.md; this file holds ONLY
      the Opus-5 behavioral calibration. opus.md остаётся оверлеем для Opus 4.x и fallback'ом
-     для unknown/absent. Источник: Anthropic migration guide «Migrating to Claude Opus 5»
+     для неизвестной модели; без модели и без кеша хук берёт opus-5-5.md. Источник: Anthropic migration guide «Migrating to Claude Opus 5»
      (сверено с сетью 2026-07-25). -->
 
 # Model overlay — Opus 5

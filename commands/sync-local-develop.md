@@ -17,7 +17,7 @@ allowed-tools: Bash(git rev-parse:*), Bash(git status:*), Bash(git rev-list:*), 
 4. **Что вольётся** = `git rev-list --count HEAD..<src>`. Если 0 → «уже синхронизировано с локальным `<src>`» и стоп. Иначе покажи `git log --oneline --no-decorate HEAD..<src>` (до ~15 строк).
 5. **Merge** = `git merge <src>`.
    - Успех → краткий итог: сколько коммитов влилось, fast-forward или merge-commit, новый `HEAD` (короткий sha + subject).
-   - Git отказался из-за незакоммиченных изменений («would be overwritten») → **НЕ форсируй**: сообщи, предложи закоммитить или `git stash`, затем повторить `/sync-local-develop`.
+   - Git отказался из-за незакоммиченных изменений («would be overwritten») → **НЕ форсируй**: сообщи, предложи WIP-коммит или `git stash push -m <тег>` (возврат — `git stash apply <sha>`, не `pop`: stash общий для всех сессий), затем повторить `/sync-local-develop`.
    - Конфликт merge → покажи `git diff --name-only --diff-filter=U` (конфликтующие файлы), скажи что merge на паузе, предложи разрешить вручную или `git merge --abort`.
 
 Не выводи лишнего — цель максимально быстрая синхронизация.

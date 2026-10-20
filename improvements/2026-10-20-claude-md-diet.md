@@ -42,6 +42,17 @@ target_date: 2026-11-03
 - `skills/{task-gate,amplitude-slack-payload,jira-task-writer,ab-test-dashboard}`: удалены датированные прецеденты внутри правил (правило рядом остаётся), включая ключ приватного Jira-тикета.
 - `skills/subagent-authoring`: убран второй, расходящийся абзац о превышении бюджета; `skills/instruction-routing`: «что делать, а не почему» → одна фраза причины там, где без неё правило применят не там.
 
+Второй раунд — группа 2 по решению пользователя (2026-10-20):
+
+- Голый `git stash`/`pop` и `grep`/`head`/`cat` через Bash убраны из `skills/commit`, `skills/task-gate` (+ `references/deferred-work-scan.md`), `skills/instruction-routing`, `skills/subagent-authoring`, `commands/sync-local-develop.md`, `rules/docs-structure.md` — как в CLAUDE.md.
+- `commands/install-device.md`: description больше не обещает «never uninstalls» — uninstall при конфликте версии/подписи разрешён.
+- Область режима `full`: одна формулировка в `skills/task-gate/SKILL.md` и CLAUDE.md — правки инструкций или исполняемых файлов `~/.claude`.
+- `references/mr-merge.md`: конфликт с транком — merge транка в ветку, как Step 6.0; rebase только на незапушенной ветке (squash-merge всё равно схлопывает историю ветки).
+- `references/diff-review-axes.md` выровнен с SKILL.md: на frontmatter `@bug-pattern-reviewer` не полагаться.
+- `android-platform-expert`, `wasmjs-expert`: условие протокола багфикса — «или виден пользователю», как в CLAUDE.md.
+- `kmp-expert`: «ViewModel в commonMain» уточнён до переноса ViewModel-слоя (зависимость, базовый класс, DI-фабрика); ViewModel конкретной фичи остаётся у `@feature-expert`.
+- Мелочь: комментарий о fallback в `model-overlays/opus-5.md` по `hooks/model-overlay.ps1`; датированная заметка в `fable.md`; «исчерпывающая таблица» в `test-firebase-function`; ссылка на `decisions/` в шаблоне INDEX; список git-шагов в `task-gate/references/edge-cases.md`.
+
 ## Target
 
 - Хук `claude-md-size-guard` молчит; CLAUDE.md не дорастает до 17 500 к target_date.

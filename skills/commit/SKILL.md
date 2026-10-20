@@ -11,7 +11,7 @@ Create a well-formed git commit following the [Conventional Commits](https://www
 ## Steps
 
 0. **Защищённая ветка — до всего остального.** `git rev-parse --abbrev-ref HEAD`. Ветка защищена (`main`, `master`, `develop`, `release/*`; точный список проекта — `~/.claude/config/protected-branches.local.json`, ключ `repos.<путь>.protected`) → **не коммитить**, вынести развилку через `AskUserQuestion`:
-   - *(Recommended)* перенести правки в отдельную ветку: `git stash` → `EnterWorktree({name: "<type>/<slug>"})` (тул переключает CWD сессии в worktree; `git worktree add` этого не делает) → `git stash pop` уже в worktree → коммит там → push + MR/PR;
+   - *(Recommended)* перенести правки в отдельную ветку: WIP-коммит либо `git stash push -u -m "<тег>"` с SHA записи из `git stash list --format='%H %gs'` → `EnterWorktree({name: "<type>/<slug>"})` (тул переключает CWD сессии в worktree; `git worktree add` этого не делает) → `git stash apply <sha>` уже в worktree и `git stash drop` своей записи (найти по тегу) → коммит там → push + MR/PR. Голый `git stash`/`pop` нельзя: stash общий для всех сессий;
    - согласованный hotfix — коммитить в транк как есть.
 
    Без вопроса продолжать, если: каталог вне git; ветка не защищена; пользователь уже в этой сессии подтвердил работу в транке.

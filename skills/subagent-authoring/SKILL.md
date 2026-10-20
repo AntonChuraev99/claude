@@ -149,9 +149,9 @@ color: green
 
 ```bash
 wc -l ~/.claude/agents/*.md          # строчный бюджет (60-120)
-grep -c "DO NOT use" ~/.claude/agents/<name>.md   # description содержит границы
-grep -L "ast-index" ~/.claude/agents/*.md         # кто ещё ищет вслепую
 ```
+
+Границы и поиск — тулом `Grep`, не через Bash: `DO NOT use` в `~/.claude/agents/<name>.md` (`output_mode: count`) — description содержит границы; `ast-index` по `~/.claude/agents` (`files_with_matches`) — агент не из списка ищет вслепую.
 
 Символьные бюджеты — только так (`wc -c` на кириллице врёт ×~1.6):
 
@@ -165,13 +165,6 @@ for f in sorted(glob.glob('$HOME/.claude/agents/*.md')):
 "
 ```
 
-Плюс сверка Skill-консистентности — тело зовёт скилл, а инструмента нет:
-
-```bash
-for f in ~/.claude/agents/*.md; do
-  body=$(tail -n +10 "$f")
-  echo "$body" | grep -q 'Skill(skill=' && ! grep -q '^tools:.*Skill' "$f" && echo "BROKEN: $f"
-done
-```
+Плюс сверка Skill-консистентности — тело зовёт скилл, а инструмента нет: `Grep` `Skill\(skill=` по `~/.claude/agents` (`files_with_matches`) и `Grep` `^tools:.*Skill` там же; файл из первого списка, которого нет во втором, — `BROKEN`.
 
 Плюс прогон на реальной задаче: сформулировать запрос, который **должен** попасть в этого агента, и запрос, который должен уйти соседу, — и посмотреть, куда уходит делегирование.

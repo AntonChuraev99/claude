@@ -1,6 +1,6 @@
 ---
 allowed-tools: Bash(adb:*), Bash(./gradlew:*), Bash(./gradlew.bat:*), Bash(python:*), Bash(ls:*), Bash(file:*), Glob, Grep, Read, AskUserQuestion
-description: Install debug APK on connected physical Android device — reinstalls an already built APK if it is newer than the last source edit, otherwise builds (auto-detects app module via com.android.application plugin — AGP 9 KMP split aware, handles multi-device, never uninstalls)
+description: Install debug APK on connected physical Android device — reinstalls an already built APK if it is newer than the last source edit, otherwise builds (auto-detects app module via com.android.application plugin — AGP 9 KMP split aware, handles multi-device; uninstalls the installed app on a version or signature conflict)
 ---
 
 # Install APK on Physical Device

@@ -87,7 +87,7 @@ If both fail with the same error → server-side issue (Step 6).
 
 ### Step 6 — Diagnose by response pattern
 
-Match the response body to the table below. Don't guess — these patterns are exhaustive for the issues we've actually hit in this project.
+Match the response body to the table below. A pattern that is not in the table goes to Step 7 (logs), then to Step 10.
 
 | Status | Body / pattern | Root cause | Fix |
 |---|---|---|---|
