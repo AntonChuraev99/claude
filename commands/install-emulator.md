@@ -178,8 +178,10 @@ adb -s "$SERIAL" install -r "$APK_PATH"
 Если найден:
 
 ```bash
-adb -s "$SERIAL" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+adb -s "$SERIAL" shell "am start -W -n \$(cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER $PACKAGE | tail -n 1)"
 ```
+
+Успех = `Status: ok` в выводе. ❌ Не запускать через `monkey -p ... 1`: после него у пользователя включается автоповорот (`accelerometer_rotation` 0 → 1).
 
 Если `applicationId` не найден или запуск упал — в финальном отчёте строка `Запуск: ❌ не удалось — <причина>, запусти из меню эмулятора`. Молча не пропускать: пользователь ждёт запущенное приложение.
 
