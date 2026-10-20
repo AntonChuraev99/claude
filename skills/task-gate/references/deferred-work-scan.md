@@ -42,16 +42,7 @@ git diff -U0 HEAD -- \
 // Pending: docs/todos/<YYYY-MM-DD>-<slug>.md
 ```
 
-```bash
-# Поиск anchor'ов
-grep -nE '// Pending: docs/todos/' <files>
-```
-
-Затем проверить, что упомянутые файлы **реально существуют**:
-
-```bash
-ls docs/todos/<YYYY-MM-DD>-<slug>.md   # для каждого упомянутого
-```
+Anchor'ы искать тулом `Grep` (паттерн `// Pending: docs/todos/`, пути — файлы с совпадениями шага 1, `output_mode: content`), затем `Glob` по каждому упомянутому `docs/todos/<YYYY-MM-DD>-<slug>.md` — файл **реально существует**.
 
 - Все файлы на месте → `✅ TODO anchors valid (N items)`.
 - Хоть один файл отсутствует → `⚠️ broken Pending anchor: <file>` + список ломаных.
@@ -79,9 +70,7 @@ ls docs/todos/<YYYY-MM-DD>-<slug>.md   # для каждого упомянут�
 
 ### Шаг 4 — Проверка `docs/todos/INDEX.md` (если файл существует)
 
-```bash
-test -f docs/todos/INDEX.md && cat docs/todos/INDEX.md
-```
+`Read` файла `docs/todos/INDEX.md` (файла нет — шаг пропустить).
 
 - Для каждой записи в `## Open` — `Glob` указанного файла → существует ли. Сломанные ссылки в `⚠️ stale INDEX entry: <link>`.
 - Если в project memory есть `deferred_*.md`, но в `docs/todos/INDEX.md` соответствующей записи нет — `⚠️ memory-INDEX desync: <slug>`.

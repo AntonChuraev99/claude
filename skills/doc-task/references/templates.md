@@ -82,4 +82,4 @@ YAML frontmatter обязателен: по нему специалисты гр
 | <YYYY-MM-DD> | <category> | <kw1>, <kw2>, <kw3> | [<title>](<path-from-INDEX>) |
 ```
 
-`category` — `bug-fix | feature | architecture | pattern | decision`; путь — от `docs/solutions/INDEX.md`, без `../`. Колонка keywords — 3–8 термов через запятую, ≤120 символов, дословно из `keywords:` frontmatter: это единственное, по чему индекс грепается, поэтому термы не сокращать; пересказ решения сюда не писать — для него есть `summary:` в файле. Файла нет → создать: заголовок `# Solutions INDEX` + таблица `| дата | категория | keywords | путь |`.
+`category` — `bug-fix | feature | architecture | pattern | decision`; путь — от `docs/solutions/INDEX.md`: решение из `solutions/` — без `../`, из `decisions/` — `../decisions/<файл>`. Колонка keywords — 3–8 термов через запятую, ≤120 символов, дословно из `keywords:` frontmatter: это единственное, по чему индекс грепается, поэтому термы не сокращать; пересказ решения сюда не писать — для него есть `summary:` в файле. Файла нет → создать: заголовок `# Solutions INDEX` + таблица `| дата | категория | keywords | путь |`.
