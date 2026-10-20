@@ -223,4 +223,5 @@ fi
    Merged:  <sha в транке> (squash)
    Cleanup: remote branch + worktree + local branch removed
    Deploy:  <triggered: Cloudflare production | none>
+   Jira:    <FS-123 → Ready for build | none | failed: <причина>>
 ```
