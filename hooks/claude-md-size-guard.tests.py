@@ -147,7 +147,7 @@ def case_both_budgets_over(root):
 def case_wide_but_within_budget(root):
     """Just under both budgets stays silent — the guard must not cry wolf."""
     home = os.path.join(root, "home")
-    write_md_wide(os.path.join(home, "CLAUDE.md"), 100, 300)   # 100 lines, 30 099 chars
+    write_md_wide(os.path.join(home, "CLAUDE.md"), 100, 150)   # 100 lines, 15 099 chars
     _, parsed, _ = run_hook(home, os.path.join(root, "proj"))
     check("under both → silent", parsed is None, repr(parsed))
 

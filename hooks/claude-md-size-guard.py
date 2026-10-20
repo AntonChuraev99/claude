@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""SessionStart hook: enforcement for «CLAUDE.md ≤200 строк и ≤37000 символов».
+"""SessionStart hook: enforcement for «CLAUDE.md ≤200 строк и ≤17500 символов».
 
 The limit came out of the 2026-05-28 improvement replay: a limit without a
 mechanism does not hold. Warns when the global OR the project CLAUDE.md is over,
@@ -34,13 +34,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(HERE), "lib"))
 from hookout import cwd_of, emit, force_utf8, read_payload, warn_block  # noqa: E402
 
 LIMIT = 200
-# Set ~5% above the 2026-08-31 measurement (35 320) on purpose: a budget the file
+# Set ~5% above the 2026-10-20 measurement (16 801, after the diet that halved the
+# file; the previous limit was 37 000 over 35 320) on purpose: a budget the file
 # already busts would warn every single session, and «сократить CLAUDE.md» has been
 # tried three times without sticking — a permanent nag would simply be tuned out.
 # The headroom is deliberate but small: one added paragraph is free, sustained growth
 # is not. Ratchet it down as the file shrinks. Keep this number, the docstring above,
 # and skills/instruction-routing/SKILL.md → «## CLAUDE.md» in sync.
-CHAR_LIMIT = 37000
+CHAR_LIMIT = 17500
 
 HOWTO = (
     "WARNING: CLAUDE.md > ~%d строк или > ~%d символов (Anthropic: >200 строк снижает "
