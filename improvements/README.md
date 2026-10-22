@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-22 | [ast-index-worktree](2026-10-22-ast-index-worktree.md) | applied | 2026-11-05 | pending |
 | 2026-10-20 | [jira-status-flow](2026-10-20-jira-status-flow.md) | applied | 2026-11-03 | pending |
 | 2026-10-20 | [claude-md-diet](2026-10-20-claude-md-diet.md) | applied | 2026-11-03 | pending |
 | 2026-10-19 | [ste-ru-paths-links](2026-10-19-ste-ru-paths-links.md) | applied | 2026-11-02 | pending |
