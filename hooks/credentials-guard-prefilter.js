@@ -95,6 +95,20 @@ function loadRelease() {
     return releaseCache;
 }
 
+// Индекс основного checkout'а для ast-index внутри worktree — тем же процессом и
+// по той же причине. Сломанный модуль только выключает подстановку.
+let worktreeIndexCache;
+function loadWorktreeIndex() {
+    if (worktreeIndexCache !== undefined) return worktreeIndexCache;
+    try {
+        worktreeIndexCache = require('./ast-index-worktree.js');
+    } catch (e) {
+        noteDisciplineFailure(e);
+        worktreeIndexCache = null;
+    }
+    return worktreeIndexCache;
+}
+
 // Тулы, чей ввод — команда шелла. PowerShell на Windows исполняет те же деплои,
 // что и Bash, поэтому и выравнивание, и guard обязаны видеть оба. Синтаксис
 // подстановки от шелла не зависит: аккаунт подставляется флагом самого CLI, а
@@ -122,6 +136,34 @@ function computeAlign(payload) {
         noteDisciplineFailure(e);
         return null;
     }
+}
+
+// Возвращает { command } с индексом основного checkout'а для ast-index в worktree
+// либо null. Ошибка здесь ничего не блокирует: без подстановки поиск в worktree
+// вернёт «Index not found», как до появления модуля.
+function computeWorktreeIndex(payload) {
+    if (!payload) return null;
+    if (!SHELL_TOOLS[payload.tool_name]) return null;
+
+    const mod = loadWorktreeIndex();
+    if (!mod || !mod.worktreeIndexCommand) return null;
+
+    try {
+        return mod.worktreeIndexCommand(
+            payload.tool_input && payload.tool_input.command,
+            payload.cwd,
+            { shell: payload.tool_name === 'PowerShell' ? 'powershell' : 'bash' },
+        );
+    } catch (e) {
+        noteDisciplineFailure(e);
+        return null;
+    }
+}
+
+function withCommand(payload, command) {
+    return Object.assign({}, payload, {
+        tool_input: Object.assign({}, payload.tool_input, { command }),
+    });
 }
 
 // CLAUDE_HOME override — то же соглашение, что в hooks/claude-md-size-guard.py и
@@ -534,8 +576,8 @@ function emitOutput(fields) {
     return 0;
 }
 
-// Подстановка аккаунта отменяется, если тем же ответом уходит deny: два решения
-// в одном ответе несовместимы, а на deny команда всё равно не исполнится.
+// Подстановка (аккаунт, индекс ast-index) отменяется, если тем же ответом уходит deny:
+// два решения в одном ответе несовместимы, а на deny команда всё равно не исполнится.
 function withAlign(fields, aligned) {
     const out = fields || {};
     if (!aligned || out.permissionDecision === 'deny') return out;
@@ -582,14 +624,15 @@ function main() {
     // конфигурацию, к которой команда может не относиться. Обратный порядок
     // блокировал бы штатный деплой из проекта, чей аккаунт не совпадает с
     // глобально активным, — то есть ровно тот случай, ради которого всё это.
-    const aligned = computeAlign(payload);
+    // Индекс ast-index подставляется первым, аккаунт — уже в его результат: обе
+    // подстановки едут одним `updatedInput`, второй хук с `updatedInput` на том же
+    // вызове перетёр бы первый. Друг друга они не задевают.
+    const indexed = computeWorktreeIndex(payload);
+    const aligned = computeAlign(indexed ? withCommand(payload, indexed.command) : payload) || indexed;
     let guardRaw = raw;
     if (aligned) {
         try {
-            const patched = Object.assign({}, payload, {
-                tool_input: Object.assign({}, payload.tool_input, { command: aligned.command }),
-            });
-            guardRaw = JSON.stringify(patched);
+            guardRaw = JSON.stringify(withCommand(payload, aligned.command));
         } catch (e) {
             guardRaw = raw; // не смогли пересобрать — guard судит исходную команду
         }

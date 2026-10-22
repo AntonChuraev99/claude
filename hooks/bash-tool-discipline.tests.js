@@ -710,6 +710,25 @@ check('индекс выше границы репозитория (.git) не �
     assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), inner), null);
 });
 
+check('worktree харнесса видит индекс основного checkout — отказ сохраняется', () => {
+    // В `.claude/worktrees/<slug>` префильтр подставляет `AST_INDEX_DB_PATH`
+    // (hooks/ast-index-worktree.js), и ast-index отвечает из индекса основного
+    // checkout'а. `.git` там — файл, а не каталог.
+    const main = fakeRepo('mainco');
+    fakeIndex(main, 20000);
+    const wt = path.join(main, '.claude', 'worktrees', 'fix-x');
+    fs.mkdirSync(path.join(wt, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(wt, '.git'), 'gitdir: ../../../.git/worktrees/fix-x\n');
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), wt).decision === 'deny', 'корень worktree');
+    assert.ok(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), path.join(wt, 'src')).decision === 'deny', 'подкаталог worktree');
+    // Worktree основного checkout'а без индекса — индекса нет и у него.
+    const bare = fakeRepo('bareco');
+    const wt2 = path.join(bare, '.claude', 'worktrees', 'fix-y');
+    fs.mkdirSync(wt2, { recursive: true });
+    fs.writeFileSync(path.join(wt2, '.git'), 'gitdir: ../../../.git/worktrees/fix-y\n');
+    assert.strictEqual(d.grepVerdict({ pattern: 'PurchaseGate' }, sid(), wt2), null);
+});
+
 check('модуль считает хэш каталога по той же раскладке, что ast-index', () => {
     assert.ok(d.astIndexHash, 'нет astIndexHash');
     const real = fs.realpathSync.native(REPO_INDEXED);

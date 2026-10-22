@@ -701,18 +701,29 @@ function fileSize(p) {
     try { return fs.statSync(p).size; } catch (e) { return 0; }
 }
 
+// Корень worktree харнесса: `.../.claude/worktrees/<slug>` без хвоста.
+const WORKTREE_ROOT = /[\\/]\.claude[\\/]worktrees[\\/][^\\/]+$/;
+
+// Путь к непустому индексу ast-index ровно этого каталога (без предков) либо
+// null. `dir` уже канонический (realpath) — от него считается хеш каталога кэша.
+function astIndexDb(dir, cache) {
+    const db = path.join(cache || astIndexCacheDir(), astIndexHash(dir), 'index.db');
+    return fileSize(db) + fileSize(db + '-wal') > EMPTY_INDEX_BYTES ? db : null;
+}
+
 // Есть ли непустой индекс ast-index у каталога поиска или его предков в пределах
 // репозитория. Любая ошибка (нет каталога, нет прав) означает «индекса не видно».
+// Граница worktree (`.claude/worktrees/<slug>`, где `.git` — файл) не останавливает
+// подъём: префильтр направляет ast-index там в индекс основного checkout'а
+// (hooks/ast-index-worktree.js) — он и считается индексом worktree.
 function hasAstIndex(dir) {
     const cache = astIndexCacheDir();
     if (!fs.existsSync(cache)) return false;
     let cur;
     try { cur = fs.realpathSync.native(dir); } catch (e) { return false; }
     for (let depth = 0; depth < 40; depth++) {
-        const base = path.join(cache, astIndexHash(cur));
-        const bytes = fileSize(path.join(base, 'index.db')) + fileSize(path.join(base, 'index.db-wal'));
-        if (bytes > EMPTY_INDEX_BYTES) return true;
-        if (fs.existsSync(path.join(cur, '.git'))) return false;
+        if (astIndexDb(cur, cache)) return true;
+        if (fs.existsSync(path.join(cur, '.git')) && !WORKTREE_ROOT.test(cur)) return false;
         const up = path.dirname(cur);
         if (up === cur) return false;
         cur = up;
@@ -837,6 +848,7 @@ module.exports = {
     codeSearchVerdict,
     grepVerdict,
     astIndexHash,
+    astIndexDb,
     longSleepSeconds,
     insideLoop,
     feedsAnotherCommand,

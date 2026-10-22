@@ -430,4 +430,6 @@ module.exports = {
     effectiveDir,
     mentionsTool,
     loadRegistry,
+    // позиция команды — и для индекса ast-index в worktree (hooks/ast-index-worktree.js)
+    commandPositionRe,
 };
