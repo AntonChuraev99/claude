@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "layout-debug": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${USERPROFILE}/.claude/layout-debug-mcp/node_modules/tsx/dist/cli.mjs",
+        "${USERPROFILE}/.claude/layout-debug-mcp/src/mcp/index.ts"
+      ]
+    }
+  }
+}
