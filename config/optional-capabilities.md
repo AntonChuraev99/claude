@@ -50,6 +50,26 @@ tool-вызовов, 798 спавнов субагентов).
 | MCP `pencil`, `vercel` (профиль `claude`, `~/.claude.json`) | Pencil desktop, Vercel | 0 | `claude mcp add …` заново |
 | Удалены из кэша (были выключены): `code-simplifier`, `mcp-apps`, `voltagent-*` ×3, `skill-creator`, `figma`, `vercel`, `claude-md-management`; маркетплейсы `every-marketplace`, `kotlin-agents-marketplace`, `mcp-apps`, `voltagent-subagents` | — | 0 | `claude plugin marketplace add <repo>` + `claude plugin install <plugin>@<marketplace>` |
 
+## Перенесено 2026-10-23 — MCP только там, где нужен
+
+Замер 2026-10-23: 6 сессий = 13,1 GB private, на сессию `claude.exe` 0,6–0,8 GB + MCP 1,1–1,3 GB.
+Claude Code запускает stdio-MCP при старте сессии и держит до конца; ленивого старта для stdio нет
+(`MCP_DISCOVERY_CACHE` откладывает только удалённые HTTP/SSE). Поэтому сервер, нужный одному агенту,
+описан inline в его `mcpServers`: стартует со спавном, закрывается по завершении. Пути — через
+`cmd /c` и `%USERPROFILE%`: `${VAR}` в inline-серверах субагента Claude Code не раскрывает
+(v2.1.309), а в файле `--mcp-config` раскрывает.
+
+| Сервер | Где теперь | Цена на сессию, снятая с главной | Включить в главной сессии |
+|---|---|--:|---|
+| `artemis` (ARTEMIS) | `agents/mobile-tester.md`, спавн из `/mcp-mobile-test` | ~495 MB | `claude --continue --mcp-config "$HOME/.claude/config/mcp/device.json"` — на одну сессию |
+| `mobile` (claude-in-mobile) | там же | ~60 MB | та же строка |
+| `appstore` | `agents/marketing-expert.md` | ~45 MB | не нужно: данные сторов — работа `@marketing-expert`. Не поднялся у агента → нет `%USERPROFILE%\mcp-servers\mcp-appstore\server.js`: `git clone https://github.com/appreply-co/mcp-appstore` в этот каталог и `npm install` там |
+| `layout-debug` | только по флагу | 130–230 MB | `claude --continue --mcp-config "$HOME/.claude/config/mcp/layout-debug.json"` — на одну сессию, снимать после работы нечего |
+
+Профиль `claude` — с `$env:CLAUDE_CONFIG_DIR=$null` перед командой. Прошлый способ для
+layout-debug (`claude mcp add -s user` + `remove` после работы) не удержался: к 2026-10-23 сервер
+снова стоял user-scope в обоих профилях.
+
 ## Выключено 2026-09-25 — память, не контекст
 
 stdio-MCP стартует **в каждой сессии** отдельным набором процессов; при 5 параллельных сессиях на
@@ -57,7 +77,7 @@ stdio-MCP стартует **в каждой сессии** отдельным �
 
 | Возможность | Что давала | Цена на сессию | Вернуть |
 |---|---|--:|---|
-| MCP `layout-debug` (был user-scope в обоих профилях) | выбор слоя на живом UI → агенту | 6 процессов (`cmd → npx → tsx → node`), ~200 MB | В PowerShell, только в профиле текущей сессии (`claude` — с `$env:CLAUDE_CONFIG_DIR=$null`): `claude mcp add --transport stdio --scope user layout-debug -- cmd /c npx tsx "$HOME/.claude/layout-debug-mcp/src/mcp/index.ts"`, рестарт сессии. **После работы** — `claude mcp remove layout-debug -s user`, иначе сервер снова стартует в каждой сессии |
+| MCP `layout-debug` (был user-scope в обоих профилях) | выбор слоя на живом UI → агенту | 6 процессов (`cmd → npx → tsx → node`), ~200 MB | **Заменено 2026-10-23** — `--mcp-config`, см. секцию выше |
 
 `firebase` (~240 MB) и `playwright` (~160 MB) оставлены сознательно: выключенный плагин убирает из
 сессии и имена тулов, и скиллы — агент перестаёт знать, что они есть (решение пользователя 2026-09-25).

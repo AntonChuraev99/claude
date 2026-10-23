@@ -125,6 +125,10 @@ lib/__pycache__/
 # lists only, no accounts or project ids, and both hooks are useless apart.
 !/config/credentials-guard-patterns.json
 !/config/optional-capabilities.md
+# MCP configs for `claude --mcp-config`: paths via ${USERPROFILE}/%USERPROFILE% only.
+!/config/mcp/
+!/config/mcp/*.json
+/config/mcp/*.local.*
 
 # --- 11. Authored skills (each whitelisted; installed/3rd-party stay ignored)-
 !/skills/

@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "artemis": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "cd /d %USERPROFILE%\\tools\\artemis && .venv\\Scripts\\python.exe -m mcp_server"],
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "ARTEMIS_DESKTOP_NOTIFY": "true"
+      }
+    },
+    "mobile": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "node", "%APPDATA%\\npm\\node_modules\\claude-in-mobile\\bin.mjs"]
+    }
+  }
+}
