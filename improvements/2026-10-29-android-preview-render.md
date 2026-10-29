@@ -33,6 +33,7 @@ target_date: 2026-11-12
 - `skills/screenshot-driven-ui/SKILL.md` — description, шаг 0 (инструмент по умолчанию), шаги 2–6 (раскрытие multipreview, команда, каталоги «до/после», baseline не блокер).
 - `CLAUDE.md` → «Вёрстка — проверяется картинкой»: Android по умолчанию `android preview render`; вопрос пользователю — только когда снять нечем.
 - `agents/compose-expert.md` — шаг 5 метода, «до/после», разрешение гонять `android preview` самому.
+- `agents/android-platform-expert.md` — перед заведением Roborazzi проверить `preview render`; ловушка KMP-модулей на AGP 9 при миграции (плагин — см. Baseline выше).
 - `agents/test-expert.md` — `android preview list/render` в разрешённых командах.
 - `skills/android-feature-module-builder/SKILL.md` — валидация снимком через `preview render`.
 - `skills/task-gate/SKILL.md` (2.2b) и `skills/task-gate/references/screenshot-gate.md` — модуль без Roborazzi не считается `no screenshot infra`, если его снимает `preview render`.
