@@ -115,10 +115,12 @@ After scaffolding, run validation:
 
 ```bash
 ./gradlew :features:{{FEATURE_PACKAGE}}:assembleDebug
-./gradlew :features:{{FEATURE_PACKAGE}}:recordRoborazziDebug   # если скриншот-инфраструктура заведена
+android preview list :features:{{FEATURE_PACKAGE}} > <scratchpad>/previews.txt 2>&1   # FQN превью
+android preview render :features:{{FEATURE_PACKAGE}} -o <scratchpad>/shots --fqn=<FQN> > <scratchpad>/render.log 2>&1
+./gradlew :features:{{FEATURE_PACKAGE}}:recordRoborazziDebug   # если Roborazzi заведён — baseline
 ```
 
-Снятые PNG **открыть `Read`'ом и посмотреть** — процедура и чек-лист дефектов в скилле `screenshot-driven-ui`. Инфраструктуры в проекте нет: превью всё равно генерируются (они и есть матрица), а заведение Roborazzi предложить главному отдельно.
+Снятые PNG **открыть `Read`'ом и посмотреть** — процедура, ловушки `preview render` (вывод не в pipe, KMP-модуль на AGP 9 — через app-модуль) и чек-лист дефектов в скилле `screenshot-driven-ui`. Roborazzi в проекте нет — цикл всё равно идёт через `preview render`, а baseline предложить главному отдельно.
 
 Verify:
 - [ ] Module compiles without errors

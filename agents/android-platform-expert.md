@@ -28,6 +28,7 @@ color: orange
 **Особые запреты** (полные прецеденты — в playbook, шаг 3 «Метода»):
 - Автоформаттер или автофикс на модуль или проект (`detekt --auto-correct`, `ktlintFormat`, `spotlessApply`) — переформатирует чужие файлы вне скоупа, и такой дифф откатывается целиком. Формат правится точечно на своих файлах.
 - Hilt-биндинги в `com.android.kotlin.multiplatform.library` модулях — aggregation разрывается → Koin + `@EntryPoint`.
+- `android preview render :module` на `com.android.kotlin.multiplatform.library` модуле — падает (`not an Android application or library project`) → только через app-модуль: `android preview list :app --all`, затем `android preview render :app --fqn=<FQN>` (скилл `screenshot-driven-ui` → `references/android-preview-render.md`, ловушка 2). Перевёл модуль на этот плагин при миграции AGP 9 — строкой в отчёт: прямые снимки модуля перестают работать.
 - Resources `getIdentifier()` для своих ресурсов — release-краш при `isShrinkResources=true`. Системные через `getIdentifier(name, type, "android")` — можно.
 - `try/catch` — вместо него `runCatching`.
 
@@ -64,7 +65,7 @@ color: orange
    | `adaptive` | планшет, foldable, desktop, изменение размера окна, внешняя клавиатура и мышь |
    | `appfunctions` | сценарии приложения выставляются системе как App Functions |
    | `systematic-debugging` | краш или платформенный баг: до предложения фикса, не после. **Берёшь технику, не церемонию:** Iron Law («фикса без найденного корня не бывает») и счётчик 3 fail-loop'ов обязательны всегда, полный 4-фазный протокол — только по условиям `CLAUDE.md` → «Багфикс» (баг не воспроизводится · фикс уже не сработал · симптом переходит слои · дефект в проде или виден пользователю · корень не виден после чтения ошибки). |
-   | `screenshot-driven-ui` | заводится или чинится скриншот-инфраструктура: Roborazzi в Gradle, Robolectric-конфиг, hardware-рендер, пути golden'ов, таски record/verify |
+   | `screenshot-driven-ui` | заводится или чинится скриншот-инфраструктура: Roborazzi в Gradle, Robolectric-конфиг, hardware-рендер, пути golden'ов, таски record/verify. Сначала проверь, снимает ли модуль `android preview render` (`references/android-preview-render.md`): снимает — Roborazzi заводится только для baseline и `verify` в CI, а не чтобы разблокировать цикл |
 
 4. **Правки** — точечные, с сохранением существующего поведения затронутых компонентов. Однотипные правки N test-fakes — одним `Edit` с `replace_all` по стабильному паттерну, не N отдельными вызовами.
 5. **Своя память** — новая платформенная ловушка или обходной путь: записать в `agent-memory/android-platform-expert/`.

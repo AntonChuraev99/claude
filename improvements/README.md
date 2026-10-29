@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-10-29 | [android-preview-render](2026-10-29-android-preview-render.md) | applied | 2026-11-12 | pending |
 | 2026-10-23 | [mcp-scope-subagents](2026-10-23-mcp-scope-subagents.md) | applied | 2026-11-06 | pending |
 | 2026-10-22 | [ast-index-worktree](2026-10-22-ast-index-worktree.md) | applied | 2026-11-05 | pending |
 | 2026-10-20 | [jira-status-flow](2026-10-20-jira-status-flow.md) | applied | 2026-11-03 | pending |
