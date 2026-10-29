@@ -16,6 +16,8 @@
 
 ## Инфраструктура проверяется по МОДУЛЮ изменённого файла, а не по репозиторию
 
+**Android: модуль без Roborazzi — ещё не `NONE`.** Снимок по умолчанию — `android preview render` (скилл `screenshot-driven-ui` → `references/android-preview-render.md`), ему инфраструктура в модуле не нужна. `NONE` у снипета ниже значит «нет baseline»; люк `⚠️ no screenshot infra` открывается, только если и `preview render` модуль не снимает (в том числе через app-модуль для KMP на AGP 9) — причина из лога команды в отчёт.
+
 Roborazzi подключается в `build.gradle.kts` модуля и держит голдены в
 `<module>/src/androidHostTest/roborazzi/`; «в проекте кадры есть» не говорит ничего про
 этот модуль.
@@ -34,7 +36,7 @@ while read m; do [ -d "$m/src/androidHostTest/roborazzi" ] && echo "OK   $m" || 
 ## Вердикт
 
 - Все строки таблицы несут открытый кадр → `✅`.
-- Модуль в списке `NONE` → `⚠️ no screenshot infra: <модуль>` + развилка «завести
+- Модуль в списке `NONE`, и `android preview render` его тоже не снимает → `⚠️ no screenshot infra: <модуль>` + развилка «завести
   сейчас / отложить» вынесена пользователю через `AskUserQuestion`, отложенное —
   строкой в `docs/todos/`.
 - Строка без кадра и без причины → `❌` : вёрстка не проверена, а не «проверена ручным

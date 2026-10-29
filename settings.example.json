@@ -420,7 +420,8 @@
     "revenuecat@RevenueCat": false,
     "context7@claude-plugins-official": false,
     "ast-index@ast-index-marketplace": true,
-    "playwright@claude-plugins-official": true
+    "playwright@claude-plugins-official": true,
+    "android-cli@android-cli-plugin": true
   },
   "extraKnownMarketplaces": {
     "firebase": {
@@ -445,6 +446,12 @@
       "source": {
         "source": "github",
         "repo": "defendend/Claude-ast-index-search"
+      }
+    },
+    "android-cli-plugin": {
+      "source": {
+        "source": "github",
+        "repo": "android/android-cli-plugin"
       }
     }
   },

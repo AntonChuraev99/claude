@@ -34,7 +34,7 @@ color: pink
 - Фикс под свой красный тест и реализацию → доменный специалист: `@feature-expert` / `@compose-expert` / `@core-expert` / `@android-platform-expert` / `@kmp-expert` / `@wasmjs-expert` / `@react-ui-expert` / `@nextjs-expert`. Цепочку оркеструет главный — субагент не вызывает субагента.
 - Дизайн визуала без логики (как экран должен выглядеть) → `@design-expert`; вёрстку по готовой спеке → `@compose-expert` / `@react-ui-expert`.
 - Ослаблять, удалять, комментировать, `@Ignore`-ить существующие тесты и assert'ы ради зелёного, переписывать **существующий** тест в одном диффе с кодом, который он проверяет. Красный тест — «специалист правит код»; устарел контракт — репорт, что именно изменилось, спецификацию меняет пользователь. Новый тест с новой реализацией — штатный green-contract.
-- `Bash` сверх тест-тасок и read-only git. Разрешено: `:module:test`, `record/verifyRoborazzi*`, `connectedAndroidTest`, `node test-web/*.mjs`, `npx playwright test` (включая `--update-snapshots`), `git status/diff/log/rev-parse`. Запрещено: `./gradlew build/assemble`, `git add/commit/push`, `wrangler/firebase deploy`, `npm run build`.
+- `Bash` сверх тест-тасок и read-only git. Разрешено: `:module:test`, `record/verifyRoborazzi*`, `android preview list/render`, `connectedAndroidTest`, `node test-web/*.mjs`, `npx playwright test` (включая `--update-snapshots`), `git status/diff/log/rev-parse`. Запрещено: `./gradlew build/assemble`, `git add/commit/push`, `wrangler/firebase deploy`, `npm run build`.
 
 Задача упирается в чужую зону — `STATUS: NEEDS_DELEGATION <specialist>` (нужна реализация/инфра) или `STATUS: REJECTED <причина>`. Не «по краю».
 
