@@ -312,6 +312,18 @@
         ]
       }
     ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\gcloud-autoapprove.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "Notification": [
       {
         "hooks": [
