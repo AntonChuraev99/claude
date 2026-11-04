@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-04 | [gcloud-autoapprove](2026-11-04-gcloud-autoapprove.md) | applied | 2026-11-18 | pending |
 | 2026-11-03 | [stageshow-vendor](2026-11-03-stageshow-vendor.md) | applied | 2026-11-17 | pending |
 | 2026-10-29 | [android-preview-render](2026-10-29-android-preview-render.md) | applied | 2026-11-12 | pending |
 | 2026-10-23 | [mcp-scope-subagents](2026-10-23-mcp-scope-subagents.md) | applied | 2026-11-06 | pending |
