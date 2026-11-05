@@ -99,7 +99,7 @@
 
 ### Дизайн-фаза
 
-Новый дизайн, редизайн, экран или UI-компонент → сначала `@design-expert` (DESIGN_SPEC с полем `Проверка` — кадры прототипа; поля нет — спроси). Compose-фича — `@feature-expert` (поведение) · `@compose-expert` (вёрстка) · `@core-expert` (core/*); цепочка и зоны — `rules/compose-feature-chain.md`. Косметика существующего — код-эксперт напрямую. Стор-креатив: messaging — `@marketing-expert`, визуал — `@design-expert`.
+Новый дизайн, редизайн, экран или UI-компонент → сначала `@design-expert` (DESIGN_SPEC с полем `Проверка` — кадры прототипа; поля нет — спроси). Compose-фича — `@feature-expert` (поведение) · `@compose-expert` (вёрстка) · `@core-expert` (core/*); цепочка и зоны — `rules/compose-feature-chain.md`. Косметика существующего — код-эксперт напрямую. 2+ варианта на выбор → скилл `design-picker`.
 
 ### Вёрстка — проверяется картинкой, а не пользователем
 

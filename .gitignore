@@ -166,6 +166,8 @@ lib/__pycache__/
 !/skills/screenshot-driven-ui/**
 !/skills/device-mirror/
 !/skills/device-mirror/**
+!/skills/design-picker/
+!/skills/design-picker/**
 !/skills/ui-demo-video/
 !/skills/ui-demo-video/**
 
