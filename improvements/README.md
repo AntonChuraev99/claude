@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-13 | [app-icon](2026-11-13-app-icon.md) | applied | 2026-11-27 | pending |
 | 2026-11-13 | [codex-imagegen](2026-11-13-codex-imagegen.md) | applied | 2026-11-27 | pending |
 | 2026-11-06 | [scout-no-turn-limit](2026-11-06-scout-no-turn-limit.md) | applied | 2026-11-20 | pending |
 | 2026-11-05 | [design-picker](2026-11-05-design-picker.md) | applied | 2026-11-19 | pending |

@@ -172,6 +172,8 @@ lib/__pycache__/
 !/skills/ui-demo-video/**
 !/skills/codex-imagegen/
 !/skills/codex-imagegen/**
+!/skills/app-icon/
+!/skills/app-icon/**
 
 # --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
 !/skills/claude-profiles/
@@ -190,6 +192,7 @@ lib/__pycache__/
 /review-rules/__pycache__/
 /agents/**/__pycache__/
 /hooks/__pycache__/
+/skills/app-icon/scripts/__pycache__/
 
 # --- 13. Belt-and-suspenders: hard-deny known sensitive files ----------------
 #  (already ignored by `*`, repeated here so a careless `!` rule above can
