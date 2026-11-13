@@ -170,6 +170,8 @@ lib/__pycache__/
 !/skills/design-picker/**
 !/skills/ui-demo-video/
 !/skills/ui-demo-video/**
+!/skills/codex-imagegen/
+!/skills/codex-imagegen/**
 
 # --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
 !/skills/claude-profiles/
