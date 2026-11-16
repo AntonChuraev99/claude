@@ -118,11 +118,32 @@ gh pr create --fill --base <trunk>
 # GitLab: squash + auto-merge (влить, когда pipeline станет зелёным)
 glab mr merge <iid> --squash --auto-merge --remove-source-branch --yes
 
-# GitHub: squash + auto-merge
-gh pr merge <num> --squash --auto --delete-branch
+# GitHub: squash; --auto — только по условию ниже
+gh pr merge <num> --squash --delete-branch
+gh pr merge <num> --squash --auto --delete-branch   # есть обязательные проверки и включён auto-merge
 ```
 
-Проверено 2026-08-10: glab 1.81.0, gh 2.88.1. `--when-pipeline-succeeds` в glab больше нет — GitLab 16.0 переименовал «merge when pipeline succeeds» в «auto-merge», флаг стал `--auto-merge`; при запущенном pipeline glab включает auto-merge по умолчанию, немедленный merge — `--auto-merge=false`. Стратегия по умолчанию — **squash**: одна задача = один коммит в транке, ревертится целиком.
+**`--auto` на GitHub — по условию, а не всегда.** Auto-merge работает, только если он включён в настройках репозитория и у PR есть обязательные проверки, которые ещё идут. Иначе GitHub отвечает `GraphQL: Auto merge is not allowed for this repository (enablePullRequestAutoMerge)`, и PR остаётся `OPEN` (так было в логах сессий). Решение — по двум фактам:
+
+```bash
+gh api repos/{owner}/{repo} -q .allow_auto_merge            # true | false — включён ли auto-merge
+gh pr checks <num> --required 2>&1 | grep -qiE "no (required )?checks reported" && echo NO_REQUIRED || echo HAS_REQUIRED
+```
+
+`gh repo view --json` поля auto-merge не отдаёт, поэтому — `gh api`. Код выхода `gh pr checks` здесь не годится: 8 — проверки ещё идут, 1 — упали или их нет вовсе; различает случаи только текст ответа: в репозитории без CI gh отвечает `no checks reported`, с CI без обязательных проверок — `no required checks reported` (первое проверено на gh 2.102.0, PR в репозитории харнесса). Сразу после `gh pr create` проверки может ещё не быть в списке: CI регистрирует их через несколько секунд. Поэтому `NO_REQUIRED` в первую минуту после создания PR — не факт: перепроверить через 30 с.
+
+| `allow_auto_merge` | проверки | команда |
+|---|---|---|
+| `true` | `HAS_REQUIRED` | `--auto` |
+| `false` | `HAS_REQUIRED` | дождаться зелёных проверок циклом из «Дождаться результата» по `gh pr checks <num> --required`, потом merge без `--auto` |
+| любое | `NO_REQUIRED` | без `--auto` |
+| пусто / `null` (нет прав admin на репозиторий) | `HAS_REQUIRED` | `--auto`; отказ `Auto merge is not allowed` → строка `false` |
+
+Отказ `base branch policy prohibits the merge` на merge без `--auto` — gh печатает его на любой `BLOCKED`. Сначала причина: `gh pr view <num> --json reviewDecision,mergeStateStatus`. `reviewDecision` = `REVIEW_REQUIRED` или `CHANGES_REQUESTED` → строка «Нужен approval» раздела «Отказы», повторно не мержить. Иначе проверки появились позже — та же таблица заново.
+
+**`--delete-branch` из worktree безопасен.** На gh 2.88 (2026-08-19) вызов из worktree падал на локальном шаге (`'main' is already used by worktree`), хотя merge на remote уже прошёл. На gh 2.102.0 в логах 80+ таких вызовов и ни одной этой ошибки. Ошибка вернулась → `gh pr view <num> --json state`: `MERGED` значит, что осталась только уборка, повторно не мержить.
+
+Проверено 2026-08-10: glab 1.81.0, gh 2.88.1; поведение `--delete-branch` и `--auto` — 2026-11-16, gh 2.102.0. `--when-pipeline-succeeds` в glab больше нет — GitLab 16.0 переименовал «merge when pipeline succeeds» в «auto-merge», флаг стал `--auto-merge`; при запущенном pipeline glab включает auto-merge по умолчанию, немедленный merge — `--auto-merge=false`. Стратегия по умолчанию — **squash**: одна задача = один коммит в транке, ревертится целиком.
 
 Pipeline в проекте отсутствует → те же команды без `--auto-merge` / `--auto` (иначе gh уходит в ожидание проверок, которых не будет).
 
@@ -170,50 +191,67 @@ until [ "$(glab mr view <iid> -F json | jq -r .state)" = "merged" ]; do sleep 15
 git push origin --delete <branch>   # если не сняли флагом --remove-source-branch / --delete-branch
 ```
 
-Дальше — **выход из worktree тулом, а не `git worktree remove`**: сессия стоит внутри каталога, и снести его, не сменив CWD, нельзя (на Windows каталог просто залочен).
+### 1. Освободить каталог — до `ExitWorktree`
+
+Windows не удаляет каталог, пока он — текущий каталог живого процесса или в нём открыт файл. Поэтому перед выходом:
+
+- `TaskStop` — каждая фоновая задача этой задачи (`run_in_background`: dev-server из 5.1b, watch-сборка, тест-раннер) и каждый `Monitor`;
+- браузер Playwright закрыт (`browser_close`), запущенный тест-сервер остановлен;
+- все субагенты вернулись: процесс субагента, который ещё работает, держит каталог.
+
+Замер по логам сессий (2026-11-16, 210 сессий с `ExitWorktree remove`): каталог оставался в 68% сессий с dev-server против 38% без него, в 66% с Playwright против 38%, в 8 из 10 с `Monitor`.
+
+### 2. Выйти тулом, а не `git worktree remove`
+
+Сессия стоит внутри каталога, и снести его, не сменив CWD, нельзя.
 
 | Как заводили worktree | Уборка |
 |---|---|
-| `EnterWorktree({name})` в этой сессии | `ExitWorktree({action: "remove"})` — возвращает CWD, сносит каталог и локальную ветку |
-| вошли по `EnterWorktree({path})` / worktree из прошлой сессии | `ExitWorktree({action: "keep"})`, затем из главного checkout `git worktree remove <путь>` и `git branch -d <branch>` (`-d`, не `-D`: проверяет, что ветка влита) |
+| `EnterWorktree({name})` в этой сессии | merge подтверждён → сразу `ExitWorktree({action: "remove", discard_changes: true})` — возвращает CWD, сносит каталог и локальную ветку |
+| вошли по `EnterWorktree({path})` / worktree из прошлой сессии | `ExitWorktree({action: "keep"})`, затем из главного checkout `git worktree remove <путь>` и `git branch -D <branch>` |
 
-`ExitWorktree` отказал с «commits not on the original branch» — после **squash**-merge это ожидаемо: squash кладёт в транк новый sha, коммитов ветки там буквально нет. Merge подтверждён (есть `Merged: <sha>`) → повторить с `discard_changes: true`. Merge не подтверждён → раздел «Отказы», ничего не сносить.
+**`discard_changes: true` — сразу, а не повтором после отказа.** После squash-merge коммитов ветки в транке нет: squash кладёт туда новый sha. Поэтому вызов без флага всегда получает «Worktree has N commits…» (101 лишний вызов в логах). Проверку «влито ли» выполняет `MERGED` / `merged` из шага «Дождаться результата», а не отказ тула. Два условия флага, оба обязательны:
 
-Отказ на незакоммиченных файлах → в worktree осталась несохранённая работа: `discard_changes` **не** ставить, показать `git status` пользователю. `git branch -d` отказывается → ветка не влита, merge не состоялся — раздел «Отказы».
+1. merge подтверждён (`MERGED` / `merged`);
+2. `git status --porcelain` в worktree пуст. Флаг снимает и отказ на незакоммиченных файлах, поэтому правка после merge (например, по просьбе пользователя) иначе пропадёт молча.
+
+Не выполнено первое → флаг не ставить, раздел «Отказы», ничего не сносить.
+
+**`git branch -D`, а не `-d`.** После squash `-d` отказывает всегда («not fully merged») по той же причине и ничего не доказывает. Влитость подтверждает `MERGED`.
+
+`git status --porcelain` непуст → в worktree осталась несохранённая работа: `discard_changes` **не** ставить, показать `git status` пользователю.
 
 ```bash
 git -C <main-checkout> checkout <trunk> && git -C <main-checkout> pull
 ```
 
-### Каталог после `ExitWorktree` — проверять всегда
+### 3. Каталог остался — работает хук, а не агент
 
-**Проверка идёт после КАЖДОГО `ExitWorktree({action: "remove"})`, в том числе когда он отчитался успехом,** и **не отменяется никаким гардом:** даже когда push, MR и merge пропущены, уборка worktree выполняется.
+**Уборка не отменяется никаким гардом:** даже когда push, MR и merge пропущены, worktree убирается.
 
-Причина скорлуп — норма Windows, а не отказ: тул снимает регистрацию в git и выносит содержимое, но сам каталог удалить не может, пока его держит открытый хендл сессии, которая только что из него вышла. Ответ «could not remove it — kept at …» — явный признак; молчаливый успех его не исключает. Убрать такой каталог штатной командой уже нельзя: `git worktree list` его не показывает, `git worktree remove` отвечает `is not a working tree`, а в `.git/worktrees/` нет записи для этого пути (каталог `.git/worktrees/` при этом может быть непуст — там лежат записи ДРУГИХ живых worktree, и их наличие скорлупу не опровергает).
+На Windows `ExitWorktree` в половине сессий отвечает «could not remove it — kept at …» (105 из 210 по логам на 2026-11-16), иногда оставляет каталог молча. Git о нём уже не знает: `git worktree list` его не показывает, `git worktree remove` отвечает `is not a working tree`. Убирать его руками из сессии не нужно — каталог ловит PostToolUse-хук `hooks/worktree-exit-watch.ps1` (matcher `ExitWorktree`):
+
+1. Запускает скрытый отложенный уборщик через WMI `Win32_Process.Create` — первым делом, чтобы долгий снимок не отменил его таймаутом хука. Уборщик вне job-объекта сессии и переживает её выход. Через 5 с, потом каждые 15 с, до 10 минут, пытается снести каталог по правилам `worktree-shell-sweep`: только каталог вне `git worktree list`; git не ответил — не трогать; непустой — только если `ExitWorktree` звали с `discard_changes: true` или локальной ветки нет; ветка жива — ждать дальше, пока агент её не удалит; `rmdir /s /q` не проходит внутрь junction. Итог — строка `event: cleanup` с `outcome: deleted | gone | gave_up | skipped_*` и `after_sec`; при `gave_up` — повторный снимок держателей.
+2. Ищет держателей: процессы, у которых текущий каталог (читается из PEB), исполняемый файл или командная строка внутри каталога, и процессы с открытыми файлами (Restart Manager по файлам, оставшимся в каталоге: тул уже снёс всё незалоченное). У каждого — цепочка родителей до сессии Claude и пометка «запущен этой сессией». Если в PATH есть `handle64.exe` / `handle.exe` (Sysinternals), добавляет его вывод с таймаутом 5 с.
+3. Пишет строку в `~/.claude/stats/worktree-holders.jsonl` (`event: exit`, `outcome: kept | kept_silent | removed`, держатели, `strong_holders` — найденные не только по командной строке, `files_left`, верхние записи каталога). Строка `removed` тоже пишется — по ней считается доля оставшихся каталогов.
+4. Отдаёт агенту в контекст список держателей.
+
+Что делает агент по сообщению хука:
+
+| сообщение | действие |
+|---|---|
+| держатель с пометкой `started by this session` | остановить его (`TaskStop` фоновой задачи или `Monitor`, закрыть браузер Playwright, `gradlew --stop` для демона Gradle); дальше каталог снесёт уборщик |
+| держатель без пометки (IDE, чужой dev-server, антивирус) | не убивать; в отчёт `Cleanup: worktree dir held by <name> — deferred cleanup` |
+| держатель не найден | ничего: вероятно, короткий хендл самой сессии, уборщик снесёт каталог через 5–20 с |
+| `Local branch … still exists` | merge подтверждён → `git -C <main-checkout> branch -D <branch>`; уборщик снесёт каталог на следующей попытке |
+
+Ручной `rmdir`, блок «👉 Сделай руками» и повторный `ExitWorktree` под оставшийся каталог не нужны. Уборщик сдался (`gave_up`) — каталог снесёт SessionStart-хук `worktree-shell-sweep` при следующем старте в этом репозитории. В отчёт — строка `Cleanup: … deferred (worktree-exit-watch)`.
+
+Диагностика по логу — какой держатель встречается чаще всего и сколько секунд проходит до удаления:
 
 ```bash
-P="<путь>"                      # прямые слэши: обратный слэш в конце съест кавычку
-if [ ! -d "$P" ]; then
-    echo "ok: shell already gone"
-elif [ -n "$(ls -A "$P")" ]; then
-    echo "STOP: not a shell — files inside:"; ls -A "$P"
-elif rmdir "$P"; then
-    echo "ok: shell removed: $P"
-else
-    echo "WARN: rmdir refused (handle still open): $P"
-fi
+python -c "import json,collections,os;L=[json.loads(l) for l in open(os.path.expanduser('~/.claude/stats/worktree-holders.jsonl'),encoding='utf-8')];print(collections.Counter(l['outcome'] for l in L));print(collections.Counter(h['name'] for l in L for h in (l.get('holders') or [])).most_common(10))"
 ```
-
-Ветвление, а не цепочка `&&`: однострочник молчит во всех исходах и возвращает одинаковый код на «каталога нет» и «каталог непустой» — то есть защитная ветка становится недостижимой, а отказ `rmdir` под `set -e` обрывает остаток шага, включая `git checkout <trunk>` выше.
-
-Четыре исхода и что с ними делать:
-
-| исход | что это значит | действие |
-|---|---|---|
-| каталога нет | тул справился сам | ничего, в отчёт `Cleanup: … removed` |
-| каталог пуст → `rmdir` прошёл | скорлупа убрана | то же |
-| каталог **непуст** | недоснесённый worktree: удаление оборвал залоченный файл (обычно `node_modules` под живым dev-server'ом) | из этой сессии не трогать и **не отдавать пользователю**. Локальной ветки `worktree-<name>` нет (её `ExitWorktree` снимает после проверок на незакоммиченное) → каталог снесёт `worktree-shell-sweep` на следующем старте. Ветка жива → хук каталог не тронет и назовёт в контексте: проверить ветку на невлитое, тогда решать |
-| `rmdir` отказал | хендл ещё держит эта же сессия | не ретраить и **не отдавать пользователю**: пустую скорлупу снесёт SessionStart-хук `worktree-shell-sweep` при следующем старте сессии в этом репозитории. В отчёт строка `Cleanup: … shell deferred to next session (worktree-shell-sweep)`; блок «👉 Сделай руками» под скорлупу не заводить |
 
 ## Отчёт
 
