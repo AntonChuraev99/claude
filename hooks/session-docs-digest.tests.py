@@ -94,6 +94,7 @@ def run_hook(cwd, source="startup", cols="100", env_extra=None, color=False):
     env["PYTHONIOENCODING"] = "utf-8"
     env.pop("CLAUDE_DIGEST_COLOR", None)
     env.pop("NO_COLOR", None)
+    env.pop("CLAUDE_HOME", None)                # the replay note keys on it
     if color is False:
         env["CLAUDE_DIGEST_COLOR"] = "0"
     if env_extra:
@@ -421,6 +422,60 @@ CASES = [
     case_active_statuses, case_malformed_input,
     case_no_title_fallback,
 ]
+
+
+def write_replay_index(root, overdue, future=0, extra_rows=()):
+    rows = ["| дата | slug | status | target_date | replay_status |", "|---|---|---|---|---|"]
+    for i in range(overdue):
+        rows.append("| 2026-01-01 | [o%d](o%d.md) | applied | %s | pending |" % (i, i, ago(5 + i)))
+    for i in range(future):
+        rows.append("| 2026-01-01 | [f%d](f%d.md) | applied | 2999-01-01 | pending |" % (i, i))
+    rows.extend(extra_rows)
+    write(os.path.join(root, "improvements", "README.md"), "# Index\n\n" + "\n".join(rows) + "\n")
+
+
+def case_replay_note(root):
+    note_re = "просроченных replay"
+    # 10 overdue + noise that must not count: future date, `none`, replayed, interim
+    noise = ("| 2026-01-01 | [n](n.md) | applied | none | pending |",
+             "| 2026-01-01 | [r](r.md) | applied | %s | replayed |" % ago(30),
+             "| 2026-01-01 | [i](i.md) | applied | %s | interim 2026-10-01 |" % ago(30))
+    write_replay_index(root, 10, future=3, extra_rows=noise)
+    env = {"CLAUDE_HOME": root}
+    code, parsed, _ = run_hook(root, env_extra=env)
+    check("replay: exit 0", code == 0)
+    check("replay: 10 overdue -> one screen line", note_re in (sysmsg(parsed) or "")
+          and "10 просроченных" in sysmsg(parsed) and "/agent-audit" in sysmsg(parsed), repr(parsed))
+    check("replay: also in context", "10 просроченных replay" in ctx(parsed), ctx(parsed))
+    # worktree under the harness root counts as the harness
+    wt = os.path.join(root, ".claude", "worktrees", "x")
+    os.makedirs(wt)
+    _, parsed, _ = run_hook(wt, env_extra=env)
+    check("replay: worktree under the harness -> line", note_re in (sysmsg(parsed) or ""), repr(parsed))
+    # with docs entries the line rides along with the digest
+    make_backlog(root, "b1.md", "Бэклог-пункт")
+    _, parsed, _ = run_hook(root, env_extra=env)
+    check("replay: digest + line together", "Бэклог-пункт" in (sysmsg(parsed) or "")
+          and note_re in (sysmsg(parsed) or ""), repr(parsed))
+    _, parsed, _ = run_hook(root, source="clear", env_extra=env)
+    check("replay: /clear summary names it", "replay 10" in (sysmsg(parsed) or ""), repr(parsed))
+    _, parsed, _ = run_hook(root, source="compact", env_extra=env)
+    check("replay: /compact screen quiet, context keeps it", sysmsg(parsed) is None and note_re in ctx(parsed), repr(parsed))
+    # below the threshold -> nothing
+    write_replay_index(root, 9, future=5)
+    _, parsed, _ = run_hook(wt, env_extra=env)
+    check("replay: 9 overdue -> silent", parsed is None, repr(parsed))
+    # outside the harness -> nothing, even with an index over the threshold
+    write_replay_index(root, 12)
+    other = tempfile.mkdtemp(prefix="digest-other-")
+    try:
+        _, parsed, _ = run_hook(other, env_extra=env)
+        check("replay: project outside the harness -> silent", parsed is None, repr(parsed))
+    finally:
+        shutil.rmtree(other, ignore_errors=True)
+
+
+CASES.append(case_replay_note)
 
 
 def main():

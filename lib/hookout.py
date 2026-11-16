@@ -3,11 +3,11 @@
 """Shared output shape for SessionStart hooks.
 
 Every hook that prints to the terminal goes through here, so the session start
-reads as one voice instead of N differently-framed blocks. There is deliberately
-no aggregating runner: the CLI already renders one `says:` block per hook, and a
-runner would turn six independent, fail-open hooks into a single point of
-failure (a crash would take `model-overlay` and `credentials-digest` down with
-the digest). Shared *format*, separate *processes*.
+reads as one voice instead of N differently-framed blocks. Since 2026-11-16 the
+SessionStart hooks run under two aggregators (hooks/session-start.js and
+hooks/session-start.py) for latency, each module in its own try so one failure
+does not take the others down; credentials-digest stays a separate process.
+See docs/decisions/session-hooks-shared-format.md, "Пересмотр 2026-11-16".
 
 House style for the visible part:
 

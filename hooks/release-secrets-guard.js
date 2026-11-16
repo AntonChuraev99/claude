@@ -37,7 +37,7 @@ const RELEASE_CMD = /(?:^|[\s;&|(\\/])gradlew(?:\.bat)?\b[^\n;|&]*?(?:^|[\s:])(?
 // Журнал deny и намеренных повторов — для replay записи improvements.
 const EVENTS = path.join(process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude'), 'stats', 'release-secrets-events.jsonl');
 
-// Тот же набор, что в skills/git-worktree-env (стандартный .worktreeinclude).
+// Стандартный набор gitignored-конфигов сборки (типовой .worktreeinclude Android-проекта).
 const DEFAULT_PATTERNS = [
     'secrets.properties', 'local.properties', 'local.defaults.properties', 'gradle.properties',
     'keystore.properties', 'signing.properties', '*.jks', '*.keystore',

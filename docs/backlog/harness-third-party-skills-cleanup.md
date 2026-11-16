@@ -50,7 +50,7 @@ keywords: [skills, plugins, mcp, warp, claude-in-chrome, cloudflare, caveman, an
    `prioritization-frameworks`, `ab-test-analysis` — `@product-expert` их не звал за 6 спавнов),
    `stop-slop`, `notion-api`, `notion-cli`, `accessibility`, `tailwind-design-system`.
 4. **Плагин `warp`** — только нативные уведомления Warp; 6 хуков, PostToolUse ≈0.5 с на каждый tool
-   call даже с локальным perf-патчем (`hooks/ensure-warp-perf-patch.js`) ≈ 8 ч ожидания за 16 дней.
+   call даже с локальным perf-патчем (`hooks/ensure-plugin-patches.js`) ≈ 8 ч ожидания за 16 дней.
    Собственный `notify.ps1` на Stop/Notification уже есть.
 5. **Chrome «by default»** (`claudeInChromeDefaultEnabled: true` в обоих профилях) — дока Anthropic:
    включённый по умолчанию Chrome грузит browser-тулы в каждую сессию; альтернатива — `claude --chrome`

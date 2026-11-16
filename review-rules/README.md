@@ -22,7 +22,7 @@
 ## Точки входа
 
 1. **`/task-gate`** (Definition of Done) — гонит L1, спавнит L2 при находке `static`, проходит L3. Главный канал, забыть нельзя.
-2. **git pre-commit hook** (только L1) — блокирует коммит на static HIGH. Ставится **в репозиторий проекта**, зовёт глобальный `run.py`. **Настраивается сам:** SessionStart-хук (`ensure-hook.ps1` → `run.py --ensure-hook`) при старте сессии ставит hook в git-root текущего проекта, если его нет. Безопасно — никогда не трогает `~/.claude`, не клобберит чужой pre-commit (только флагует), opt-out `REVIEW_RULES_NO_AUTOHOOK=1`. Проверка статуса:
+2. **git pre-commit hook** (только L1) — блокирует коммит на static HIGH. Ставится **в репозиторий проекта**, зовёт глобальный `run.py`. **Настраивается сам:** SessionStart-хук (`hooks/session-start.py` → `run.py --ensure-hook`) при старте сессии ставит hook в git-root текущего проекта, если его нет. Безопасно — никогда не трогает `~/.claude`, не клобберит чужой pre-commit (только флагует), opt-out `REVIEW_RULES_NO_AUTOHOOK=1`. Проверка статуса:
    ```bash
    python ~/.claude/review-rules/run.py --check-hook    # установлен / нет / чужой
    python ~/.claude/review-rules/run.py --ensure-hook   # поставить вручную (то же, что делает SessionStart)

@@ -167,7 +167,7 @@ function withCommand(payload, command) {
 }
 
 // CLAUDE_HOME override — то же соглашение, что в hooks/claude-md-size-guard.py и
-// hooks/ensure-bash-discipline-registered.ps1. Без него префильтр в worktree
+// hooks/ensure-bash-discipline-registered.js. Без него префильтр в worktree
 // звал бы guard из ~/.claude, то есть НЕИЗМЕНЁННУЮ копию: интеграционный прогон
 // зеленел бы, ничего не говоря о правке guard'а рядом с ним.
 const CLAUDE_DIR = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude');
@@ -481,8 +481,8 @@ function emitDeny(reason) {
 
 // Тул Grep судится тем же модулем, но в ЭТОМ же процессе: отдельный хук на
 // matcher "Grep" стоил бы второй спавн на каждый поиск (на Windows это заметно —
-// docs/solutions/hook-spawn-cost-windows-2026-08-19.md), а плагинная напоминалка
-// ast-index уже висит там своим bash-скриптом и не блокирует.
+// docs/solutions/hook-spawn-cost-windows-2026-08-19.md). Плагинную напоминалку
+// ast-index (bash + jq на каждый Grep) с 2026-11-16 снимает hooks/ensure-plugin-patches.js.
 function renderGrepDeny(payload) {
     const discipline = loadDiscipline();
     if (!discipline || !discipline.grepVerdict) return false;

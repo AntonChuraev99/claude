@@ -48,11 +48,15 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
+# PyYAML is needed only to load the rules. A missing module is a tool/setup error
+# (exit 3 — distinct from exit 1, a finding; a hook must NOT block on it), raised
+# where rules are needed: --ensure-hook / --check-hook work without it, and
+# --stop-gate turns it into a warning (see stop_gate).
 try:
     import yaml
 except ImportError:
-    sys.stderr.write("review-rules: PyYAML required (pip install pyyaml)\n")
-    sys.exit(3)  # tool/setup error — distinct from exit 1 (finding); hook must NOT block
+    yaml = None
+YAML_MISSING = "review-rules: PyYAML required (pip install pyyaml)\n"
 
 RULES_DIR = Path(__file__).resolve().parent
 SEVERITY_ORDER = {"high": 3, "medium": 2, "low": 1}
@@ -546,6 +550,156 @@ def ensure_hook(start: str | None, explicit: bool = False) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- stop hook
+# Port of stop-gate.ps1 (2026-11-16): the Stop hook ran pwsh -> python on EVERY agent
+# stop (2236 runs in 30 days, 4 unique blocks; the same static-HIGH also fail the
+# pre-commit hook). Now one python process, and a stop whose working-tree state
+# (`git diff HEAD` + untracked list) equals the previous stop of the SAME session
+# skips the review entirely: same diff -> same verdict, and a blocking verdict on it
+# was already shown once (block-once, as with the ack marker).
+#
+# Behaviour (decided 2026-06-29, unchanged):
+#   - static-HIGH finding -> BLOCK the stop ONCE per unique working-tree state (diff
+#     hash ack marker in <git-dir>/review-rules-ack);
+#   - runtime findings -> stderr, never block;
+#   - tool/setup error -> warn on stderr, never block (fail-open).
+# Opt out: REVIEW_RULES_NO_STOPGATE=1. Never runs in ~/.claude / ~/.claude-work.
+# State of «last stop»: %TEMP%/claude-stop-gate/<sha1(session_id)>.json,
+# override REVIEW_RULES_STOPGATE_STATE (tests).
+
+STOP_LOG = Path.home() / ".claude" / "stats" / "review-rules-events.jsonl"
+
+
+def _stop_state_file(session_id: str) -> Path:
+    base = os.environ.get("REVIEW_RULES_STOPGATE_STATE")
+    root = Path(base) if base else Path(os.environ.get("TEMP") or os.environ.get("TMPDIR") or "/tmp") / "claude-stop-gate"
+    return root / (hashlib.sha1((session_id or "nosession").encode("utf-8")).hexdigest()[:20] + ".json")
+
+
+def _read_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _tree_state(dhash_src: str, untracked: list[str]) -> str:
+    """Hash of the working-tree state: `git diff HEAD` plus each untracked file's
+    name, size and mtime. The plain diff hash lists untracked NAMES only, so an edit
+    inside an untracked file kept the hash — a skip keyed on it would let a new
+    static-HIGH in that file pass a later stop. stat() is cheap; content is not read."""
+    parts = [dhash_src]
+    for name in sorted(untracked):
+        try:
+            st = os.stat(name)
+            parts.append(f"{name}\0{st.st_size}\0{st.st_mtime_ns}")
+        except OSError:
+            parts.append(f"{name}\0-")
+    return hashlib.sha1("\n".join(parts).encode("utf-8", "replace")).hexdigest()[:16]
+
+
+def _ack_marker(root: Path) -> Path:
+    """<git-dir>/review-rules-ack. In a linked worktree `.git` is a FILE, so the
+    marker cannot live under <root>/.git — stop-gate.ps1 wrote there, failed
+    silently and re-blocked the same diff on every stop in a worktree."""
+    gd = git(["rev-parse", "--git-dir"]).strip()
+    p = Path(gd) if gd else root / ".git"
+    if not p.is_absolute():
+        p = root / p
+    return p / "review-rules-ack"
+
+
+def stop_gate() -> int:
+    if os.environ.get("REVIEW_RULES_NO_STOPGATE") == "1":
+        return 0
+    try:
+        raw = sys.stdin.read()
+        payload = json.loads(raw) if raw and raw.strip() else {}
+    except (OSError, ValueError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    cwd = payload.get("cwd")
+    if cwd and os.path.isdir(cwd):
+        os.chdir(cwd)
+
+    root = git_root(None)
+    if root is None or is_claude_home(root):
+        return 0
+
+    tracked_diff = git(["diff", "HEAD"])
+    untracked_list = [f for f in git(["ls-files", "--others", "--exclude-standard"]).splitlines() if f.strip()]
+    # diff_hash()'s formula, for the event log (correlates with pre-commit / L2 events)
+    dhash = hashlib.sha1((tracked_diff + "\n".join(untracked_list) + ("\n" if untracked_list else ""))
+                         .encode("utf-8", "replace")).hexdigest()[:8]
+    tree = _tree_state(tracked_diff, untracked_list)
+    state_file = _stop_state_file(str(payload.get("session_id") or ""))
+    state = _read_json(state_file)
+    key = str(root).lower()
+    if state.get(key) == tree:
+        return 0  # same working tree as the previous stop of this session
+
+    def remember() -> None:
+        state[key] = tree
+        try:
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state_file.write_text(json.dumps(state), encoding="utf-8")
+        except OSError:
+            pass
+
+    if yaml is None:
+        sys.stderr.write("review-rules: L1 tool error (setup) — not blocking\n")
+        return 0
+
+    marker = _ack_marker(root)
+    files = changed_files(False, None)
+    if not files:
+        results: list[dict] = []
+    else:
+        rules = load_rules(None)
+        added = added_lines(False, None)
+        results = review(files, rules, False, True, added, set(untracked_list))
+        write_log(str(STOP_LOG), "stop", results, files, blocking(results), dhash)
+
+    high = [r for r in results if r["mode"] == "static" and r["severity"] == "high"]
+    if high:
+        # The ack is keyed on the tree state, not the plain diff hash: an edit inside
+        # an untracked file is a new state and is judged (and can block) anew.
+        try:
+            acked = marker.read_text(encoding="utf-8").strip() == tree
+        except OSError:
+            acked = False
+        remember()
+        if acked:
+            sys.stderr.write(f"review-rules: {len(high)} static-HIGH already surfaced this diff — pass\n")
+            return 0
+        try:
+            marker.write_text(tree, encoding="utf-8")
+        except OSError:
+            pass
+        lines = "\n".join(f"  - [{r['area']}/{r['id']}] {r['file']}:{r['line']} -> {r['fix']}" for r in high)
+        reason = (
+            f"review-rules L1 found {len(high)} static-HIGH recurring-bug finding(s) (added lines) in this diff:\n"
+            f"{lines}\n\nThese are bugs that compile green but break in release/web/on device. Fix them, or — if a "
+            "finding is intentional — spawn @bug-pattern-reviewer (L2) to judge it and then proceed. "
+            "(They also fail the pre-commit hook.)"
+        )
+        sys.stdout.write(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
+        return 0
+
+    # no blockers: drop the marker, surface non-blocking red-flags
+    try:
+        marker.unlink()
+    except OSError:
+        pass
+    remember()
+    rt = [r for r in results if r["mode"] == "runtime"]
+    if rt:
+        sys.stderr.write(f'review-rules: {len(rt)} runtime red-flag(s) (non-blocking) — run: python "{Path(__file__).resolve()}" --changed-only\n')
+    return 0
+
+
 # ---------------------------------------------------------------- cli
 def main() -> int:
     ap = argparse.ArgumentParser(description="L1 static gate for bug-pattern rules")
@@ -564,6 +718,8 @@ def main() -> int:
                     help="all detector rules flag only newly added lines (diff -U0), not legacy code")
     ap.add_argument("--log", metavar="PATH",
                     help="append an L1 event (JSONL) to PATH for effectiveness tracking")
+    ap.add_argument("--stop-gate", action="store_true",
+                    help="Stop hook: L1 on the working tree, block once per diff (stdin = hook JSON)")
     ap.add_argument("--entry", default="manual",
                     help="entry-point tag for the log (stop|precommit|endsession|manual); "
                          "'endsession' is the historic label used by /task-gate — do not rename")
@@ -575,6 +731,15 @@ def main() -> int:
         return ensure_hook(args.ensure_hook)
     if args.install_hook is not None:
         return ensure_hook(args.install_hook, explicit=True)
+    if args.stop_gate:
+        try:
+            return stop_gate()
+        except Exception as exc:  # a Stop hook must never fail the stop
+            sys.stderr.write(f"review-rules: L1 stop-gate error ({exc}) — not blocking\n")
+            return 0
+    if yaml is None:
+        sys.stderr.write(YAML_MISSING)
+        return 3
 
     files = changed_files(args.staged, args.base)
     if not files:

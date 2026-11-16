@@ -65,7 +65,7 @@ lib/__pycache__/
 !/review-rules/
 !/review-rules/**
 
-# --- 7b. Per-model behavioral overlays (injected by hooks/model-overlay.ps1) -
+# --- 7b. Per-model behavioral overlays (injected by hooks/model-overlay.js) -
 !/model-overlays/
 !/model-overlays/**
 

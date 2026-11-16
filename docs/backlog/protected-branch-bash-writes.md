@@ -11,7 +11,7 @@ keywords: [protected-branch, hooks, PreToolUse, bash, git, worktree, MR, credent
 
 ## Итог 2026-09-23
 
-- **П.4 (детектор деградации) — сделан.** Fail-open `catch` в `hooks/protected-branch-guard.ps1` и внешний fail-open `catch` в `hooks/credentials-guard.ps1` пишут строку `<время>\t<хук>\t<сообщение>` в `stats/hook-degraded.log` (вне git). Пустой журнал означает «исключений внутри хука не было». Не видны по-прежнему: отсутствие `pwsh`, таймаут хука и нетерминирующие ошибки командлетов под `$ErrorActionPreference = 'SilentlyContinue'` (например, нечитаемый реестр веток — хук молча берёт дефолт `main/master/develop`).
+- **П.4 (детектор деградации) — сделан.** Fail-open `catch` в `hooks/protected-branch-guard.js` и внешний fail-open `catch` в `hooks/credentials-guard.ps1` пишут строку `<время>\t<хук>\t<сообщение>` в `stats/hook-degraded.log` (вне git). Пустой журнал означает «исключений внутри хука не было». Не видны по-прежнему: отсутствие `pwsh`, таймаут хука и нетерминирующие ошибки командлетов под `$ErrorActionPreference = 'SilentlyContinue'` (например, нечитаемый реестр веток — хук молча берёт дефолт `main/master/develop`).
 - **П.1–2 (запись и история через Bash) — не делаем.** За 50 дней ни одного замеченного случая правки в транке мимо хука (триггер записи не сработал); парсер Bash-команд — отдельный хук со своей матрицей ложных срабатываний. Ограничение уже названо в `CLAUDE.md` («сверять `git -C <main> status` вручную»). Вернуться только по инциденту.
 - **П.3 (фоновые субагенты)** — закрыт процедурно, как описано ниже; хука не будет.
 - **Хвост credentials-guard:** логирование деградации — сделано (тот же журнал). Привязка глагола к инструменту — не делаем: heredoc-строка `firebase deploy` в начале строки блокировалась бы и после правки, а сужение детекта в security-хуке без инцидента — риск пропустить деплой ради редкой ложной блокировки. `break` внутри `switch` — выходит из `switch`, не из `foreach`; поведение верное, не баг.
@@ -20,7 +20,7 @@ keywords: [protected-branch, hooks, PreToolUse, bash, git, worktree, MR, credent
 
 ## Что уже закрыто (2026-08-04)
 
-`hooks/protected-branch-guard.ps1` перехватывает `Write`/`Edit`/`MultiEdit`/`NotebookEdit` (matcher `(?i)^(write|.*edit)$`) и возвращает `deny` — с 2026-09-18 только на первую правку агента в данной ветке репозитория, повтор проходит с напоминанием (`improvements/2026-09-18-branch-guard-deny-once.md`). `/commit` шаг 0 и условие (6) auto-commit в `/task-gate` не дают закоммитить в транк. Полностью: `improvements/archive/2026-08-04-protected-branch-guard.md`.
+`hooks/protected-branch-guard.js` перехватывает `Write`/`Edit`/`MultiEdit`/`NotebookEdit` (matcher `(?i)^(write|.*edit)$`) и возвращает `deny` — с 2026-09-18 только на первую правку агента в данной ветке репозитория, повтор проходит с напоминанием (`improvements/2026-09-18-branch-guard-deny-once.md`). `/commit` шаг 0 и условие (6) auto-commit в `/task-gate` не дают закоммитить в транк. Полностью: `improvements/archive/2026-08-04-protected-branch-guard.md`.
 
 ## Что осталось открытым
 

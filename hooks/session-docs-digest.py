@@ -6,6 +6,10 @@ Sources
     docs/active/*.md   «в работе»  — markdown header, `**Статус:**` not Done/Complete/…
     docs/todos/*.md    «отложено»  — YAML frontmatter `status: deferred`
     docs/backlog/*.md  «бэклог»    — YAML frontmatter `status: backlog`
+    improvements/README.md         — only in the harness repo (CLAUDE_HOME or this
+                                     script's parent, worktrees under it included):
+                                     one line when ≥10 index rows are `pending`
+                                     past their target_date
 
 Output is two different things for two different readers:
 
@@ -275,6 +279,50 @@ def index_drift(root, folder, entries):
     return [e["file"] for e in entries if e["file"] not in listed]
 
 
+# Index row of improvements/README.md:
+# | date | [slug](file) | status | target_date | replay_status |
+REPLAY_ROW = re.compile(r"^\|\s*\d{4}-\d{2}-\d{2}\s*\|[^|]*\|[^|]*\|\s*([^|]*?)\s*\|\s*([^|]*?)\s*\|\s*$")
+REPLAY_THRESHOLD = 10
+
+
+def harness_root():
+    return os.environ.get("CLAUDE_HOME") or os.path.dirname(HERE)
+
+
+def overdue_replays(cwd):
+    """Harness only (its checkout or a worktree under it): count of index rows with
+    replay_status `pending` and a target_date in the past; None elsewhere.
+
+    One read of improvements/README.md. Replays pile up silently otherwise — the
+    index had dozens overdue when this was added (2026-11-16)."""
+    root = os.path.normcase(os.path.abspath(harness_root()))
+    here = os.path.normcase(os.path.abspath(cwd))
+    if here != root and not here.startswith(root.rstrip(os.sep) + os.sep):
+        return None
+    try:
+        with io.open(os.path.join(root, "improvements", "README.md"), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return None
+    today = date.today()
+    count = 0
+    for line in text.splitlines():
+        m = REPLAY_ROW.match(line)
+        if not m or m.group(2).strip().lower() != "pending":
+            continue
+        target = parse_date(m.group(1))        # `none` and other non-dates do not count
+        if target and target < today:
+            count += 1
+    return count
+
+
+def replay_note(cwd):
+    n = overdue_replays(cwd)
+    if n is None or n < REPLAY_THRESHOLD:
+        return None
+    return "improvements: %d просроченных replay — пакетный разбор `/agent-audit`" % n
+
+
 # --------------------------------------------------------------------------
 # rendering — the user-facing block
 # --------------------------------------------------------------------------
@@ -483,14 +531,17 @@ def main():
     cwd = cwd_of(payload)
     source = (payload.get("source") or "").lower()
 
+    note = replay_note(cwd)
     docs = os.path.join(cwd, "docs")
-    if not any(os.path.isdir(os.path.join(docs, d)) for d in ("active", "todos", "backlog")):
-        return 0
-
-    active = collect_active(cwd)
-    todos = collect_todos(cwd)
-    backlog = collect_backlog(cwd)
+    active = todos = backlog = []
+    if any(os.path.isdir(os.path.join(docs, d)) for d in ("active", "todos", "backlog")):
+        active = collect_active(cwd)
+        todos = collect_todos(cwd)
+        backlog = collect_backlog(cwd)
     if not (active or todos or backlog):
+        if note:                                # nothing else to show: the note alone
+            emit(system_message=None if source == "compact" else dtrunc("%s %s" % (WARN, note), width()),
+                 context="ВНИМАНИЕ: %s" % note)
         return 0
 
     hot = sum(1 for e in todos if e["hot"])
@@ -517,6 +568,7 @@ def main():
     except ValueError:
         budget = DEFAULT_BUDGET
 
+    notes = warns + ([note] if note else [])
     if source == "compact":
         screen = None                          # mid-task: the screen stays quiet
     elif source == "clear":
@@ -525,13 +577,15 @@ def main():
         line = "%s · %s" % (project, counts)
         if warns:
             line += " · %s INDEX" % WARN
+        if note:
+            line += " · %s replay %d" % (WARN, overdue_replays(cwd) or 0)
         screen = dtrunc(line, w)
     else:                                       # startup, resume, unknown
-        screen = render_screen(project, sections, warns, max(4, budget), w, use_color())
+        screen = render_screen(project, sections, notes, max(4, budget), w, use_color())
 
     # context is always complete: /clear and /compact are exactly when the model
     # has just lost this list
-    emit(system_message=screen, context=render_context(sections, warns))
+    emit(system_message=screen, context=render_context(sections, notes))
     return 0
 
 

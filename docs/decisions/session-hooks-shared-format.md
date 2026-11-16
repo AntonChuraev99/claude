@@ -1,13 +1,13 @@
 ---
 date: 2026-08-10
-status: accepted
+status: superseded-in-part
 area: hooks
 keywords: [SessionStart, hooks, aggregator, output-format, fail-open, systemMessage, additionalContext]
 ---
 
 # ADR: общий формат вывода SessionStart-хуков вместо агрегирующего раннера
 
-**Статус:** Accepted · 2026-08-10
+**Статус:** Partially Done · 2026-08-10, раздел «Почему не раннер» пересмотрен 2026-11-16 (см. в конце)
 
 ## Контекст
 
@@ -54,3 +54,10 @@ keywords: [SessionStart, hooks, aggregator, output-format, fail-open, systemMess
 - Пересмотреть решение стоит, если печатающих хуков станет больше трёх ИЛИ появится
   возможность агрегировать плагинные хуки. Тогда сравнивать заново — с той же ценой в виде
   единой точки отказа.
+
+## Пересмотр 2026-11-16 — агрегация ради латентности
+
+Формат остаётся. Запуск сведён в два агрегатора — `hooks/session-start.js` и
+`hooks/session-start.py`: десять хуков (шесть на pwsh) дали 157 таймаутов за 30 дней. Довод 3
+закрыт `try` на каждый модуль; `credentials-digest` и `worktree-shell-sweep` — отдельные
+процессы. Цена — довод 4. Замеры — `improvements/2026-11-16-hooks-latency-2026-11.md`.

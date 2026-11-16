@@ -1,4 +1,4 @@
-<!-- Injected by hooks/model-overlay.ps1 as SessionStart additionalContext when the active
+<!-- Injected by hooks/model-overlay.js as SessionStart additionalContext when the active
      model is Opus 5.5 (claude-opus-5-5*), and as the fallback when the SessionStart payload
      carries no model and no cached one (e.g. /clear). Model-neutral policy stays in the
      global CLAUDE.md; this file holds ONLY the Opus-5.5 behavioral calibration.
