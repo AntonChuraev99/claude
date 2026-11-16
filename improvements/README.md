@@ -20,7 +20,7 @@ status: applied | reverted | partially-applied
 goal: <одна строка>
 metric: <что меряем — hit rate / cost per task / итерации>
 baseline_date: YYYY-MM-DD
-target_date: YYYY-MM-DD  # когда replay-аудит
+target_date: YYYY-MM-DD | none  # когда replay-аудит; none — у правки нет метрики
 ---
 
 # <Название>
@@ -46,11 +46,13 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 ## Как использовать
 
+Запись нужна правке, которая меняет поведение агента. Опечатки, ссылки, форматирование, удаление мёртвого и перенос текста без смены смысла идут без записи.
+
 1. Перед применением правки — создать файл, заполнить всё **до** Replay.
 2. Применить правки в указанные файлы.
-3. Через 7–14 дней (или после накопления N задач) — запустить `/agent-audit` и заполнить **Replay**.
-4. Гипотеза не подтвердилась → `status: reverted`, откатить.
-5. Подтвердилась → `status: applied`, оставить и зафиксировать как практику.
+3. Метрика считается скриптом или по транскриптам — поставить `target_date` через 7–14 дней. Метрики нет — `target_date: none`, `replay_status: n/a`: такую запись не реплеят.
+4. Replay — пакетом через `/agent-audit`, когда просроченных набралось 10 и больше (SessionStart-дайджест в репозитории харнесса показывает их число). Заполнить **Replay** у каждой.
+5. Гипотеза не подтвердилась → `status: reverted`, откатить. Подтвердилась → `status: applied`, оставить как практику.
 
 ## Публикация и анти-утечка
 
@@ -68,10 +70,11 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 ## Index — публичные улучшения (DESC by date)
 
-Колонки: дата создания файла, slug (ссылка на сам improvement-файл), `status` (frontmatter), `target_date` (когда делать replay-аудит), `replay_status` (`pending` = шаблонные placeholders / `interim <дата>` = есть промежуточный срез / `replayed` = заполнено реальными метриками / `superseded` / `reverted` / `deferred`).
+Колонки: дата создания файла, slug (ссылка на сам improvement-файл), `status` (frontmatter), `target_date` (когда делать replay-аудит), `replay_status` (`pending` = шаблонные placeholders / `interim <дата>` = есть промежуточный срез / `replayed` = заполнено реальными метриками / `n/a` = метрики нет / `superseded` / `reverted` / `deferred`).
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-16 | [harness-review-claude-md](2026-11-16-harness-review-claude-md.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [testtag-resource-id](2026-11-16-testtag-resource-id.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [android-tree-nav](2026-11-16-android-tree-nav.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [worktree-exit-holders](2026-11-16-worktree-exit-holders.md) | applied | 2026-11-30 | pending |
