@@ -74,6 +74,7 @@ target_date: YYYY-MM-DD | none  # когда replay-аудит; none — у пр
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-16 | [task-gate-trim](2026-11-16-task-gate-trim.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [harness-review-claude-md](2026-11-16-harness-review-claude-md.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [testtag-resource-id](2026-11-16-testtag-resource-id.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [android-tree-nav](2026-11-16-android-tree-nav.md) | applied | 2026-11-30 | pending |

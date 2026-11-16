@@ -99,8 +99,8 @@ Microsoft, официальный маркетплейс Anthropic) и скил�
 (22 вызова скилла).
 
 `skillOverrides: "off"` работает по-разному (проверено 2026-09-03 в двух сессиях, главной и
-субагентной): **короткий ключ прячет user-скилл из `~/.claude/skills` целиком** — `git-worktree-env`
-и 7 Cloudflare-копий (`cloudflare`, `wrangler`, `durable-objects`, `sandbox-sdk`, `web-perf`,
+субагентной): **короткий ключ прячет user-скилл из `~/.claude/skills` целиком** — тогда так были спрятаны
+`git-worktree-env` (удалён 2026-11-16) и 7 Cloudflare-копий (`cloudflare`, `wrangler`, `durable-objects`, `sandbox-sdk`, `web-perf`,
 `workers-best-practices`, `agents-sdk`) в листинге отсутствуют; **prefixed-ключ плагинного скилла
 видимого эффекта не даёт** — `amplitude:*`, `RevenueCat:*` с `"off"` оставались в листинге name-only,
 как и не выключенные соседи за бюджетом. Вывод: неиспользуемый user-скилл можно спрятать обратимо
