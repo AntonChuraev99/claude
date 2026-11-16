@@ -1,4 +1,4 @@
-<!-- Injected by hooks/model-overlay.ps1 as SessionStart additionalContext when the active
+<!-- Injected by hooks/model-overlay.js as SessionStart additionalContext when the active
      model is Opus 4.x — AND as the fallback for any model without its own overlay
      (Sonnet, Haiku, unknown ids). An absent model goes to opus-5-5.md (cache, then newest).
      Opus 5 has its own overlay (opus-5.md): несколько правил там инвертированы.

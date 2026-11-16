@@ -17,10 +17,17 @@ try {
 } catch { }
 
 # ---------- Debug log (raw .NET write to guarantee UTF-8 regardless of existing file BOM) ----------
+# Trace lines only with CLAUDE_NOTIFY_DEBUG=1: written on every Stop and Notification,
+# the log had grown to 16.8 MB with no reader (2026-11-16). Failure lines (error /
+# failed) are always kept, and the file rotates to .1 past 1 MB.
 $logFile = "$env:USERPROFILE\.claude\notify_debug.log"
+$debugTrace = $env:CLAUDE_NOTIFY_DEBUG -eq '1'
 function Write-DebugLog([string]$msg) {
+    if (-not $debugTrace -and $msg -notmatch '(?i)error|failed') { return }
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$EventType] $msg`r`n"
     try {
+        $fi = [System.IO.FileInfo]::new($logFile)
+        if ($fi.Exists -and $fi.Length -gt 1MB) { Move-Item -LiteralPath $logFile -Destination "$logFile.1" -Force }
         [System.IO.File]::AppendAllText($logFile, $line, [System.Text.Encoding]::UTF8)
     } catch { }
 }

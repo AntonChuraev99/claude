@@ -1,4 +1,4 @@
-<!-- Injected by hooks/model-overlay.ps1 as SessionStart additionalContext when the active
+<!-- Injected by hooks/model-overlay.js as SessionStart additionalContext when the active
      model is Fable (hook matches `*fable*`, so a Fable 5 session gets this file too — 5 is
      superseded, no separate overlay). Calibrated for Fable 5.1 on 2026-09-03: Anthropic
      migration guide (bundled `claude-api` skill, Claude Code 2.1.259 — `shared/model-migration.md`

@@ -187,5 +187,127 @@ class StatsPrecision(unittest.TestCase):
         self.assertEqual(p30["static"], {"conf": 1, "dism": 0})
 
 
+class StopGate(unittest.TestCase):
+    """--stop-gate (port of stop-gate.ps1): block once per diff, skip a repeated diff
+    within one session, never block on a clean tree or on setup errors."""
+
+    RULE = {"id": "synthetic-high", "area": "synthetic", "mode": "static", "severity": "high",
+            "globs": ["**/*.kt"], "detect": {"type": "grep", "has": r"BADCALL\("}, "fix": "drop BADCALL"}
+
+    def setUp(self):
+        import io
+        import json
+        import subprocess
+        self.io, self.json, self.sp = io, json, subprocess
+        self._cwd = os.getcwd()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._tmp.name) / "repo"
+        self.repo.mkdir()
+        g = lambda *a: subprocess.run(["git", "-C", str(self.repo), *a], capture_output=True, check=True)
+        g("init", "-q", "-b", "main")
+        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init")
+        self.git = g
+        os.environ["REVIEW_RULES_STOPGATE_STATE"] = str(Path(self._tmp.name) / "state")
+        os.environ.pop("REVIEW_RULES_NO_STOPGATE", None)
+        self._load, self._log = rr.load_rules, rr.STOP_LOG
+        self.calls = 0
+
+        def load(area):
+            self.calls += 1
+            return [dict(self.RULE)]
+        rr.load_rules = load
+        rr.STOP_LOG = Path(self._tmp.name) / "events.jsonl"
+
+    def tearDown(self):
+        rr.load_rules, rr.STOP_LOG = self._load, self._log
+        os.environ.pop("REVIEW_RULES_STOPGATE_STATE", None)
+        os.chdir(self._cwd)
+        self._tmp.cleanup()
+
+    def stop(self, session="s1", cwd=None):
+        old_in, old_out = sys.stdin, sys.stdout
+        sys.stdin = self.io.StringIO(self.json.dumps({"session_id": session, "cwd": str(cwd or self.repo)}))
+        sys.stdout = buf = self.io.StringIO()
+        try:
+            code = rr.stop_gate()
+        finally:
+            sys.stdin, sys.stdout = old_in, old_out
+        out = buf.getvalue().strip()
+        return code, (self.json.loads(out) if out else None)
+
+    def test_clean_tree_passes(self):
+        self.assertEqual(self.stop(), (0, None))
+
+    def test_high_blocks_once_then_passes(self):
+        (self.repo / "A.kt").write_text("fun f() { BADCALL() }\n", encoding="utf-8")
+        code, out = self.stop()
+        self.assertEqual(code, 0)
+        self.assertEqual(out["decision"], "block")
+        self.assertIn("synthetic/synthetic-high", out["reason"])
+        self.assertIn("drop BADCALL", out["reason"])
+        # same diff, same session -> skipped before the review runs
+        calls = self.calls
+        self.assertEqual(self.stop(), (0, None))
+        self.assertEqual(self.calls, calls, "repeated diff must not re-run the review")
+        # same diff, another session -> review runs, ack marker lets it pass
+        self.assertEqual(self.stop(session="s2"), (0, None))
+        self.assertEqual(self.calls, calls + 1)
+
+    def test_edit_inside_untracked_file_is_judged_again(self):
+        # Regression guard: the plain diff hash lists untracked NAMES only. A clean stop,
+        # then a static-HIGH typed into the same untracked file, must still block.
+        (self.repo / "A.kt").write_text("fun f() { ok() }\n", encoding="utf-8")
+        self.assertEqual(self.stop(), (0, None))
+        (self.repo / "A.kt").write_text("fun f() { ok(); BADCALL() }\n", encoding="utf-8")
+        code, out = self.stop()
+        self.assertEqual((code, out and out["decision"]), (0, "block"))
+
+    def test_changed_diff_is_judged_again(self):
+        (self.repo / "A.kt").write_text("fun f() { BADCALL() }\n", encoding="utf-8")
+        self.assertEqual(self.stop()[1]["decision"], "block")
+        (self.repo / "B.kt").write_text("fun g() { BADCALL() }\n", encoding="utf-8")
+        self.assertEqual(self.stop()[1]["decision"], "block")
+
+    def test_fixed_diff_clears_the_marker(self):
+        (self.repo / "A.kt").write_text("fun f() { BADCALL() }\n", encoding="utf-8")
+        self.stop()
+        marker = self.repo / ".git" / "review-rules-ack"
+        self.assertTrue(marker.exists())
+        (self.repo / "A.kt").write_text("fun f() { ok() }\n", encoding="utf-8")
+        self.assertEqual(self.stop(), (0, None))
+        self.assertFalse(marker.exists())
+
+    def test_worktree_marker_lives_in_git_dir(self):
+        # stop-gate.ps1 wrote <root>/.git/review-rules-ack; in a linked worktree .git is a
+        # file, the write failed and the same diff re-blocked on every stop.
+        wt = Path(self._tmp.name) / "wt"
+        self.git("worktree", "add", "-q", str(wt), "-b", "feat")
+        (wt / "A.kt").write_text("fun f() { BADCALL() }\n", encoding="utf-8")
+        self.assertEqual(self.stop(cwd=wt)[1]["decision"], "block")
+        self.assertEqual(self.stop(session="s2", cwd=wt), (0, None), "ack must hold in a worktree")
+
+    def test_opt_out_and_setup_error_never_block(self):
+        (self.repo / "A.kt").write_text("fun f() { BADCALL() }\n", encoding="utf-8")
+        os.environ["REVIEW_RULES_NO_STOPGATE"] = "1"
+        try:
+            self.assertEqual(self.stop(), (0, None))
+        finally:
+            os.environ.pop("REVIEW_RULES_NO_STOPGATE", None)
+        saved, rr.yaml = rr.yaml, None
+        try:
+            self.assertEqual(self.stop(session="s3"), (0, None))
+        finally:
+            rr.yaml = saved
+
+    def test_cli_entry_point(self):
+        (self.repo / "A.kt").write_text("fun f() { ok() }\n", encoding="utf-8")
+        p = self.sp.run([sys.executable, str(RR_DIR / "run.py"), "--stop-gate"],
+                        input=self.json.dumps({"session_id": "cli", "cwd": str(self.repo)}),
+                        capture_output=True, text=True, encoding="utf-8",
+                        env=dict(os.environ, REVIEW_RULES_STOPGATE_STATE=str(Path(self._tmp.name) / "s")))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.strip(), "")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

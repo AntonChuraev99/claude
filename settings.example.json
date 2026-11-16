@@ -223,14 +223,55 @@
     "defaultMode": "bypassPermissions"
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\write-guards.js\"",
+            "timeout": 10,
+            "statusMessage": "guard: .claude-work + защищённая ветка…"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Grep|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard-prefilter.js\"",
+            "timeout": 20,
+            "statusMessage": "creds guard + аккаунт проекта…"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__claude-in-chrome__.*|mcp__plugin_playwright_playwright__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\play-console-browser-hint.js\"",
+            "timeout": 10,
+            "statusMessage": "Play Console: подсказка про API"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\session-docs-digest.py\"",
+            "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\session-start.py\"",
             "timeout": 30,
-            "statusMessage": "Собираю дайджест docs/active + docs/todos + docs/backlog…"
+            "statusMessage": "Дайджест docs, лимит CLAUDE.md, pre-commit…"
+          },
+          {
+            "type": "command",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\session-start.js\"",
+            "timeout": 30,
+            "statusMessage": "Оверлей модели, worktree, патчи плагинов…"
           },
           {
             "type": "command",
@@ -240,31 +281,24 @@
           },
           {
             "type": "command",
-            "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\claude-md-size-guard.py\"",
-            "timeout": 10,
-            "statusMessage": "CLAUDE.md: проверяю лимит строк и символов…"
-          },
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
+            "timeout": 20,
+            "statusMessage": "креды проекта…"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\ensure-bash-discipline-registered.ps1\"",
-            "timeout": 10,
-            "statusMessage": "bash-discipline: проверяю регистрацию prefilter…"
-          },
-          {
-            "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
-            "timeout": 10,
-            "statusMessage": "model-overlay: промпт под активную модель…"
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\session-start.js\"",
+            "timeout": 10
           },
           {
             "type": "command",
             "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
-            "timeout": 20,
-            "statusMessage": "креды проекта…"
-          },
-          {
-            "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
             "timeout": 10
           }
         ]
@@ -275,28 +309,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-digest.ps1\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.ps1\"",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\model-overlay.js\"",
             "timeout": 10
           }
         ]
@@ -307,7 +320,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\review-rules\\stop-gate.ps1\"",
+            "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\review-rules\\run.py\" --stop-gate",
             "timeout": 20,
             "statusMessage": "review-rules: L1 static gate…"
           },
@@ -375,50 +388,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\docs-length-guard.js\"",
-            "timeout": 10,
-            "statusMessage": "docs budget: считаю объём документа…"
-          },
-          {
-            "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\docs-facts-guard.js\"",
+            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\docs-guards.js\"",
             "timeout": 15,
-            "statusMessage": "docs facts: сверяю имена, пути и числа с репозиторием…"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash|Grep|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\credentials-guard-prefilter.js\"",
-            "timeout": 20,
-            "statusMessage": "creds guard + аккаунт проекта + дисциплина инструментов"
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\protected-branch-guard.ps1\"",
-            "timeout": 10,
-            "statusMessage": "branch guard"
-          }
-        ]
-      },
-      {
-        "matcher": "mcp__claude-in-chrome__.*|mcp__plugin_playwright_playwright__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\play-console-browser-hint.js\"",
-            "timeout": 10,
-            "statusMessage": "Play Console: подсказка про API"
+            "statusMessage": "docs: бюджет длины и факты…"
           }
         ]
       }

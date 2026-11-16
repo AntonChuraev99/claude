@@ -510,6 +510,13 @@ async function hookMain() {
     } catch {
         return null;
     }
+    return verdictFor(payload);
+}
+
+// Вердикт по уже разобранному payload — без stdin. Его же зовёт hooks/docs-guards.js,
+// который запускает обе docs-проверки одним процессом.
+function verdictFor(payload) {
+    if (!payload || typeof payload !== 'object') return null;
     if (!/^(write|.*edit)$/i.test(String(payload.tool_name || ''))) return null;
     const target = resolveTarget(payload);
     if (!target || !fs.existsSync(target)) return null;
@@ -581,4 +588,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { extractClaims, looksLikeIdent, looksLikePath, resolveTarget, checkDoc, verify, formatFindings, toNativePath };
+module.exports = { extractClaims, looksLikeIdent, looksLikePath, resolveTarget, checkDoc, verify, formatFindings, toNativePath, verdictFor };

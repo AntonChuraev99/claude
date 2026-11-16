@@ -29,7 +29,6 @@ try {
         'compose-expert',
         'core-expert',
         'android-platform-expert',
-        'kmp-expert',
         'wasmjs-expert',
         'react-ui-expert',
         'nextjs-expert',
