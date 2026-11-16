@@ -90,7 +90,7 @@
 
 ### Статус Jira-задачи
 
-Задача по Jira-ключу: ключ — в slug worktree и заголовке MR (squash-merge кладёт его в транк, по нему находится сборка). Статус ставит `@jira-expert` брифом `EVENT: start | merged | tester-build` — после `EnterWorktree`, после влитого MR, после debug APK для тестировщика.
+Задача по Jira-ключу: ключ — в slug worktree и заголовке MR (squash-merge кладёт его в транк, по нему находится сборка). Статус ставит `@jira-expert` брифом `EVENT: start | merged | tester-build` — после `EnterWorktree`, после влитого MR, после debug APK для тестировщика; для `tester-build` в бриф — ключи из `git log <прошлый бамп>..<сборка>` транка, ключей нет — спроси пользователя.
 
 ### Продукт и маркетинг — доменный роутинг
 
