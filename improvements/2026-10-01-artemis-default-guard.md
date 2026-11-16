@@ -1,7 +1,7 @@
 ---
 date: 2026-10-01
 slug: artemis-default-guard
-status: applied
+status: reverted  # 2026-11-16: хук удалён, дефолт — дерево UI (2026-11-16-android-tree-nav)
 goal: ARTEMIS — дефолт проверки на устройстве в любой сессии, а не только внутри /mcp-mobile-test
 metric: сессии, где агент начал с `mobile` MCP без случая из списка исключений; срабатывания хука, после которых агент ушёл в ARTEMIS
 baseline_date: 2026-10-01
