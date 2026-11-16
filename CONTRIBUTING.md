@@ -39,10 +39,11 @@ issue, it is lost.
 - **Do not bypass the pre-commit hook** (`--no-verify`). If it blocks a commit, remove the
   private value from the staged files and add them again.
 - **A change to `CLAUDE.md`, `rules/`, `agents/`, `skills/`, `model-overlays/` or
-  `settings.example.json` ships with a record in `improvements/`** — template and required fields
-  are in [`improvements/README.md`](improvements/README.md).
-- **`CLAUDE.md` must not grow.** The budget is 200 lines and 37 000 characters, and the file is at
-  the limit: a change that adds text removes as much elsewhere. A procedure goes into a skill, a
+  `settings.example.json` that changes behavior ships with a record in `improvements/`** — template
+  and required fields are in [`improvements/README.md`](improvements/README.md). Typos, links,
+  formatting, dead-code removal and moving text without changing its meaning need no record.
+- **`CLAUDE.md` must not grow.** The budget is 200 lines and 17 500 characters (enforced by
+  `hooks/claude-md-size-guard.py`): a change that adds text removes as much elsewhere. A procedure goes into a skill, a
   rule tied to file types into `rules/` with `paths:` — see `skills/instruction-routing`.
 - **Third-party skills are not accepted** into the repo: they install from their own
   marketplaces.

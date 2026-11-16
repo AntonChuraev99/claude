@@ -1,100 +1,65 @@
-# Deferred-Work Scan — Step 2.8 алгоритм и Bash-команды
+# Deferred-work scan — TODO в коде против `docs/todos/`
 
-Этот файл — extract из Step 2.8 `task-gate/SKILL.md`. Алгоритм проверки `TODO`/`FIXME`/`STOPSHIP` в коде против `docs/todos/`. Правило-источник — `~/.claude/CLAUDE.md` → «Документирование» (deferred work) и `~/.claude/rules/docs-structure.md` (`todos` vs `backlog`).
+Единственное место процедуры: её используют `/task-gate` 2.8 и `/commit` (шаг 4a). Правило-источник — `~/.claude/CLAUDE.md` → «Документирование» (`// TODO:` без записи в `docs/todos/` — нарушение) и `~/.claude/rules/docs-structure.md` (`todos` vs `backlog`).
 
 ## Цель
 
-Поймать ситуацию, когда часть scope сознательно не доделана (ждём бэкенд, пользователь отложил, partial platform coverage), но артефакт `docs/todos/<...>.md` не создан → следующая сессия не увидит долг.
+Поймать сознательно не доделанную часть scope (ждём бэкенд, пользователь отложил, partial platform coverage), у которой нет `docs/todos/<...>.md`, — иначе следующая сессия не увидит долг.
 
-## Алгоритм
+## Скан — скрипт, а не grep
 
-### Шаг 1 — Сбор кандидатов в диффе сессии
+| Кто | Команда | Что сканирует |
+|---|---|---|
+| gate 2.8 | `gate-prep.py` (поле `todo` в общем выводе) | новые строки `git diff -U0 <BASE_SHA>` + неотслеживаемые файлы |
+| `/commit` до stage | `python ~/.claude/skills/task-gate/scripts/gate-prep.py --todo-only` | staged + unstaged против `HEAD` + неотслеживаемые |
+| `/commit` после stage | то же с `--staged` | только staged |
 
-`git diff` по staged + unstaged + новым файлам, только code-расширения, ищем `TODO|FIXME|STOPSHIP:` в **новых** строках (`^+`, исключая `+++`):
+Скрипт ищет `\b(TODO|FIXME|STOPSHIP):` только в **добавленных** строках файлов кода (`.kt .kts .java .ts .tsx .js .jsx .py .go .rs .swift .rb .php .cs .cpp .c .h .hpp .m .mm`). Тестовые файлы исключены (`*Test.kt`, `*.test.ts`, `test_*.py`, `*_test.go`, каталоги `test/`, `tests/`, `spec/`, `__tests__/`, `*Test/` source sets): там TODO — часть scaffolding. `.md` не сканируется — TODO в задачнике норма.
 
-```bash
-git diff -U0 HEAD -- \
-    '*.kt' '*.kts' '*.java' '*.ts' '*.tsx' '*.js' '*.jsx' \
-    '*.py' '*.go' '*.rs' '*.swift' '*.rb' '*.php' '*.cs' \
-    '*.cpp' '*.c' '*.h' '*.hpp' '*.m' '*.mm' \
-  | grep -nE '^\+.*\b(TODO|FIXME|STOPSHIP):' \
-  | grep -v '^\+\+\+'
-```
+Для каждой находки — якорь в той же или соседней строке: `// Pending: docs/todos/<YYYY-MM-DD>-<slug>.md` (файл обязан существовать), в харнессе `~/.claude` ещё `// Issue: <url GitHub issue>` (скилл `harness-contributing`).
 
-**Test-файлы исключить из списка** — там TODO допустим как часть test scaffolding. Паттерны exclude:
+## Статусы
 
-- `*Test.kt`, `*Tests.kt` (Kotlin)
-- `*test*.py`, `__tests__/` (Python / JS)
-- `*_test.go`, `*_spec.rb`, `*.spec.ts`, `*.test.ts`
-- любые файлы в каталогах `test/`, `tests/`, `spec/`
+| `todo.status` | Значит | Статус пункта |
+|---|---|---|
+| `clean` | новых маркеров нет | `✅ no unbacked TODO` |
+| `anchors_valid` | у всех маркеров живой якорь | `✅ TODO anchors valid (N)` |
+| `broken_anchor` | якорь ведёт на несуществующий файл | `⚠️ broken Pending anchor: <файл>` |
+| `unbacked` | маркер без якоря | `⚠️ unbacked TODO (N)` + `файл:строка` |
 
-### Шаг 2 — Категоризация результатов
+`/commit` уже прогнал скан на этом диффе → в gate `✅ verified by /commit at <sha>`.
 
-#### Случай A — 0 совпадений
+## Действие при unbacked TODO
 
-→ `✅ no unbacked TODO`. Шаг закрыт.
-
-#### Случай B — Есть совпадения с `// Pending:` anchor рядом
-
-Для каждой строки с TODO/FIXME проверить, есть ли в той же строке или в смежной строке anchor формата:
-
-```
-// Pending: docs/todos/<YYYY-MM-DD>-<slug>.md
-```
-
-Anchor'ы искать тулом `Grep` (паттерн `// Pending: docs/todos/`, пути — файлы с совпадениями шага 1, `output_mode: content`), затем `Glob` по каждому упомянутому `docs/todos/<YYYY-MM-DD>-<slug>.md` — файл **реально существует**.
-
-- Все файлы на месте → `✅ TODO anchors valid (N items)`.
-- Хоть один файл отсутствует → `⚠️ broken Pending anchor: <file>` + список ломаных.
-
-#### Случай C — Есть совпадения без anchor'а
-
-→ `⚠️ unbacked TODO in code (N items)` + список `файл:строка`.
-
-### Шаг 3 — Действие при unbacked TODO
-
-В финальный отчёт Step 5.2 вынести строку:
-```
-2.8 Deferred-work integrity ⚠️ N unbacked TODOs
-```
-с перечнем.
-
-**Не блокировать gate автоматически** (это warning, не ❌). Но в `5.1.1 Auto-commit` действует жёсткое правило: **если есть unbacked TODO — auto-commit НЕ запускать**, спросить пользователя через `AskUserQuestion`:
+Gate не блокируется (это `⚠️`), но **auto-commit 5.1.1 и stage в `/commit` не запускать** до ответа на `AskUserQuestion` — один вопрос на файл, до 4 в пачке, путь:строка и текст в вопросе:
 
 | Опция | Действие |
 |---|---|
-| **Создать `docs/todos/<...>.md` и заменить TODO на Pending-anchor** (Recommended) | Скилл сам делает Write + Edit, затем продолжает с auto-commit |
-| **Удалить TODO из кода** | Мини-Edit, продолжить с auto-commit |
-| **Override (закоммитить с TODO)** | Пометка `2.8 ⚠️ override (N TODOs)`, продолжить с auto-commit, в commit body добавить `Refs: deferred-work-override <N> TODO(s)` со списком |
-| **Отложить решение** | `2.8 ⚠️ pending user`, **остановить** task-gate, вернуть управление пользователю |
+| **Создать `docs/todos/<YYYY-MM-DD>-<slug>.md` и заменить TODO на якорь** (Recommended) | `Write` документа по шаблону ниже, строка в `docs/todos/INDEX.md`, `Edit` маркера: `// TODO: <...>` → `// Pending: docs/todos/<файл>` (один якорь на запись, в главной точке). Новые файлы — в тот же коммит. В харнессе — «Создать GitHub issue» и якорь `// Issue: <url>` |
+| **Удалить TODO** | маркер был артефактом черновика — убрать строку, перестейджить |
+| **Я уже создал запись** | пользователь называет файл → `Glob` подтверждает → заменить маркер на `// Pending:` |
+| **Override (закоммитить с TODO)** | `⚠️ override (N TODOs)`; в тело коммита строка `Refs: deferred-work-override <N> TODO(s)` со списком файл:строка. Один override закрывает все маркеры этого коммита |
+| **Отложить решение** (только gate) | `2.8 ⚠️ pending user`, gate останавливается, управление пользователю |
 
-### Шаг 4 — Проверка `docs/todos/INDEX.md` (если файл существует)
+После правок — повторить скан: маркеров нет либо у всех живой якорь.
 
-`Read` файла `docs/todos/INDEX.md` (файла нет — шаг пропустить).
+**Ложные срабатывания.** Перенесённый без изменений TODO (git видит его как `+` в новом файле) — спросить, при «это перенос» — override. Неожиданный тип файла кода вне списка расширений — спросить, считать ли его кодом.
 
-- Для каждой записи в `## Open` — `Glob` указанного файла → существует ли. Сломанные ссылки в `⚠️ stale INDEX entry: <link>`.
-- Если в project memory есть `deferred_*.md`, но в `docs/todos/INDEX.md` соответствующей записи нет — `⚠️ memory-INDEX desync: <slug>`.
+## `docs/todos/INDEX.md` (gate 2.8, если файл есть)
 
-### Шаг 5 — Не дублировать работу `/commit`
+- Каждая запись `## Open` — `Glob` по ссылке; битая → `⚠️ stale INDEX entry: <link>`.
+- В project memory есть `deferred_*.md`, а записи в INDEX нет → `⚠️ memory-INDEX desync: <slug>`.
 
-Если в рамках текущей задачи уже был вызван `/commit` и он прошёл свой собственный deferred-work scan → Step 2.8 повторяет лишь нумерацию строки в финальном отчёте:
+## Шаблон `docs/todos/<YYYY-MM-DD>-<slug>.md`
 
-```
-2.8 Deferred-work integrity ✅ verified by /commit at <sha>
-```
-
-Цель task-gate — поймать ситуацию, когда `/commit` ещё не запускался либо запускался **до** появления новых TODO.
-
-## Создание `docs/todos/<...>.md` (если пользователь выбрал «Создать»)
-
-Шаблон из `docs/todos/TEMPLATE.md` (если есть). Минимум:
+Берётся `docs/todos/TEMPLATE.md`, если есть. Иначе минимум:
 
 ```yaml
 ---
 title: <короткое описание>
 date: <YYYY-MM-DD>
 status: deferred
-parent_task: <slug активного doc-а>
+parent_task: <slug активного документа>
 blocking_reason: <waiting-for-backend|waiting-for-decision|waiting-for-data|partial-platform-coverage>   # только внешнее событие; «отложили без триггера» → docs/backlog/
 resume_trigger: <что должно случиться, чтобы возобновить>
 scope: <что именно отложено, одной строкой>
@@ -104,29 +69,19 @@ keywords: [<ключевые слова для поиска>]
 # <Title>
 
 ## Что отложено
-<краткое описание>
-
 ## Контекст
-<родительская задача, ссылки>
-
 ## Шаги при возобновлении
-1. ...
-2. ...
-
 ## Как возобновить (для cold-start агента)
-<инструкции, чтобы агент следующей сессии понял с нуля>
 ```
 
-И обновление `docs/todos/INDEX.md` — строка в верх таблицы `## Open`:
+Строка наверх таблицы `## Open` в `docs/todos/INDEX.md` (файла нет — создать с шапкой):
 
 ```
 | YYYY-MM-DD | <title> | <blocking_reason> | <resume_trigger> | [link](file.md) |
 ```
 
-Также добавить запись в `## Deferred Work` секцию project memory.
+И запись в секцию `## Deferred Work` project memory.
 
-## Why
+## Почему
 
-Прецедент 2026-05-12 (NavRail OfferTimerCard) — `// TODO: render com.example.ui.banner.SomeComponent...` остался в `app/src/commonMain/.../AppContent.kt`, в memory задача попала в Completed Features, через 1 день пользователь нашёл симптом «компонент не появляется на web после закрытия оффера», потребовался отдельный turn на разбор.
-
-Task-gate — последний gate перед мержем; ловит то, что прошло мимо `/commit` (например, если правки делались в нескольких подсессиях). Без этого scan'а долги тихо растворяются.
+Прецедент 2026-05-12: `// TODO: render com.example.ui.banner.SomeComponent...` остался в `commonMain`, задача ушла в память как завершённая, detekt `ForbiddenComment` на этом source set не запускался. Через день пользователь нашёл симптом «компонент не появляется после закрытия оффера» и потратил отдельный цикл на разбор. `/commit` ловит маркер до истории; gate — то, что прошло мимо `/commit` (правки из нескольких подсессий, коммит до появления маркера).

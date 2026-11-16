@@ -1,7 +1,7 @@
 ---
 name: commit
 description: Create a Conventional Commits compliant git commit. Use this skill whenever the user says "commit", "create a commit", "git commit", "зафиксируй изменения", "сделай коммит", or asks to commit staged or unstaged changes. Stages relevant files and crafts a properly scoped commit message automatically.
-allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git stash:*), Bash(git worktree:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git add:*), Bash(git commit:*), Bash(git rev-parse:*), Bash(git stash:*), Bash(git worktree:*), Bash(python ~/.claude/skills/task-gate/scripts/gate-prep.py:*)
 ---
 
 # Git Commit — Conventional Commits
@@ -20,7 +20,7 @@ Create a well-formed git commit following the [Conventional Commits](https://www
 2. Run `git diff` (unstaged) and `git diff --staged` (staged) to understand the actual changes.
 3. Run `git log --oneline -5` to match the style of recent commits in this project.
 4. Decide which files belong in this commit — skip build artifacts, caches, lock files unless explicitly changed on purpose.
-4a. **Deferred-work scan** (see `## Deferred-work scan` ниже) — заблокирует stage, если в коммите есть `// TODO:` / `// FIXME:` / `// STOPSHIP:` без соответствующего `docs/todos/<...>.md`.
+4a. **Deferred-work scan** (see `## Deferred-work scan` ниже) — блокирует stage, если в коммите есть `// TODO:` / `// FIXME:` / `// STOPSHIP:` без соответствующего `docs/todos/<...>.md`.
 5. Stage files with `git add <files>` if not already staged.
 6. Craft the commit message (see format below) and commit using HEREDOC syntax.
 
@@ -122,44 +122,13 @@ If the user passed arguments (e.g., `/commit fix login bug`), treat them as a hi
 
 ## Deferred-work scan
 
-Перед stage'ом проверить, что в коммитимом диффе нет «потерянных» TODO. Правило — `~/.claude/CLAUDE.md` → «Документирование»: `// TODO:` без записи в `docs/todos/` — нарушение; если функционал отложен, должен существовать `docs/todos/<YYYY-MM-DD>-<slug>.md`. `// TODO:` / `// FIXME:` / `// STOPSHIP:` в коде сам по себе уже нарушение (detekt `ForbiddenComment` для Kotlin), плюс теряется между сессиями.
+Перед stage'ом — новые `// TODO:` / `// FIXME:` / `// STOPSHIP:` в файлах, которые войдут в коммит (staged + unstaged + новые):
 
-### Алгоритм
+```bash
+python ~/.claude/skills/task-gate/scripts/gate-prep.py --todo-only
+```
 
-D1. Собрать списки кандидатов из диффа (staged + unstaged, которые войдут в коммит). Команда:
-   ```bash
-   git diff --cached -U0 -- '*.kt' '*.kts' '*.java' '*.ts' '*.tsx' '*.js' '*.jsx' '*.py' '*.go' '*.rs' '*.swift' '*.rb' '*.php' '*.cs' '*.cpp' '*.c' '*.h' '*.hpp' '*.m' '*.mm' \
-     | grep -nE '^\+.*\b(TODO|FIXME|STOPSHIP):' \
-     | grep -v '^\+\+\+'
-   ```
-   Аналогично для `git diff` (unstaged), если файл планируется добавить в этот коммит.
-D2. Если совпадений нет — `✅ no unbacked TODO`, идти к шагу 5 секции «Steps» (Stage files).
-D3. Если совпадения есть — для каждого нового TODO-маркера показать пользователю (через `AskUserQuestion`, 1 вопрос на каждый файл, до 4 файлов в одной пачке):
-   - Путь:строка, текст комментария.
-   - Опции (single-select):
-     - **Создать `docs/todos/<YYYY-MM-DD>-<slug>.md` и заменить `// TODO:` на `// Pending: docs/todos/<file>`** (Recommended) — скилл сам создаёт документ из `docs/todos/TEMPLATE.md` (или встроенного шаблона, если templates нет), просит подтвердить slug, открывает редактор полей через follow-up вопрос если нужно. После — заменяет маркер в коде.
-     - **Удалить TODO** — этот TODO не нужен, доделать сейчас не успеваем, но и tracking не требуется (редкий случай: маркер был артефактом черновика). Скилл удаляет строку из staged-файла, перестейджит.
-     - **Я уже создал `docs/todos/<...>` для этого** — пользователь укажет имя файла; скилл проверит `Glob`, что файл реально существует, и предложит заменить `// TODO:` на `// Pending: docs/todos/<...>`.
-     - **Override (закоммитить как есть)** — намеренный override (legacy code, технический долг по решению команды). Скилл коммитит, но **в commit body** добавляет строку `Refs: deferred-work-override <count> TODO(s) — see TODO listing below` со списком файл:строка. Это оставляет след в истории.
-D4. Если в качестве варианта выбран override — **не повторять** этот вопрос для других TODO в том же коммите (батч-override), но всё равно перечислить их в commit body.
-D5. Если выбрано «создать docs/todos» хотя бы для одного TODO — **до** stage:
-   - `Write` файл `docs/todos/<YYYY-MM-DD>-<slug>.md` по шаблону `docs/todos/TEMPLATE.md`, иначе — `~/.claude/skills/task-gate/references/deferred-work-scan.md` → «Создание `docs/todos/<...>.md`».
-   - Обновить `docs/todos/INDEX.md` (создать с шапкой, если нет).
-   - `Edit` исходный файл: `// TODO: <comment>` → `// Pending: docs/todos/<YYYY-MM-DD>-<slug>.md` (один anchor на todo, в самой важной точке).
-   - Добавить новые `docs/todos/...` к stage этого же коммита.
-D6. После применения вариантов — заново прогнать grep шага D1 и убедиться, что либо TODO нет, либо все оставшиеся имеют `// Pending:` anchor с валидным путём.
-
-### Edge cases
-
-- **Не Kotlin/JS/Python проект.** Расширения уточнить по диффу — скан должен покрыть актуальный стек. Если тип файла неожиданный — спросить пользователя (`AskUserQuestion`), считать ли его «code».
-- **TODO в комментариях документации (`.md`)** — НЕ проверяется (TODO в задачнике это нормально). Глобирование выше явно ограничено code-расширениями.
-- **TODO существовал и до этой сессии** (контекст диффа `^ ` без `^\+`) — НЕ проверяется. Скан только новых маркеров: префикс `^\+` в diff (новые строки коммита).
-- **Перенесённый TODO** (move from file A to file B без изменения) git показывает как `+` в B и `-` в A — будет ложное срабатывание. Спросить пользователя, если он подтвердит «это перенос», override.
-- **Тесты с `@Ignore("TODO ...")` / `@Test fun todo_implement_X()`** — в test-файлах допускается, не блокировать. Шаг D1 grep'а должен исключить файлы под `*Test.kt`, `*test*.py`, `__tests__/`.
-
-### Why
-
-Прецедент 2026-05-12 (NavRail OfferTimerCard Desktop UI): solution doc + memory зафиксировали задачу как «COMPLETED», в коде остался `// TODO: render com.example.ui.banner.OfferTimerCard above CreditsCard when OneTimeOfferRepository.activeTimer is exposed`. Detekt-конфиг проекта (`default-detekt-config.yml`) запрещает `TODO:`, но convention plugin'ы для commonMain в этом репо не запускают detekt-таску → маркер прошёл в main. Через 1 день пользователь столкнулся с симптомом «таймер не появляется в нав-рейле после закрытия оффера» — потратил время на разбор. Скан на этапе `/commit` ловит такие случаи **до** того, как они уходят в историю.
+`todo.status`: `clean` или `anchors_valid` → идти к шагу 5 (Stage files). `unbacked` или `broken_anchor` → не stage'ить, процедура — `~/.claude/skills/task-gate/references/deferred-work-scan.md` → «Действие при unbacked TODO» (вопрос на файл, создание `docs/todos/<...>.md` и якоря `// Pending:`, override строкой в теле коммита). После правок — повторить скан. Скан и процедура живут в одном месте, `/task-gate` 2.8 использует те же.
 
 ## Deploy reminders
 
