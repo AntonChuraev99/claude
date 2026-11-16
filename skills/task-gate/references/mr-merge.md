@@ -127,10 +127,10 @@ gh pr merge <num> --squash --auto --delete-branch   # есть обязател�
 
 ```bash
 gh api repos/{owner}/{repo} -q .allow_auto_merge            # true | false — включён ли auto-merge
-gh pr checks <num> --required 2>&1 | grep -qi "no required checks" && echo NO_REQUIRED || echo HAS_REQUIRED
+gh pr checks <num> --required 2>&1 | grep -qiE "no (required )?checks reported" && echo NO_REQUIRED || echo HAS_REQUIRED
 ```
 
-`gh repo view --json` поля auto-merge не отдаёт, поэтому — `gh api`. Код выхода `gh pr checks` здесь не годится: 8 — проверки ещё идут, 1 — упали или их нет вовсе; различает случаи только текст ответа. Сразу после `gh pr create` проверки может ещё не быть в списке: CI регистрирует их через несколько секунд. Поэтому `NO_REQUIRED` в первую минуту после создания PR — не факт: перепроверить через 30 с.
+`gh repo view --json` поля auto-merge не отдаёт, поэтому — `gh api`. Код выхода `gh pr checks` здесь не годится: 8 — проверки ещё идут, 1 — упали или их нет вовсе; различает случаи только текст ответа: в репозитории без CI gh отвечает `no checks reported`, с CI без обязательных проверок — `no required checks reported` (первое проверено на gh 2.102.0, PR в репозитории харнесса). Сразу после `gh pr create` проверки может ещё не быть в списке: CI регистрирует их через несколько секунд. Поэтому `NO_REQUIRED` в первую минуту после создания PR — не факт: перепроверить через 30 с.
 
 | `allow_auto_merge` | проверки | команда |
 |---|---|---|
