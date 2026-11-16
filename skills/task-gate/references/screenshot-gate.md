@@ -38,7 +38,9 @@ while read m; do [ -d "$m/src/androidHostTest/roborazzi" ] && echo "OK   $m" || 
 - Все строки таблицы несут открытый кадр → `✅`.
 - Модуль в списке `NONE`, и `android preview render` его тоже не снимает → `⚠️ no screenshot infra: <модуль>` + развилка «завести
   сейчас / отложить» вынесена пользователю через `AskUserQuestion`, отложенное —
-  строкой в `docs/todos/`.
+  строкой в `docs/todos/`. «Завести сейчас» — `@android-platform-expert` (Roborazzi,
+  Gradle-плагины, `android preview render`), для web — `@react-ui-expert` (Playwright
+  visual).
 - Строка без кадра и без причины → `❌` : вёрстка не проверена, а не «проверена ручным
   сценарием».
 
