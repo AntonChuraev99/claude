@@ -1,6 +1,6 @@
-# test-expert — механика репро и прогона
+# Red-репро и таргетный прогон — механика
 
-Справочник агента `@test-expert` (`~/.claude/agents/test-expert.md`). Инварианты — в теле агента; здесь детали, нужные по условию. Мутация, red-дисциплина и шаблоны ответа — в `agent-memory/test-expert/` (`reference_red_green_discipline.md`, `reference_handoff_templates.md`), сюда не дублируются.
+Справочник для того, кто пишет репро: доменный специалист на своём багфиксе (`~/.claude/rules/testing.md` § «Кто пишет тест») и `@test-expert` (`~/.claude/agents/test-expert.md`). Инварианты — в `rules/testing.md` и теле агента; здесь детали, нужные по условию. Мутация, red-дисциплина и шаблоны ответа — в `agent-memory/test-expert/` (`reference_red_green_discipline.md`, `reference_handoff_templates.md`), сюда не дублируются.
 
 ## 1. Что брать из скиллов метода
 

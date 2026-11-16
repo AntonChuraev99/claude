@@ -12,7 +12,7 @@ ROOTS = [os.path.join(HOME, ".claude", "projects"), os.path.join(HOME, ".claude-
 # encoded-cwd репозитория ~/.claude: разделители и точки → '-'
 CLAUDE_PROJ = re.sub(r"[:\\/.]", "-", os.path.join(HOME, ".claude"))
 HOME_CLAUDE = (HOME.replace("\\", "/") + "/.claude/").lower()
-SPEC_OLD = {"compose-feature-expert","android-platform-expert","kotlin-expert","kmp-expert",
+SPEC_OLD = {"compose-feature-expert","android-platform-expert","kotlin-expert",
             "wasmjs-expert","nextjs-expert","react-ui-expert","test-expert"}
 SPEC_NEW = {"compose-expert","feature-expert","core-expert"}
 SPEC_ALL = SPEC_OLD | SPEC_NEW

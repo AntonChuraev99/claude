@@ -27,6 +27,8 @@ paths:
 - обрезано, съехало, перекрыто system bars, мигает, дёргается, цвет не из темы, ломается на размере или fontScale → `@compose-expert`
 - данные неверные из **core**-repo или кеша, Flow в core/* завис, гонка в корутине вне фичи, ошибка проглочена в data-слое core/* → `@core-expert` (repo одной фичи — строкой выше, к `@feature-expert`)
 
+Red-репро багфикса пишет тот же агент, что чинит, — до фикса (`rules/testing.md` § «Кто пишет тест»); отдельный хоп к `@test-expert` за репро не нужен.
+
 Корень не виден по симптому — `systematic-debugging` у того, чей слой ближе, и `NEEDS_DELEGATION` при промахе, а не два агента «на всякий случай».
 
 ## Границы, которые чаще всего путают
@@ -35,3 +37,5 @@ paths:
 - Repository / UseCase **одной** фичи — `@feature-expert`; тот же класс понадобился второй фиче — переезжает в core и в зону `@core-expert`.
 - Компонент design-system-модуля — `@compose-expert` (вёрстка); логика внутри него (форматтер, вычисление) — `@core-expert`.
 - Соблюдение дизайн-системы обеспечивает `@compose-expert` при письме; `@feature-expert` сверяет его только в `REVIEW`.
+- Что в commonMain, а что в androidMain/wasmJsMain, `expect`/`actual`, раскладка source-sets и Gradle — `@android-platform-expert`; браузерная сторона wasmJs — `@wasmjs-expert`.
+- Скриншот-инфраструктура (Roborazzi, Robolectric-конфиг) — `@android-platform-expert`; превью и снимки по готовой инфраструктуре — `@compose-expert`.

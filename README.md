@@ -29,9 +29,11 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 
 ### Subagents (`agents/`)
 
-`feature-expert`, `compose-expert`, `core-expert`, `android-platform-expert`, `kmp-expert`,
-`nextjs-expert`, `react-ui-expert`, `wasmjs-expert`, `design-expert`, `test-expert`,
-`knowledge-scout`, `best-practices-scout`. Domain specialists plus two "scout" agents
+`feature-expert`, `compose-expert`, `core-expert`, `android-platform-expert` (Android platform
+layer and KMP architecture), `nextjs-expert`, `react-ui-expert`, `wasmjs-expert`, `design-expert`,
+`video-expert`, `test-expert`, `mobile-tester`, `bug-pattern-reviewer`, `product-expert`,
+`marketing-expert`, `google-play-console-expert`, `jira-expert`, `knowledge-scout`,
+`best-practices-scout`. Domain specialists plus two "scout" agents
 that read docs / the web on the main agent's behalf to keep its context clean. There is
 deliberately no "doc-writer" agent: task documentation is written by the main agent
 (`skills/doc-task`) because only it holds the facts, and a deterministic hook
@@ -50,7 +52,7 @@ credential registry that guards against deploying with another project's account
 
 **Workflow skills:** `commit`, `task-gate` (per-task Definition of Done gate; formerly
 `end-session`), `doc-task` (task document and permanent solution/decision docs, written by
-the main agent and fact-checked by `docs-facts-guard`), `git-commit-conventions`, `gradle-deps-update`,
+the main agent and fact-checked by `docs-facts-guard`), `gradle-deps-update`,
 `android-core-module-builder`, `android-feature-module-builder`, `ab-test-dashboard`,
 `amplitude-slack-payload`, `cloudflare-deploy-slack-notify`, `gitlab-release-slack-ci`,
 `jira-task-writer`, `test-firebase-function`, `turnstile-spin`.
