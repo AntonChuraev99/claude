@@ -1,7 +1,7 @@
 ---
 date: 2026-09-30
 slug: artemis-primary-mobile-testing
-status: applied
+status: partially-applied  # 2026-11-16: ARTEMIS понижен до запасного (2026-11-16-android-tree-nav)
 goal: проверки на Android-устройстве исполняет ARTEMIS на дешёвой Gemini-модели, сценарий и вердикт — за Claude
 metric: доля прогонов /mcp-mobile-test, закрытых через ARTEMIS без отката на mobile MCP; сбои исполнителя на прогон
 baseline_date: 2026-09-30

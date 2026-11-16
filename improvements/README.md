@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-16 | [android-tree-nav](2026-11-16-android-tree-nav.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [worktree-exit-holders](2026-11-16-worktree-exit-holders.md) | applied | 2026-11-30 | pending |
 | 2026-11-13 | [app-icon](2026-11-13-app-icon.md) | applied | 2026-11-27 | pending |
 | 2026-11-13 | [codex-imagegen](2026-11-13-codex-imagegen.md) | applied | 2026-11-27 | pending |
@@ -104,8 +105,8 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 | 2026-10-06 | [docs-only-auto-merge](2026-10-06-docs-only-auto-merge.md) | applied | 2026-10-20 | pending |
 | 2026-10-05 | [ui-demo-video-skill](2026-10-05-ui-demo-video-skill.md) | applied | 2026-10-19 | pending |
 | 2026-10-01 | [sibling-elements-propose](2026-10-01-sibling-elements-propose.md) | applied | 2026-10-20 | pending |
-| 2026-10-01 | [artemis-default-guard](2026-10-01-artemis-default-guard.md) | applied | 2026-10-14 | pending |
-| 2026-09-30 | [artemis-primary-mobile-testing](2026-09-30-artemis-primary-mobile-testing.md) | applied | 2026-10-14 | pending |
+| 2026-10-01 | [artemis-default-guard](2026-10-01-artemis-default-guard.md) | reverted | 2026-10-14 | superseded |
+| 2026-09-30 | [artemis-primary-mobile-testing](2026-09-30-artemis-primary-mobile-testing.md) | partially-applied | 2026-10-14 | superseded |
 | 2026-09-28 | [delegation-rule-relax](2026-09-28-delegation-rule-relax.md) | applied | 2026-10-12 | pending |
 | 2026-09-28 | [worktree-shell-sweep-hook](2026-09-28-worktree-shell-sweep-hook.md) | applied | 2026-10-12 | pending |
 | 2026-09-25 | [mcp-memory-on-demand](2026-09-25-mcp-memory-on-demand.md) | applied | 2026-10-09 | pending |

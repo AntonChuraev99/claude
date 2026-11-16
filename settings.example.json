@@ -412,17 +412,6 @@
         ]
       },
       {
-        "matcher": "mcp__mobile__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\artemis-default-guard.js\"",
-            "timeout": 10,
-            "statusMessage": "дефолт устройства — ARTEMIS"
-          }
-        ]
-      },
-      {
         "matcher": "mcp__claude-in-chrome__.*|mcp__plugin_playwright_playwright__.*",
         "hooks": [
           {
