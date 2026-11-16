@@ -72,6 +72,7 @@ target_date: YYYY-MM-DD  # когда replay-аудит
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-16 | [testtag-resource-id](2026-11-16-testtag-resource-id.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [android-tree-nav](2026-11-16-android-tree-nav.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [worktree-exit-holders](2026-11-16-worktree-exit-holders.md) | applied | 2026-11-30 | pending |
 | 2026-11-13 | [app-icon](2026-11-13-app-icon.md) | applied | 2026-11-27 | pending |

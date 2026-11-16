@@ -48,9 +48,29 @@ Android CLI от Google, версия не ниже `1.1.16919734` (`android --v
 
 ## Compose
 
-- В debug-сборке включи `Modifier.semantics { testTagsAsResourceId = true }` один раз высоко в дереве (корневой `Scaffold` или корень экрана). Тогда `Modifier.testTag("pay_button")` виден как `resource-id`, и работает `id=pay_button` (источник: developer.android.com/develop/ui/compose/testing/interoperability; `pay_button` — имя-пример). На Compose-приложении связка не проверялась: пробы шли на системных View.
-- Тег ставь на кликабельный контейнер, а не на внутренний `Text`.
-- Нет тега у нужного элемента — это находка для отчёта (предложить тег), а не повод перейти на координаты.
+Связка из двух частей. Тег (`Modifier.testTag`) — общий API, ставится в `commonMain`. Флаг `testTagsAsResourceId` — только Android (источник: developer.android.com/reference/kotlin/androidx/compose/ui/semantics/SemanticsPropertiesAndroid, Compose UI 1.2.0+), ставится в `androidMain`. Флаг действует на всё поддерево semantics: одного раза на корне `setContent` хватает для экранов Activity (источник: тот же раздел, описание свойства). `Dialog`, `ModalBottomSheet` и `Popup` открываются в своём окне со своим деревом, и флаг с корня Activity туда, вероятно, не доходит (не проверено — вывод из устройства Compose, источника нет). Признак: в коде у элемента диалога есть тег, а в `android layout` у узла нет `resource-id`. Тогда флаг ставится и на корень содержимого диалога. В `commonMain` это делается через `expect`/`actual`-модификатор, и решение принимает `@kmp-expert`.
+
+**Флаг — только debug, один раз на Activity.** Кто ставит — `@android-platform-expert`, когда `/mcp-mobile-test` не нашёл флага в проекте (команда, шаг 3):
+
+```kotlin
+setContent { // источник: developer.android.com/reference/kotlin/androidx/compose/ui/semantics/SemanticsPropertiesAndroid
+    Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = BuildConfig.DEBUG }) { // источник: тот же раздел
+        App()
+    }
+}
+```
+
+Есть корневой composable с параметром `modifier` — semantics вешается на него, лишний `Box` не нужен. Если `buildConfig` в модуле выключен, вместо `BuildConfig.DEBUG` берётся `(applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0` (источник: developer.android.com/reference/android/content/pm/ApplicationInfo). Включать `buildFeatures.buildConfig` (источник: AGP DSL, developer.android.com/reference/tools/gradle-api) ради одного флага не нужно. В release-сборке флаг выключен, поэтому release проверяется только по `text=`.
+
+**Теги — на каждом actionable-элементе.** Кто ставит — `@compose-expert` на каждом новом или изменённом экране (правило в его агенте):
+- формат `<экран>_<элемент>`, snake_case латиницей: `checkout_pay_button`, `login_email_field` (не проверено — имена-примеры, в коде их нет);
+- без текста интерфейса и без индекса позиции; элемент списка — с id сущности: `cart_item_<id>` (не проверено — имя-пример);
+- на кликабельном контейнере, а не на внутреннем `Text`;
+- существующий тег не переименовывается: на него завязаны скрипты `tests/device-flows/`.
+
+Нет тега у нужного элемента — находка для отчёта `@mobile-tester` с предложенным тегом, а не повод перейти на координаты. Главный отдаёт такие находки `@compose-expert` одной пачкой.
+
+Проверка связки на устройстве: `android layout --flat` — у узла с тегом поле `"resource-id":"checkout_pay_button"`, селектор `id=checkout_pay_button` нажимает его. Форма значения `resource-id` для Compose-тега не проверялась (не проверено — пробы шли на системных View); селектор `id=` ищет подстроку и сработает при любой форме.
 
 ## Где дерева нет
 
