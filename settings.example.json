@@ -234,6 +234,12 @@
           },
           {
             "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-shell-sweep.ps1\"",
+            "timeout": 60,
+            "statusMessage": "worktree: убираю скорлупы…"
+          },
+          {
+            "type": "command",
             "command": "python \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\claude-md-size-guard.py\"",
             "timeout": 10,
             "statusMessage": "CLAUDE.md: проверяю лимит строк и символов…"
@@ -342,6 +348,16 @@
             "type": "command",
             "command": "node \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-bash-hint.js\"",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "ExitWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\YOUR_USERNAME\\.claude\\hooks\\worktree-exit-watch.ps1\"",
+            "timeout": 30
           }
         ]
       },
