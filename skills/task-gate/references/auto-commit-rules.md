@@ -12,7 +12,7 @@ Auto-commit запускается, только если **все 6 услов�
 
 ### 1. Gate без блокеров
 
-В пунктах 2.1–2.9, Step 3, Step 4 — только `✅` или `⚠️` (warnings допустимы, **ни одного `❌`** блокера).
+В пунктах 2.1–2.10 и Step 3 — только `✅`, `⚠️` или `ℹ️` (warnings допустимы, **ни одного `❌`** блокера).
 
 ### 2. Есть несохранённое состояние
 
@@ -39,13 +39,7 @@ Auto-commit запускается, только если **все 6 услов�
 - Файлы вне ожидаемого scope задачи (например, modified `~/.zshrc` при задаче по Android-коду)
 - Файлы в системных директориях, которые не должны меняться (`/etc/`, `/usr/`, и т.п.)
 
-Проверка:
-```bash
-git diff --name-only --cached | grep -iE '\.env|\.key|\.pem|id_rsa|credentials|secret'
-git diff --name-only HEAD     | grep -iE '\.env|\.key|\.pem|id_rsa|credentials|secret'
-# Размер бинарников
-git status --porcelain | awk '/^[AM?]/ {print $2}' | xargs -I{} ls -la {} 2>/dev/null | awk '$5 > 1048576'
-```
+Проверка — поле `commit.suspicious` из `gate-prep.py`: имена по шаблону `\.env|\.key$|\.pem$|id_rsa|credentials|secret` и файлы больше 1 МБ среди `git status --porcelain -uall`. Файлы вне scope и системные пути скрипт не видит — их сверяет главный по списку `commit.dirty_files` (первые 20 из `commit.dirty_total`). `commit.dirty_truncated: true` → полный `git status --porcelain` перед решением по гарду 4.
 
 ### 5. 2.8 без unbacked TODO
 
