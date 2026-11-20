@@ -170,6 +170,8 @@ lib/__pycache__/
 !/skills/codex-imagegen/**
 !/skills/app-icon/
 !/skills/app-icon/**
+!/skills/claude-vertex-credits/
+!/skills/claude-vertex-credits/**
 
 # --- 11a. Process skills (kept after the 2026-08-03 revision) ----------------
 !/skills/claude-profiles/

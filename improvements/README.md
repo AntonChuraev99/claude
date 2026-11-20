@@ -74,6 +74,7 @@ target_date: YYYY-MM-DD | none  # когда replay-аудит; none — у пр
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-20 | [claude-vertex-credits](2026-11-20-claude-vertex-credits.md) | applied | 2026-12-04 | pending |
 | 2026-11-20 | [google-ads-expert](2026-11-20-google-ads-expert.md) | applied | 2026-12-04 | pending |
 | 2026-11-16 | [hooks-latency-2026-11](2026-11-16-hooks-latency-2026-11.md) | applied | 2026-11-30 | pending |
 | 2026-11-16 | [agents-cleanup-2026-11](2026-11-16-agents-cleanup-2026-11.md) | applied | 2026-12-14 | pending |
