@@ -64,6 +64,7 @@ Claude Code запускает stdio-MCP при старте сессии и д�
 | `artemis` (ARTEMIS) | `agents/mobile-tester.md`, спавн из `/mcp-mobile-test` | ~495 MB | `claude --continue --mcp-config "$HOME/.claude/config/mcp/device.json"` — на одну сессию |
 | `mobile` (claude-in-mobile) | там же | ~60 MB | та же строка |
 | `appstore` | `agents/marketing-expert.md` | ~45 MB | не нужно: данные сторов — работа `@marketing-expert`. Не поднялся у агента → нет `%USERPROFILE%\mcp-servers\mcp-appstore\server.js`: `git clone https://github.com/appreply-co/mcp-appstore` в этот каталог и `npm install` там |
+| `google-ads` (официальный `google-ads-mcp`, с 2026-11-20) | `agents/google-ads-expert.md`, лаунчер `agents/google-ads-expert/scripts/mcp_launch.py` | в главной не стоял | не нужно: кабинет Google Ads — работа `@google-ads-expert`. Не поднялся у агента → нет `uvx` в PATH (поставить uv) либо пакет не скачался: `python "$HOME/.claude/agents/google-ads-expert/scripts/mcp_launch.py" --print-config` и ручной запуск без флага |
 | `layout-debug` | только по флагу | 130–230 MB | `claude --continue --mcp-config "$HOME/.claude/config/mcp/layout-debug.json"` — на одну сессию, снимать после работы нечего |
 
 Профиль `claude` — с `$env:CLAUDE_CONFIG_DIR=$null` перед командой. Прошлый способ для
