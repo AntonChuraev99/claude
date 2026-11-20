@@ -49,7 +49,7 @@
 
 По памяти не называются — подтверждать в справке кабинета с датой.
 
-- **Google App campaigns:** дневной бюджет ≥50× target CPI для install-кампаний; ≥10× target CPA для in-app-action при ≥10 уникальных пользователях в день на оптимизационном событии; target action-кампании выше all-users на ≥20%.
+- **Google Ads (App campaigns, Search, PMax, Demand Gen):** пороги ведёт `@google-ads-expert` — `~/.claude/agents/google-ads-expert/references/best-practices.md` § 3-4, 6; бюджетный план для Google сверяй с ним.
 - **Meta AAC:** ~50 событий на ad set за 7 дней; кап 9 iOS install-кампаний на app ID; ≤5 ad set в каждой.
 - **TikTok:** Cost Cap ≥30× target CPA; Maximum Delivery ≥10× исторического CPA; на iOS доступен только Maximum Delivery.
 
@@ -57,6 +57,6 @@
 
 Правки автокампаний обнуляют learning на всех платформах: **креативы добавляют, а не удаляют.** Окно называешь по платформе, а не одно на всех.
 
-- **Google:** бюджет и таргет не чаще раза в 1-2 недели, шаг ±15-20%.
+- **Google:** шаг и окно правок — `~/.claude/agents/google-ads-expert/references/best-practices.md` § 3.
 - **TikTok:** +2-5 креативов за раз, оценка не раньше 3 дней.
 - **Meta AAC:** рестарт обучения при смене бюджета, креатива или типа атрибуции.

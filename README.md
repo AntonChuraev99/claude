@@ -32,7 +32,7 @@ Published so others can borrow patterns. Fork it and adapt to your own workflow.
 `feature-expert`, `compose-expert`, `core-expert`, `android-platform-expert` (Android platform
 layer and KMP architecture), `nextjs-expert`, `react-ui-expert`, `wasmjs-expert`, `design-expert`,
 `video-expert`, `test-expert`, `mobile-tester`, `bug-pattern-reviewer`, `product-expert`,
-`marketing-expert`, `google-play-console-expert`, `jira-expert`, `knowledge-scout`,
+`marketing-expert`, `google-play-console-expert`, `google-ads-expert`, `jira-expert`, `knowledge-scout`,
 `best-practices-scout`. Domain specialists plus two "scout" agents
 that read docs / the web on the main agent's behalf to keep its context clean. There is
 deliberately no "doc-writer" agent: task documentation is written by the main agent
