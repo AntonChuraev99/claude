@@ -34,7 +34,7 @@
 
 Для всех агентов. (прецедент shell-latency-bash-completion)
 
-- Файл — `Read`, текст — `Grep`/`Glob`, правка — `Edit`/`Write`, символы в коде — `ast-index` (`rebuild`/`update` не запускай), а не `cat`/`grep`/`find` через Bash — и в `bypassPermissions`: на Windows спавн шелла дорогой. Границы держит хук `bash-tool-discipline.js` и печатает их в отказе. В worktree индекс ast-index — от основного checkout'а: символы ветки ищи `Grep`.
+- Файл — `Read`, текст — `Grep`/`Glob`, правка — `Edit`/`Write`, символы в коде — `ast-index` (`rebuild`/`update` не запускай; индекса нет — скилл `setup`), а не `cat`/`grep`/`find` через Bash — и в `bypassPermissions`: на Windows спавн шелла дорогой. Границы держит хук `bash-tool-discipline.js` и печатает их в отказе. В worktree индекс ast-index — от основного checkout'а: символы ветки ищи `Grep`.
 - Bash — для сборки, тестов, git, `ast-index`, CLI; команды склеивай `&&`, независимые вызовы — одним сообщением. Ждать — `run_in_background` или `Monitor`.
 - **Текст между вызовами инструментов** — одна строка, когда меняется направление, найден факт, меняющий план, или шаг идёт долго. Полный Prompt Contract, разбор fail-loop'ов и финальный отчёт — полноценная проза. Субагент прозу между вызовами не пишет. (прецедент prose-turns-miscount)
 
