@@ -57,7 +57,7 @@ TOOLS = [
     ("firebase", "firebase", "firebase", None, "firebase-tools", None, "деплой Firebase"),
     ("gcloud", "gcloud", "firebase", "Google.CloudSDK", None, None, "Cloud Functions, логи, креды"),
     ("glab", "glab", "gitlab", "GLab.GLab", None, None, "MR в GitLab"),
-    ("gitleaks", "gitleaks", "harness", "Gitleaks.Gitleaks", None, None, "pre-commit анти-утечка"),
+    # gitleaks локально не требуем: hooks/pre-commit зовёт его, только если он стоит
 ]
 # gcloud ставится в Program Files и просит UAC — молча не ставим (memory: dev-tools-update-pitfalls)
 MANUAL_INSTALL = {"gcloud"}
