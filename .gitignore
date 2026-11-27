@@ -168,6 +168,8 @@ lib/__pycache__/
 !/skills/ui-demo-video/**
 !/skills/codex-imagegen/
 !/skills/codex-imagegen/**
+!/skills/codex-second-opinion/
+!/skills/codex-second-opinion/**
 !/skills/app-icon/
 !/skills/app-icon/**
 !/skills/claude-vertex-credits/
