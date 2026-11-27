@@ -170,6 +170,8 @@ lib/__pycache__/
 !/skills/codex-imagegen/**
 !/skills/codex-second-opinion/
 !/skills/codex-second-opinion/**
+!/skills/gemini-generate/
+!/skills/gemini-generate/**
 !/skills/app-icon/
 !/skills/app-icon/**
 !/skills/claude-vertex-credits/
@@ -199,6 +201,7 @@ lib/__pycache__/
 /skills/app-icon/scripts/__pycache__/
 /skills/task-gate/scripts/__pycache__/
 /skills/harness-doctor/scripts/__pycache__/
+/skills/gemini-generate/**/__pycache__/
 
 # --- 13. Belt-and-suspenders: hard-deny known sensitive files ----------------
 #  (already ignored by `*`, repeated here so a careless `!` rule above can

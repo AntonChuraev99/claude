@@ -74,6 +74,7 @@ target_date: YYYY-MM-DD | none  # когда replay-аудит; none — у пр
 
 | дата | slug | status | target_date | replay_status |
 |---|---|---|---|---|
+| 2026-11-27 | [gemini-generate](2026-11-27-gemini-generate.md) | applied | 2026-12-11 | pending |
 | 2026-11-27 | [codex-second-opinion](2026-11-27-codex-second-opinion.md) | applied | 2026-12-11 | pending |
 | 2026-11-24 | [setup-harness-doctor](2026-11-24-setup-harness-doctor.md) | applied | 2026-12-08 | pending |
 | 2026-11-20 | [claude-vertex-credits](2026-11-20-claude-vertex-credits.md) | applied | 2026-12-04 | pending |
